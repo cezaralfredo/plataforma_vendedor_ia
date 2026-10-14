@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar - Agenda Atende</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 50% 20%, #f1f5f9 0%, #f8fafc 100%);
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            padding: 1.5rem;
+        }
+        main {
+            width: 100%;
+            max-width: 26rem;
+            padding: 2.25rem;
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            border-radius: 1.25rem;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
+        }
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .brand-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.75rem;
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.1rem;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        .brand-subtitle {
+            margin: 0;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+        }
+        h1 {
+            margin: 0 0 0.5rem;
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: #0f172a;
+        }
+        .desc {
+            margin: 0 0 1.5rem;
+            font-size: 0.8125rem;
+            color: #64748b;
+            line-height: 1.4;
+        }
+        [role="alert"] {
+            margin-bottom: 1.25rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            font-size: 0.8125rem;
+            font-weight: 500;
+        }
+        label {
+            display: block;
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #475569;
+            margin-bottom: 0.35rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.65rem 0.85rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            color: #0f172a;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+        button {
+            width: 100%;
+            margin-top: 1.5rem;
+            padding: 0.75rem;
+            background: #2563eb;
+            color: white;
+            border: 0;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: background 0.15s, transform 0.1s;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:active {
+            transform: scale(0.99);
+        }
+        .footer-links {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-size: 0.8125rem;
+        }
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="brand-header">
+            <div class="brand-icon">✓</div>
+            <div>
+                <p class="brand-subtitle">Agenda Atende</p>
+                <div style="font-size: 0.875rem; font-weight: 600; color: #1e293b;">Administração</div>
+            </div>
+        </div>
+        <h1>Entrar no painel</h1>
+        <p class="desc">Informe seu usuário e sua senha para continuar.</p>
+        {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+        <form action="/admin/login" method="post">
+            <label for="username">Usuário</label>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="Digite seu usuário" required>
+            <label for="password">Senha</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button type="submit">Entrar</button>
+        </form>
+        <div class="footer-links">
+            <a href="/admin/recover">Esqueci minha senha</a>
+        </div>
+    </main>
+</body>
+</html>

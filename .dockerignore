@@ -1,0 +1,88 @@
+# =============================================================================
+# .dockerignore - Otimização de build Docker
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# Opencode
+.opencode/
+
+# Python
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info
+dist
+build
+.pytest_cache
+.coverage
+.tox
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups
+backups/
+*.sql.gz
+
+# Documentation
+README.md
+plano-de-implementacao.md
+*.md
+
+# Tests (opcional - remover se quiser rodar testes na imagem)
+tests/
+
+# Hermes
+hermes/
+
+# Alembic versions (manter apenas se precisar rodar migrações na imagem)
+# alembic/versions/
+
+# Scripts required by container images
+scripts/*
+!scripts/backup.sh
+!scripts/run_migrations.py
+!scripts/copy-admin-icons.cjs
+node_modules/
+.worktrees/
+
+# Nginx config (já montado como volume)
+nginx/
+
+# Certbot
+certbot/
+
+# GitHub
+.github/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

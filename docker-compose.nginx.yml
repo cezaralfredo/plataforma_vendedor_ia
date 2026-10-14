@@ -1,0 +1,111 @@
+# Produção com Nginx + Let's Encrypt automático (substitui Traefik).
+# Portainer: crie uma Stack com este arquivo e defina DOMAIN, ACME_EMAIL,
+# APP_NAME, ASAAS_BASE_URL, REGISTRY e GITHUB_REPOSITORY como variáveis.
+services:
+  nginx:
+    image: nginxproxy/nginx-proxy:alpine
+    container_name: agenda_atende_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - nginx_certs:/etc/nginx/certs:ro
+      - nginx_vhost:/etc/nginx/vhost.d
+      - nginx_html:/usr/share/nginx/html
+    networks:
+      - agenda_network
+
+  acme:
+    image: nginxproxy/acme-companion:2.6
+    restart: unless-stopped
+    environment:
+      DEFAULT_EMAIL: ${ACME_EMAIL}
+      NGINX_PROXY_CONTAINER: agenda_atende_nginx
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - nginx_certs:/etc/nginx/certs:rw
+      - nginx_vhost:/etc/nginx/vhost.d
+      - nginx_html:/usr/share/nginx/html
+      - acme_data:/etc/acme.sh
+    depends_on:
+      - nginx
+    networks:
+      - agenda_network
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agenda_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: agenda_atende
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agenda_user -d agenda_atende"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agenda_network
+
+  api:
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-agenda-atende}:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
+      API_KEY_FILE: /run/secrets/api_key
+      ADMIN_API_KEY_FILE: /run/secrets/admin_api_key
+      APP_NAME: ${APP_NAME:-Agenda Atende}
+      DEBUG: "false"
+      ASAAS_API_KEY_FILE: /run/secrets/asaas_api_key
+      ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/v3}
+      ASAAS_WEBHOOK_TOKEN_FILE: /run/secrets/asaas_webhook_token
+      SEED_DATA: "false"
+      VIRTUAL_HOST: ${DOMAIN}
+      VIRTUAL_PORT: "8000"
+      LETSENCRYPT_HOST: ${DOMAIN}
+      LETSENCRYPT_EMAIL: ${ACME_EMAIL}
+    secrets:
+      - postgres_password
+      - api_key
+      - admin_api_key
+      - asaas_api_key
+      - asaas_webhook_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nginx:
+        condition: service_started
+    expose:
+      - "8000"
+    networks:
+      - agenda_network
+
+volumes:
+  pgdata:
+  nginx_certs:
+  nginx_vhost:
+  nginx_html:
+  acme_data:
+
+networks:
+  agenda_network:
+    driver: bridge
+
+secrets:
+  postgres_password:
+    external: true
+  api_key:
+    external: true
+  admin_api_key:
+    external: true
+  asaas_api_key:
+    external: true
+  asaas_webhook_token:
+    external: true

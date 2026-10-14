@@ -1,0 +1,36 @@
+# Stack local isolada para desenvolvimento e validação.
+# Execute: docker compose -f docker-compose.local.yml up --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agenda_user
+      POSTGRES_PASSWORD: agenda_local_password
+      POSTGRES_DB: agenda_atende
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agenda_user -d agenda_atende"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - agenda_local_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://agenda_user:agenda_local_password@postgres:5432/agenda_atende
+      API_KEY: local-api-key
+      ADMIN_API_KEY: local-admin-api-key
+      APP_NAME: Agenda Atende (local)
+      DEBUG: "true"
+      ASAAS_API_KEY: ""
+      ASAAS_WEBHOOK_TOKEN: ""
+      SEED_DATA: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "18000:8000"
+
+volumes:
+  agenda_local_pgdata:

@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% set is_new = management is none %}
+{% set professional = management.professional if management else none %}
+
+{% block title %}{{ 'Novo profissional' if is_new else professional.name }} - Admin Agenda Atende{% endblock %}
+
+{% block page_title %}{{ 'Novo profissional' if is_new else 'Gestão de profissional' }}{% endblock %}
+
+{% block content %}
+<div x-data="professionalManagement()" class="space-y-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h3 class="text-base font-semibold tracking-tight text-slate-900">{{ 'Cadastrar profissional' if is_new else professional.name }}</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Dados cadastrais, grade de horários e condições comerciais em um só lugar.</p>
+        </div>
+        <a href="/admin/professionals" class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl transition-all text-xs font-medium shadow-xs inline-flex items-center gap-2">
+            <i class="fas fa-arrow-left text-xs text-slate-400"></i>Voltar
+        </a>
+    </div>
+
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+        <h4 class="font-semibold text-slate-900 text-sm mb-4">Dados do profissional</h4>
+        <form @submit.prevent="saveProfessional()" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Nome</span>
+                <input x-model.trim="professionalForm.name" required class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Telefone</span>
+                <input x-model.trim="professionalForm.phone" placeholder="+5511999999999" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">E-mail</span>
+                <input type="email" x-model.trim="professionalForm.email" placeholder="email@exemplo.com" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Foto (URL)</span>
+                <input type="url" x-model.trim="professionalForm.photo_url" placeholder="https://..." class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+            <label class="block md:col-span-2">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Descrição profissional</span>
+                <textarea x-model.trim="professionalForm.bio" rows="3" placeholder="Mini biografia ou especialidades..." class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
+            </label>
+            <label class="flex items-center gap-2.5 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                <input type="checkbox" x-model="professionalForm.active" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4">
+                <span>Profissional ativo para novos agendamentos</span>
+            </label>
+            <div class="flex justify-end gap-3 md:col-span-2 pt-2 border-t border-slate-100">
+                {% if not is_new %}
+                <button type="button" @click="archiveProfessional()" class="px-4 py-2.5 border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-medium transition-all shadow-xs">
+                    Arquivar ou excluir
+                </button>
+                {% endif %}
+                <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium shadow-sm transition-all">
+                    {{ 'Cadastrar profissional' if is_new else 'Salvar dados' }}
+                </button>
+            </div>
+            <p x-show="message" x-text="message" class="md:col-span-2 text-xs font-medium mt-1" :class="messageError ? 'text-rose-600' : 'text-emerald-700'"></p>
+        </form>
+    </section>
+
+    {% if not is_new %}
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <!-- Availability -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+            <h4 class="font-semibold text-slate-900 text-sm">Horários de atendimento</h4>
+            <p class="text-xs text-slate-500 mt-0.5">Períodos sobrepostos são bloqueados automaticamente.</p>
+            <div class="mt-4 space-y-2">
+                {% for slot in management.availability %}
+                <div class="flex items-center justify-between gap-3 bg-slate-50/90 border border-slate-200/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-800">
+                    <span class="font-medium">
+                        {% if slot.specific_date %}{{ slot.specific_date.strftime('%d/%m/%Y') }}{% else %}{{ ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'][slot.day_of_week] }}{% endif %}
+                        · {{ slot.start_time.strftime('%H:%M') }}–{{ slot.end_time.strftime('%H:%M') }}
+                    </span>
+                    <div class="flex gap-3 text-xs font-semibold">
+                        <button @click="editAvailability({{ slot.id }}, '{{ slot.start_time.strftime('%H:%M') }}', '{{ slot.end_time.strftime('%H:%M') }}')" class="text-blue-600 hover:text-blue-800">Editar</button>
+                        <button @click="deleteAvailability({{ slot.id }})" class="text-rose-600 hover:text-rose-800">Excluir</button>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 py-3 text-center">Nenhum horário cadastrado para este profissional.</p>
+                {% endfor %}
+            </div>
+            <form @submit.prevent="addAvailability()" class="mt-5 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4">
+                <select x-model="availabilityForm.day_of_week" class="px-3 py-2 border border-slate-300/80 rounded-xl text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    <option value="0">Segunda</option><option value="1">Terça</option><option value="2">Quarta</option>
+                    <option value="3">Quinta</option><option value="4">Sexta</option><option value="5">Sábado</option><option value="6">Domingo</option>
+                </select>
+                <input type="time" x-model="availabilityForm.start_time" required class="px-3 py-2 border border-slate-300/80 rounded-xl text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                <input type="time" x-model="availabilityForm.end_time" required class="px-3 py-2 border border-slate-300/80 rounded-xl text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                <button type="submit" class="col-span-3 px-4 py-2.5 border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-medium transition-all shadow-xs flex items-center justify-center gap-1.5">
+                    <i class="fas fa-plus text-[10px]"></i> Adicionar horário de atendimento
+                </button>
+            </form>
+        </section>
+
+        <!-- Services Offerings -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+            <h4 class="font-semibold text-slate-900 text-sm">Serviços oferecidos</h4>
+            <p class="mt-0.5 text-xs text-slate-500">Preço e duração são definidos pela empresa no catálogo de Serviços. Aqui você configura apenas a comissão deste profissional.</p>
+            <div class="mt-4 space-y-2">
+                {% for offering in management.offerings %}
+                <div class="bg-slate-50/90 border border-slate-200/60 rounded-xl p-3 text-xs">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">{{ offering.service_name }}</p>
+                            <p class="text-[11px] text-slate-500">{{ offering.service_description or 'Sem descrição' }}</p>
+                        </div>
+                        <button @click="removeOffering({{ offering.service_id }})" class="font-semibold text-rose-600 hover:text-rose-800">Remover</button>
+                    </div>
+                    <p class="mt-1.5 text-slate-600 font-medium">R$ {{ '%.2f'|format(offering.price_cents / 100)|replace('.', ',') }} · {{ offering.duration_minutes }} min · <span class="text-emerald-700 font-semibold">Comissão {{ offering.commission_percent }}%</span></p>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 py-3 text-center">Nenhum serviço associado a este profissional.</p>
+                {% endfor %}
+            </div>
+            <form @submit.prevent="saveOffering()" class="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                <select x-model="offeringForm.service_id" required class="col-span-2 px-3.5 py-2 border border-slate-300/80 rounded-xl text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    <option value="">Selecione um serviço do catálogo</option>
+                    {% for service in catalog %}
+                    <option value="{{ service.id }}">{{ service|service_option_label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="col-span-2 flex gap-3">
+                    <div class="relative flex-1">
+                        <input type="number" min="0" max="100" step="0.01" x-model="offeringForm.commission_percent" required placeholder="Comissão %" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                        <span class="absolute right-3 top-2 text-xs text-slate-400 font-medium">%</span>
+                    </div>
+                    <button type="submit" class="px-5 py-2 border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-medium transition-all shadow-xs flex items-center justify-center gap-1.5">
+                        <i class="fas fa-check text-[10px]"></i> Salvar serviço
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function professionalManagement() {
+    const professionalId = {{ professional.id if professional else 'null' }};
+    return {
+        message: '',
+        messageError: false,
+        professionalForm: {
+            name: {{ (professional.name if professional else '')|tojson }},
+            phone: {{ (professional.phone if professional else '')|tojson }},
+            email: {{ (professional.email if professional else '')|tojson }},
+            bio: {{ (professional.bio if professional else '')|tojson }},
+            photo_url: {{ (professional.photo_url if professional else '')|tojson }},
+            active: {{ professional.active|tojson if professional else 'true' }}
+        },
+        availabilityForm: {day_of_week: '0', start_time: '', end_time: ''},
+        offeringForm: {service_id: '', commission_percent: '10.00'},
+
+        showMessage(text, error = false) {
+            this.message = text;
+            this.messageError = error;
+        },
+        async request(url, method, payload) {
+            const response = await adminFetch(url, {
+                method,
+                headers: payload ? {'Content-Type': 'application/json'} : {},
+                body: payload ? JSON.stringify(payload) : undefined
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.detail || 'Não foi possível concluir a operação.');
+            }
+            return response.status === 204 ? null : response.json();
+        },
+        async saveProfessional() {
+            try {
+                const result = await this.request(
+                    professionalId ? `/admin/api/professionals/${professionalId}` : '/admin/api/professionals',
+                    professionalId ? 'PUT' : 'POST',
+                    this.professionalForm
+                );
+                if (!professionalId) {
+                    location.href = `/admin/professionals/${result.id}/edit`;
+                    return;
+                }
+                this.showMessage('Dados salvos.');
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        },
+        async archiveProfessional() {
+            const decision = await adminConfirm({
+                title: 'Arquivar profissional',
+                message: 'O profissional será arquivado para preservar o histórico ou excluído quando não possuir vínculos.',
+                confirmLabel: 'Continuar',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
+            try {
+                const result = await this.request(`/admin/api/professionals/${professionalId}`, 'DELETE');
+                this.showMessage(result.outcome === 'archived' ? 'Profissional arquivado.' : 'Profissional excluído.');
+                if (result.outcome === 'deleted') location.href = '/admin/professionals';
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        },
+        async addAvailability() {
+            try {
+                await this.request(`/admin/api/professionals/${professionalId}/availability`, 'POST', {
+                    day_of_week: Number(this.availabilityForm.day_of_week),
+                    start_time: this.availabilityForm.start_time,
+                    end_time: this.availabilityForm.end_time
+                });
+                location.reload();
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        },
+        async editAvailability(id, start, end) {
+            const startDecision = await adminConfirm({
+                title: 'Alterar início do horário', message: 'Informe o novo horário de início.',
+                confirmLabel: 'Continuar', inputLabel: 'Início (HH:MM)', inputRequired: true, value: start
+            });
+            if (!startDecision.confirmed) return;
+            const endDecision = await adminConfirm({
+                title: 'Alterar fim do horário', message: 'Informe o novo horário de término.',
+                confirmLabel: 'Salvar horário', inputLabel: 'Fim (HH:MM)', inputRequired: true, value: end
+            });
+            if (!endDecision.confirmed) return;
+            try {
+                await this.request(`/admin/api/professionals/${professionalId}/availability/${id}`, 'PUT', {start_time: startDecision.value, end_time: endDecision.value});
+                location.reload();
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        },
+        async deleteAvailability(id) {
+            const decision = await adminConfirm({
+                title: 'Excluir horário', message: 'Este período deixará de estar disponível para novos agendamentos.',
+                confirmLabel: 'Excluir horário', destructive: true
+            });
+            if (!decision.confirmed) return;
+            try {
+                await this.request(`/admin/api/professionals/${professionalId}/availability/${id}`, 'DELETE');
+                location.reload();
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        },
+        async saveOffering() {
+            try {
+                await this.request(`/admin/api/professionals/${professionalId}/services`, 'POST', {
+                    service_id: Number(this.offeringForm.service_id),
+                    commission_percent: this.offeringForm.commission_percent
+                });
+                location.reload();
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        },
+        async removeOffering(serviceId) {
+            const decision = await adminConfirm({
+                title: 'Remover serviço do profissional',
+                message: 'O serviço continuará no catálogo da empresa, mas não poderá mais ser agendado com este profissional.',
+                confirmLabel: 'Remover vínculo', destructive: true
+            });
+            if (!decision.confirmed) return;
+            try {
+                await this.request(`/admin/api/professionals/${professionalId}/services/${serviceId}`, 'DELETE');
+                location.reload();
+            } catch (error) {
+                this.showMessage(error.message, true);
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

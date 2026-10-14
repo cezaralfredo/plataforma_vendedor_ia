@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% block title %}Clientes - Admin Agenda Atende{% endblock %}
+{% block page_title %}Gestão de Clientes{% endblock %}
+{% block content %}
+<div x-data="clientsPage()" x-init="reload()" class="space-y-6">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p class="text-xs text-slate-500 font-medium">Cadastre clientes e acompanhe o histórico de agendamentos e faturamento de forma segura e protegida.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" @click="openImport()" class="inline-flex items-center justify-center rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition-all gap-2">
+        <i class="fas fa-file-import text-xs text-blue-600"></i>Importar clientes
+      </button>
+      <button type="button" @click="openCreate()" class="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 hover:shadow transition-all gap-2">
+        <i class="fas fa-user-plus text-xs"></i>Novo cliente
+      </button>
+    </div>
+  </header>
+
+  <section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <div class="flex flex-col gap-3 border-b border-slate-200/80 px-6 py-5 lg:flex-row lg:items-center lg:justify-between bg-white">
+      <div>
+        <h3 class="text-base font-semibold tracking-tight text-slate-900">Clientes da empresa</h3>
+        <p class="text-xs text-slate-500 mt-0.5"><span class="font-medium text-slate-800" x-text="total"></span> cliente(s) encontrado(s)</p>
+      </div>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input x-model.trim="search" @keydown.enter.prevent="page=1; reload()" type="search" placeholder="Buscar nome, telefone, e-mail ou cidade..." class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        <select x-model="status" @change="page=1; reload()" class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          <option value="active">Ativos</option>
+          <option value="archived">Arquivados</option>
+          <option value="all">Todos</option>
+        </select>
+        <button type="button" @click="page=1; reload()" class="rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 transition-all shadow-xs">
+          Buscar
+        </button>
+      </div>
+    </div>
+
+    <div x-show="loading" class="p-12 text-center text-xs font-medium text-slate-500">
+      <i class="fas fa-circle-notch mr-2 animate-spin text-blue-600"></i>Carregando clientes...
+    </div>
+
+    <div x-show="loadError && !loading" x-cloak class="m-5 rounded-2xl border border-rose-200 bg-rose-50/90 p-5 text-center shadow-xs">
+      <p class="text-xs font-medium text-rose-700" x-text="loadError"></p>
+      <button type="button" @click="reload()" class="mt-2 text-xs font-semibold text-rose-800 underline hover:text-rose-950 transition-colors">Tentar novamente</button>
+    </div>
+
+    <div x-show="!loading && !loadError" x-cloak>
+      <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+        <template x-for="client in clients" :key="client.id">
+          <article class="space-y-3 p-4" :class="client.active ? '' : 'bg-slate-50/60'">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="font-semibold text-slate-900" x-text="client.name"></p>
+                <template x-if="client.city || client.state">
+                  <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                    <i class="fas fa-map-marker-alt text-[10px] text-slate-400"></i>
+                    <span x-text="[client.city, client.state].filter(Boolean).join(' - ')"></span>
+                  </p>
+                </template>
+                <p class="text-xs text-slate-500 mt-0.5" x-text="maskPhone(client.phone)"></p>
+                <p class="text-xs text-slate-400" x-text="maskEmail(client.email)"></p>
+                <template x-if="client.tags && client.tags.length">
+                  <div class="flex flex-wrap gap-1 mt-1.5">
+                    <template x-for="tag in client.tags" :key="tag">
+                      <span class="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200/60" x-text="tag"></span>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="client.notes">
+                  <p class="text-[11px] text-slate-400 mt-1 italic" x-text="client.notes"></p>
+                </template>
+              </div>
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="client.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200/80'" x-text="client.active ? 'Ativo' : 'Arquivado'"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <p class="text-slate-400">Agendamentos</p>
+                <p class="font-semibold text-slate-800" x-text="client.appointments_total"></p>
+              </div>
+              <div>
+                <p class="text-slate-400">Pagamentos</p>
+                <p class="font-semibold text-slate-800" x-text="client.payments_received_total"></p>
+              </div>
+              <div>
+                <p class="text-slate-400">Último</p>
+                <p class="font-semibold text-slate-800" x-text="formatDate(client.last_appointment_at)"></p>
+              </div>
+            </div>
+            <div class="flex gap-4 border-t border-slate-100 pt-3 text-xs font-semibold">
+              <button x-show="client.active" @click="openEdit(client)" class="text-blue-600 hover:text-blue-800">Editar</button>
+              <button x-show="client.active" @click="remove(client)" class="text-rose-600 hover:text-rose-800">Arquivar</button>
+              <button x-show="!client.active" @click="reactivate(client)" class="text-emerald-600 hover:text-emerald-800">Reativar</button>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <div class="admin-table hidden md:block overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100">
+          <thead class="bg-slate-50/75 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
+            <tr>
+              <th class="px-5 py-3">Cliente</th>
+              <th class="px-5 py-3">Contato protegido</th>
+              <th class="px-5 py-3">Agendamentos</th>
+              <th class="px-5 py-3">Pagamentos recebidos</th>
+              <th class="px-5 py-3">Último agendamento</th>
+              <th class="px-5 py-3">Status</th>
+              <th class="px-5 py-3 text-right">Gestão</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100/80 text-sm text-slate-700">
+            <template x-for="client in clients" :key="client.id">
+              <tr :class="client.active ? 'hover:bg-blue-50/20' : 'bg-slate-50/50 text-slate-400 hover:bg-slate-50'" class="transition-colors">
+                <td class="px-5 py-3.5">
+                  <div class="font-medium text-slate-900" x-text="client.name"></div>
+                  <template x-if="client.city || client.state">
+                    <p class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <i class="fas fa-map-marker-alt text-[10px] text-slate-400"></i>
+                      <span x-text="[client.city, client.state].filter(Boolean).join(' - ')"></span>
+                    </p>
+                  </template>
+                  <template x-if="client.tags && client.tags.length">
+                    <div class="flex flex-wrap gap-1 mt-1.5">
+                      <template x-for="tag in client.tags" :key="tag">
+                        <span class="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200/60" x-text="tag"></span>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="client.notes">
+                    <p class="text-[11px] text-slate-400 mt-1 truncate max-w-xs italic" :title="client.notes" x-text="client.notes"></p>
+                  </template>
+                </td>
+                <td class="px-5 py-3.5 text-xs">
+                  <p class="font-medium text-slate-800" x-text="maskPhone(client.phone)"></p>
+                  <p class="text-[11px] text-slate-500" x-text="maskEmail(client.email)"></p>
+                </td>
+                <td class="px-5 py-3.5 text-xs font-medium text-slate-800" x-text="client.appointments_total"></td>
+                <td class="px-5 py-3.5 text-xs font-semibold text-emerald-700" x-text="client.payments_received_total"></td>
+                <td class="px-5 py-3.5 text-xs text-slate-600" x-text="formatDate(client.last_appointment_at)"></td>
+                <td class="px-5 py-3.5">
+                  <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" :class="client.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200/80'" x-text="client.active ? 'Ativo' : 'Arquivado'"></span>
+                </td>
+                <td class="px-5 py-3.5 text-right">
+                  <div class="inline-flex gap-3 text-xs font-medium">
+                    <button x-show="client.active" @click="openEdit(client)" class="text-blue-600 hover:text-blue-800">Editar</button>
+                    <button x-show="client.active" @click="remove(client)" class="text-rose-600 hover:text-rose-800">Arquivar</button>
+                    <button x-show="!client.active" @click="reactivate(client)" class="text-emerald-600 hover:text-emerald-800">Reativar</button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <div x-show="clients.length===0" class="px-5 py-14 text-center">
+        <p class="font-semibold text-slate-700 text-sm">Nenhum cliente neste filtro</p>
+        <p class="mt-1 text-xs text-slate-500">Ajuste os termos de busca ou cadastre um novo cliente.</p>
+        <div class="mt-4 flex items-center justify-center gap-3">
+          <button type="button" @click="openImport()" class="text-xs font-semibold text-slate-600 hover:text-slate-800">Importar planilha</button>
+          <span class="text-slate-300">|</span>
+          <button type="button" @click="openCreate()" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Cadastrar cliente</button>
+        </div>
+      </div>
+
+      <div x-show="totalPages>1" class="flex items-center justify-between border-t border-slate-200/80 px-6 py-4 text-xs bg-white">
+        <button @click="previousPage()" :disabled="page<=1" class="font-medium text-slate-700 hover:text-blue-700 disabled:text-slate-300 disabled:cursor-not-allowed">Anterior</button>
+        <span class="text-slate-500">Página <span class="font-semibold text-slate-800" x-text="page"></span> de <span class="font-semibold text-slate-800" x-text="totalPages"></span></span>
+        <button @click="nextPage()" :disabled="page>=totalPages" class="font-medium text-slate-700 hover:text-blue-700 disabled:text-slate-300 disabled:cursor-not-allowed">Próxima</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal de Criação / Edição de Cliente -->
+  <div x-show="formOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="formOpen=false">
+    <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="formOpen=false">
+      <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="editingId?'Editar cliente':'Novo cliente'"></h3>
+          <p class="text-xs text-slate-500">Preencha os dados do cliente (campos com * são obrigatórios).</p>
+        </div>
+        <button type="button" @click="formOpen=false" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+      <form class="space-y-4" @submit.prevent="save()">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          Nome <span class="text-rose-500">*</span>
+          <input x-model.trim="form.name" required placeholder="Nome completo do cliente" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+            Telefone <span class="text-rose-500">*</span>
+            <input x-model.trim="form.phone" required inputmode="tel" placeholder="(11) 99999-8888" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          </label>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+            E-mail
+            <input x-model.trim="form.email" type="email" placeholder="cliente@exemplo.com" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          </label>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Cidade
+              <input x-model.trim="form.city" placeholder="Ex: São Paulo" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Estado (UF)
+              <select x-model="form.state" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                <option value="">UF</option>
+                <option value="AC">AC</option>
+                <option value="AL">AL</option>
+                <option value="AP">AP</option>
+                <option value="AM">AM</option>
+                <option value="BA">BA</option>
+                <option value="CE">CE</option>
+                <option value="DF">DF</option>
+                <option value="ES">ES</option>
+                <option value="GO">GO</option>
+                <option value="MA">MA</option>
+                <option value="MT">MT</option>
+                <option value="MS">MS</option>
+                <option value="MG">MG</option>
+                <option value="PA">PA</option>
+                <option value="PB">PB</option>
+                <option value="PR">PR</option>
+                <option value="PE">PE</option>
+                <option value="PI">PI</option>
+                <option value="RJ">RJ</option>
+                <option value="RN">RN</option>
+                <option value="RS">RS</option>
+                <option value="RO">RO</option>
+                <option value="RR">RR</option>
+                <option value="SC">SC</option>
+                <option value="SP">SP</option>
+                <option value="SE">SE</option>
+                <option value="TO">TO</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          Tags
+          <input x-model.trim="form.tags" placeholder="vip, recorrente, indicação" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          <span class="mt-1 block text-[11px] font-normal text-slate-400">Separe os marcadores por vírgula</span>
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          Observações
+          <textarea x-model.trim="form.notes" rows="2" placeholder="Observações, preferências ou notas adicionais..." class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
+        </label>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          WhatsApp <span class="font-normal text-slate-400 normal-case">(opcional, se diferente do telefone)</span>
+          <input x-model.trim="form.whatsapp_number" inputmode="tel" placeholder="Mesmo do telefone se em branco" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        </label>
+        <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" @click="formOpen=false" class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-xs">Cancelar</button>
+          <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-60 flex items-center gap-1.5" x-text="saving?'Salvando...':'Salvar'"></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Importação de Clientes -->
+  <div x-show="importModalOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="if(!importing) importModalOpen=false">
+    <div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="if(!importing) importModalOpen=false">
+      <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <i class="fas fa-file-import text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-semibold tracking-tight text-slate-900">Importar Clientes</h3>
+            <p class="text-xs text-slate-500">Planilhas CSV, outros CRMs ou plataformas externas</p>
+          </div>
+        </div>
+        <button type="button" @click="importModalOpen=false" :disabled="importing" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors disabled:opacity-50">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Formulário de Importação -->
+      <div x-show="!importSummary" class="space-y-4">
+        <!-- Download de Modelo -->
+        <div class="flex items-center justify-between rounded-xl bg-slate-50 p-3.5 border border-slate-200/80 text-xs">
+          <div>
+            <p class="font-medium text-slate-800">Precisa de um modelo?</p>
+            <p class="text-slate-500">Baixe nossa planilha modelo com as colunas recomendadas.</p>
+          </div>
+          <button type="button" @click="downloadTemplate()" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 font-medium text-blue-600 border border-slate-200 shadow-2xs hover:bg-blue-50/50 transition-all">
+            <i class="fas fa-download text-[11px]"></i>Baixar CSV modelo
+          </button>
+        </div>
+
+        <!-- Seleção de Arquivo -->
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+            Arquivo CSV
+          </label>
+          <div class="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-blue-400 hover:bg-blue-50/20 transition-all cursor-pointer"
+               @click="$refs.fileInput.click()">
+            <input type="file" x-ref="fileInput" accept=".csv,text/csv" class="hidden" @change="handleFileSelect($event)">
+            <i class="fas fa-cloud-upload-alt text-3xl mb-2" :class="importFile ? 'text-blue-600' : 'text-slate-400'"></i>
+            <template x-if="!importFile">
+              <div>
+                <p class="text-xs font-medium text-slate-700">Clique para selecionar o arquivo CSV</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">Formatos suportados: .csv (vírgula ou ponto e vírgula)</p>
+              </div>
+            </template>
+            <template x-if="importFile">
+              <div class="text-xs">
+                <p class="font-semibold text-blue-700" x-text="importFile.name"></p>
+                <p class="text-slate-500 mt-0.5" x-text="`${(importFile.size / 1024).toFixed(1)} KB selecionado`"></p>
+                <button type="button" @click.stop="importFile = null; $refs.fileInput.value = ''" class="mt-2 text-rose-600 underline text-[11px] hover:text-rose-800">Remover arquivo</button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Configurações da Importação -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Plataforma de Origem
+            </label>
+            <select x-model="importSource" class="w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+              <option value="import_csv">Planilha CSV / Excel</option>
+              <option value="hubspot">HubSpot</option>
+              <option value="rd_station">RD Station</option>
+              <option value="evolution_crm">Evolution / Evo CRM</option>
+              <option value="google_contacts">Google Contatos</option>
+              <option value="asaas">Asaas</option>
+              <option value="outro">Outra ferramenta</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Contatos Duplicados
+            </label>
+            <select x-model="importStrategy" class="w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+              <option value="update">Atualizar dados e mesclar tags (Recomendado)</option>
+              <option value="skip">Ignorar existentes (Pular)</option>
+              <option value="error">Rejeitar duplicados como erro</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" @click="importModalOpen=false" :disabled="importing" class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-xs disabled:opacity-50">
+            Cancelar
+          </button>
+          <button type="button" @click="executeImport()" :disabled="!importFile || importing" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50 flex items-center gap-2">
+            <template x-if="importing">
+              <i class="fas fa-circle-notch animate-spin text-xs"></i>
+            </template>
+            <span x-text="importing ? 'Importando contatos...' : 'Iniciar importação'"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Resumo / Resultados da Importação -->
+      <div x-show="importSummary" class="space-y-4">
+        <div class="rounded-2xl bg-slate-50 border border-slate-200/80 p-4">
+          <p class="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-3">Resultado do processamento</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            <div class="rounded-xl bg-white p-2.5 border border-slate-200/70 shadow-2xs">
+              <p class="text-lg font-bold text-slate-800" x-text="importSummary?.total || 0"></p>
+              <p class="text-[11px] text-slate-500">Total Linhas</p>
+            </div>
+            <div class="rounded-xl bg-emerald-50 p-2.5 border border-emerald-200/70 shadow-2xs">
+              <p class="text-lg font-bold text-emerald-700" x-text="importSummary?.created || 0"></p>
+              <p class="text-[11px] text-emerald-600">Novos Criados</p>
+            </div>
+            <div class="rounded-xl bg-blue-50 p-2.5 border border-blue-200/70 shadow-2xs">
+              <p class="text-lg font-bold text-blue-700" x-text="importSummary?.updated || 0"></p>
+              <p class="text-[11px] text-blue-600">Atualizados</p>
+            </div>
+            <div class="rounded-xl bg-rose-50 p-2.5 border border-rose-200/70 shadow-2xs">
+              <p class="text-lg font-bold text-rose-700" x-text="importSummary?.errors || 0"></p>
+              <p class="text-[11px] text-rose-600">Erros / Falhas</p>
+            </div>
+          </div>
+          <div x-show="importSummary?.skipped > 0" class="mt-2 text-center text-xs text-slate-500">
+            <span class="font-semibold text-slate-700" x-text="importSummary?.skipped"></span> contato(s) já existente(s) foram ignorados.
+          </div>
+        </div>
+
+        <!-- Detalhes de Erros (se houver) -->
+        <template x-if="importSummary?.details?.some(d => d.status === 'error')">
+          <div class="rounded-xl border border-rose-200 bg-rose-50/60 p-3 max-h-40 overflow-y-auto">
+            <p class="text-xs font-semibold text-rose-800 mb-2">Linhas com erro:</p>
+            <ul class="space-y-1 text-xs text-rose-700">
+              <template x-for="detail in importSummary.details.filter(d => d.status === 'error')" :key="detail.index">
+                <li class="flex items-start gap-1.5">
+                  <i class="fas fa-exclamation-circle text-rose-500 mt-0.5 text-[10px]"></i>
+                  <span>Linha <strong x-text="detail.index"></strong> (<span x-text="detail.name || 'Sem nome'"></span>): <span x-text="detail.message"></span></span>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+
+        <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+          <button type="button" @click="closeImportModal()" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all">
+            Concluir e Ver Clientes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function clientsPage(){return{
+  clients:[],total:0,page:1,pageSize:20,totalPages:0,search:'',status:'active',loading:false,loadError:'',formOpen:false,editingId:null,saving:false,
+  form:{name:'',phone:'',email:'',whatsapp_number:'',city:'',state:'',tags:'',notes:''},
+  importModalOpen:false,importing:false,importFile:null,importSource:'import_csv',importStrategy:'update',importSummary:null,
+  maskPhone(value){const digits=String(value||'').replace(/\D/g,'');return digits.length<6?'Não informado':`${digits.slice(0,4)}••••${digits.slice(-3)}`},
+  maskEmail(value){if(!value||!value.includes('@'))return '';const [name,domain]=value.split('@');return `${name.slice(0,2)}•••@${domain}`},
+  formatDate(value){return value?new Intl.DateTimeFormat('pt-BR').format(new Date(value)):'Nenhum'},
+  async request(url,options={}){const response=await adminFetch(url,{headers:{'Content-Type':'application/json'},...options});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail||'Não foi possível concluir a operação.')}return response.status===204?null:response.json()},
+  async reload(){this.loading=true;this.loadError='';try{const query=new URLSearchParams({page:this.page,page_size:this.pageSize,status:this.status});if(this.search)query.set('search',this.search);const result=await this.request(`/admin/api/clients?${query}`);this.clients=result.data||[];this.total=result.total||0;this.totalPages=result.total_pages||0}catch(error){this.clients=[];this.loadError=error.message}finally{this.loading=false}},
+  openCreate(){this.editingId=null;this.form={name:'',phone:'',email:'',whatsapp_number:'',city:'',state:'',tags:'',notes:''};this.formOpen=true},
+  openEdit(client){
+    this.editingId=client.id;
+    this.form={
+      name:client.name,
+      phone:client.phone,
+      email:client.email||'',
+      whatsapp_number:client.whatsapp_number||'',
+      city:client.city||'',
+      state:client.state||'',
+      tags:Array.isArray(client.tags)?client.tags.join(', '):(client.tags||''),
+      notes:client.notes||''
+    };
+    this.formOpen=true;
+  },
+  async save(){
+    this.saving=true;
+    try{
+      const payload={
+        name:this.form.name,
+        phone:this.form.phone,
+        email:this.form.email||null,
+        whatsapp_number:this.form.whatsapp_number||null,
+        city:this.form.city||null,
+        state:this.form.state||null,
+        tags:this.form.tags||[],
+        notes:this.form.notes||null
+      };
+      await this.request(this.editingId?`/admin/api/clients/${this.editingId}`:'/admin/api/clients',{method:this.editingId?'PUT':'POST',body:JSON.stringify(payload)});
+      this.formOpen=false;
+      await this.reload();
+      adminNotify({type:'success',message:'Cliente salvo com sucesso.'});
+    }catch(error){
+      adminNotify({type:'error',message:error.message});
+    }finally{
+      this.saving=false;
+    }
+  },
+  async remove(client){const decision=await adminConfirm({title:'Arquivar cliente',message:`Deseja arquivar ${client.name}? Se não houver histórico, o cadastro será removido definitivamente.`,confirmLabel:'Continuar',tone:'danger'});if(!decision.confirmed)return;try{const result=await this.request(`/admin/api/clients/${client.id}`,{method:'DELETE'});await this.reload();adminNotify({type:'success',message:result.outcome==='deleted'?'Cliente sem histórico removido.':'Cliente arquivado; o histórico foi preservado.'})}catch(error){adminNotify({type:'error',message:error.message})}},
+  async reactivate(client){try{await this.request(`/admin/api/clients/${client.id}/reactivate`,{method:'POST'});await this.reload();adminNotify({type:'success',message:`${client.name} foi reativado.`})}catch(error){adminNotify({type:'error',message:error.message})}},
+  previousPage(){if(this.page>1){this.page--;this.reload()}},nextPage(){if(this.page<this.totalPages){this.page++;this.reload()}},
+  openImport(){this.importFile=null;this.importSummary=null;this.importing=false;this.importModalOpen=true},
+  handleFileSelect(event){const f=event.target.files?.[0];if(f)this.importFile=f},
+  downloadTemplate(){
+    const csvContent='Nome,Telefone,Email,Cidade,Estado,Tags,Observacoes\nExemplo Cliente,(11) 99999-8888,cliente@exemplo.com,São Paulo,SP,"vip, recorrente",Cliente pontual\n';
+    const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
+    const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='modelo_importacao_clientes.csv';link.click();URL.revokeObjectURL(link.href);
+  },
+  async executeImport(){
+    if(!this.importFile)return;
+    this.importing=true;
+    try{
+      const formData=new FormData();
+      formData.append('file',this.importFile);
+      const url=`/admin/api/clients/import/csv?source=${encodeURIComponent(this.importSource)}&deduplication_strategy=${encodeURIComponent(this.importStrategy)}`;
+      const response=await adminFetch(url,{method:'POST',body:formData});
+      if(!response.ok){const err=await response.json().catch(()=>({}));throw new Error(err.detail||'Falha ao processar arquivo.')}
+      const summary=await response.json();
+      this.importSummary=summary;
+      await this.reload();
+      adminNotify({type:'success',message:`Importação concluída: ${summary.created} criados, ${summary.updated} atualizados.`});
+    }catch(error){adminNotify({type:'error',message:error.message})}finally{this.importing=false}
+  },
+  closeImportModal(){this.importModalOpen=false;this.importFile=null;this.importSummary=null;this.reload()}
+}}
+</script>
+{% endblock %}

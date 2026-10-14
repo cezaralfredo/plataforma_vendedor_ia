@@ -1,0 +1,32 @@
+# Exemplo de configuração do rclone para backup remoto
+# Copie este arquivo para rclone/rclone.conf e edite com suas credenciais
+# 
+# Para gerar: rclone config (interativo) ou preencha manualmente abaixo
+#
+# Provedores suportados: S3 (AWS, Wasabi, MinIO), Google Drive, Dropbox, OneDrive, SFTP, etc.
+
+[remote]
+type = s3
+provider = Other
+env_auth = false
+access_key_id = YOUR_ACCESS_KEY
+secret_access_key = YOUR_SECRET_KEY
+region = us-east-1
+endpoint = https://s3.wasabisys.com
+location_constraint = us-east-1
+acl = private
+
+# Exemplo para Google Drive:
+# [remote]
+# type = drive
+# scope = drive
+# token = {"access_token":"...","token_type":"Bearer","refresh_token":"...","expiry":"..."}
+
+# Exemplo para SFTP:
+# [remote]
+# type = sftp
+# host = backup.seu-servidor.com
+# user = backup_user
+# port = 22
+# key_file = /config/rclone/id_rsa
+# key_file_pass = YOUR_KEY_PASSPHRASE

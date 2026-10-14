@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[x-cloak] { display: none !important; }
+.sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+@layer components {
+  .status-badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full tracking-wide transition-colors;
+  }
+  .status-pending, .payment-pending {
+    @apply bg-amber-50 text-amber-800 border border-amber-200/90;
+  }
+  .status-confirmed, .payment-received {
+    @apply bg-emerald-50 text-emerald-800 border border-emerald-200/90;
+  }
+  .status-completed, .payment-confirmed {
+    @apply bg-sky-50 text-sky-800 border border-sky-200/90;
+  }
+  .status-cancelled, .payment-overdue, .payment-cancelled {
+    @apply bg-rose-50 text-rose-800 border border-rose-200/90;
+  }
+  .status-awaiting_payment {
+    @apply bg-orange-50 text-orange-800 border border-orange-200/90;
+  }
+  .payment-refunded {
+    @apply bg-slate-100 text-slate-700 border border-slate-200/90;
+  }
+}

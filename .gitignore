@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment files (SECRETS - NUNCA COMMITAR)
+.env
+.env.*
+!.env.example
+!.env.prod.example
+!.env.hermes.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+test_agenda.db
+
+# IDE
+.vscode/
+.idea/
+.worktrees/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+*.sql.gz
+
+# Docker
+.docker/
+
+# Documentation build
+docs/_build/
+
+# Opencode
+.opencode/
+
+# Hermes (configuração local)
+hermes/.hermes/
+
+# Alembic compiled
+alembic/versions/*.pyc
+
+# Test artifacts
+htmlcov/
+.coverage.*
+coverage.xml
+
+# Distribution
+dist/
+build/
+uv.lock
+node_modules/

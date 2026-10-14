@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "build:admin-css": "tailwindcss -i app/admin/static/src/admin.css -o app/admin/static/admin.css --minify",
+    "build:admin": "npm run build:admin-css && node scripts/copy-admin-icons.cjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17",
+    "@fortawesome/fontawesome-free": "6.4.0"
+  }
+}

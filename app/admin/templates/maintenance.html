@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+
+{% block title %}Limpeza e Retenção - Admin Agenda Atende{% endblock %}
+
+{% block page_title %}Limpeza e Retenção de Dados{% endblock %}
+
+{% block content %}
+<div x-data="maintenance()" x-init="init()" class="space-y-6">
+
+    <!-- Alert / Notifications -->
+    <div x-show="errorMessage" x-cloak role="alert"
+         class="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-rose-900 shadow-sm">
+        <div class="flex items-center gap-2.5">
+            <i class="fas fa-exclamation-triangle text-rose-600 text-base"></i>
+            <span class="text-xs font-medium" x-text="errorMessage"></span>
+        </div>
+        <button type="button" @click="errorMessage = ''" class="text-rose-700 hover:text-rose-900 font-semibold text-xs">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <div x-show="successMessage" x-cloak role="status"
+         class="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-900 shadow-sm">
+        <div class="flex items-center gap-2.5">
+            <i class="fas fa-check-circle text-emerald-600 text-base"></i>
+            <span class="text-xs font-medium" x-text="successMessage"></span>
+        </div>
+        <button type="button" @click="successMessage = ''" class="text-emerald-700 hover:text-emerald-900 font-semibold text-xs">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Header Description Card -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-semibold tracking-tight text-slate-900 flex items-center gap-2.5">
+                    <i class="fas fa-database text-blue-600"></i>
+                    Controle de Retenção & Manutenção do Banco
+                </h3>
+                <p class="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                    Gerencie o ciclo de vida dos dados históricos da empresa. Remova com segurança agendamentos passados,
+                    reservas abandonadas sem pagamento e outbox antigo para manter a performance máxima e liberar espaço no disco da VPS.
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
+                    Banco Ativo
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Configuration & Simulation Form -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 space-y-6">
+        <h4 class="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-3">
+            1. Definir Período de Corte e Escopo
+        </h4>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Cutoff selection -->
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Período de Retenção Rápido</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" @click="setMonths(3)"
+                            :class="selectedMonths === 3 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'"
+                            class="px-3 py-2 text-xs font-medium rounded-xl border transition-all text-center shadow-xs">
+                        3 meses
+                    </button>
+                    <button type="button" @click="setMonths(6)"
+                            :class="selectedMonths === 6 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'"
+                            class="px-3 py-2 text-xs font-medium rounded-xl border transition-all text-center shadow-xs">
+                        6 meses
+                    </button>
+                    <button type="button" @click="setMonths(12)"
+                            :class="selectedMonths === 12 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'"
+                            class="px-3 py-2 text-xs font-medium rounded-xl border transition-all text-center shadow-xs">
+                        1 ano
+                    </button>
+                    <button type="button" @click="setMonths(24)"
+                            :class="selectedMonths === 24 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'"
+                            class="px-3 py-2 text-xs font-medium rounded-xl border transition-all text-center shadow-xs">
+                        2 anos
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom date -->
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Data Limite de Corte (Anteriores a)</label>
+                <input type="date" x-model="cutoffDate" @change="selectedMonths = null; runPreview()"
+                       class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                <p class="text-[11px] text-slate-400 mt-1">Registros com término anterior a esta data serão selecionados.</p>
+            </div>
+
+            <!-- Options -->
+            <div class="space-y-3">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Opções de Limpeza</label>
+                <label class="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700 select-none">
+                    <input type="checkbox" x-model="unpaidCancelledOnly" @change="runPreview()"
+                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 h-4 w-4">
+                    <span>
+                        <strong class="text-slate-900">Apenas descartados/não pagos</strong>
+                        <span class="block text-[11px] text-slate-500">Preserva todos os atendimentos concluídos e apaga apenas abandonados/cancelados sem receita.</span>
+                    </span>
+                </label>
+                <label class="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700 select-none">
+                    <input type="checkbox" x-model="runVacuum"
+                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 h-4 w-4">
+                    <span>
+                        <strong class="text-slate-900">Executar VACUUM ANALYZE</strong>
+                        <span class="block text-[11px] text-slate-500">Devolve imediatamente o espaço livre de disco ao sistema operacional da VPS.</span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+            <button type="button" @click="runPreview()" :disabled="loadingPreview"
+                    class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-medium transition-all flex items-center gap-2 disabled:opacity-50 shadow-xs">
+                <i class="fas fa-sync-alt text-xs" :class="{ 'fa-spin': loadingPreview }"></i>
+                <span x-text="loadingPreview ? 'Calculando...' : 'Recalcular Contagem'"></span>
+            </button>
+            <span class="text-[11px] text-slate-400">Nenhum dado é modificado durante a simulação.</span>
+        </div>
+    </section>
+
+    <!-- Simulation Results Cards -->
+    <section class="space-y-4">
+        <h4 class="text-sm font-semibold text-slate-900">
+            2. Impacto Estimado do Expurgo
+        </h4>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- Total Agendamentos -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 hover:border-blue-300 transition-all duration-200 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Agendamentos</span>
+                    <i class="fas fa-calendar-times text-slate-400"></i>
+                </div>
+                <div class="mt-3">
+                    <div class="text-2xl font-semibold tracking-tight text-slate-900" x-text="previewData.appointments_count"></div>
+                    <div class="text-xs text-slate-500 mt-1">
+                        <span class="font-medium text-slate-700" x-text="previewData.completed_count"></span> concluídos • <span class="font-medium text-slate-700" x-text="previewData.cancelled_unpaid_count"></span> não pagos
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pagamentos Vinculados -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 hover:border-amber-300 transition-all duration-200 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-amber-600">Pagamentos</span>
+                    <i class="fas fa-credit-card text-amber-500"></i>
+                </div>
+                <div class="mt-3">
+                    <div class="text-2xl font-semibold tracking-tight text-slate-900" x-text="previewData.payments_count"></div>
+                    <div class="text-xs text-slate-500 mt-1">Cobranças e recibos vinculados</div>
+                </div>
+            </div>
+
+            <!-- Notificações e Webhooks -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 hover:border-indigo-300 transition-all duration-200 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-indigo-600">Logs & Entregas</span>
+                    <i class="fas fa-paper-plane text-indigo-500"></i>
+                </div>
+                <div class="mt-3">
+                    <div class="text-2xl font-semibold tracking-tight text-slate-900" x-text="previewData.notifications_count"></div>
+                    <div class="text-xs text-slate-500 mt-1">Mensagens outbox e registros</div>
+                </div>
+            </div>
+
+            <!-- Espaço Estimado -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 hover:border-emerald-300 transition-all duration-200 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Espaço Estimado</span>
+                    <i class="fas fa-hdd text-emerald-500"></i>
+                </div>
+                <div class="mt-3">
+                    <div class="text-2xl font-semibold tracking-tight text-emerald-700">
+                        <span x-text="formatSpace(previewData.estimated_kb_freed)"></span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1">Recuperável via VACUUM</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Actions Bar -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-xs text-slate-600">
+                <i class="fas fa-shield-alt text-blue-600 mr-1.5"></i>
+                <strong>Recomendação de Segurança:</strong>
+                Baixe a planilha CSV com todo o histórico antes de executar a exclusão.
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <!-- Download CSV -->
+                <button type="button" @click="downloadCsv()" :disabled="previewData.appointments_count === 0"
+                        class="w-full sm:w-auto px-4 py-2.5 bg-blue-50/80 text-blue-700 border border-blue-200/80 hover:bg-blue-100 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs">
+                    <i class="fas fa-file-csv text-blue-600 text-sm"></i>
+                    <span>Exportar Backup (CSV)</span>
+                </button>
+
+                <!-- Purge Action Button -->
+                <button type="button" @click="showConfirmModal = true" :disabled="previewData.appointments_count === 0 || purging"
+                        class="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                    <span x-text="purging ? 'Expurgando...' : 'Executar Limpeza Segura'"></span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Confirmation Modal -->
+    <div x-show="showConfirmModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div @click.away="showConfirmModal = false"
+             class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-slate-200/80">
+            <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center text-xl">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-semibold tracking-tight text-slate-900">Confirmar Limpeza Definitiva?</h3>
+                <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+                    Você está prestes a excluir <strong class="text-slate-900" x-text="previewData.appointments_count"></strong> agendamentos
+                    anteriores a <strong class="text-slate-900" x-text="formatDateBr(cutoffDate)"></strong>.
+                    Esta operação removerá os registros correspondentes do banco de dados.
+                </p>
+                <div x-show="!unpaidCancelledOnly" class="mt-3 p-3 bg-amber-50/80 rounded-xl border border-amber-200/80 text-xs text-amber-800">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    A opção de incluir atendimentos concluídos está ativada. Certifique-se de ter baixado o backup em CSV antes de continuar.
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" @click="showConfirmModal = false"
+                        class="px-4 py-2 border border-slate-200/90 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-medium transition-all shadow-xs">
+                    Cancelar
+                </button>
+                <button type="button" @click="executePurge()" :disabled="purging"
+                        class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-medium transition-all flex items-center gap-2 shadow-sm">
+                    <i class="fas fa-trash-alt text-xs" x-show="!purging"></i>
+                    <i class="fas fa-spinner fa-spin text-xs" x-show="purging"></i>
+                    <span x-text="purging ? 'Processando...' : 'Sim, Excluir Registros'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function maintenance() {
+    return {
+        cutoffDate: '{{ default_cutoff_date }}',
+        selectedMonths: 6,
+        unpaidCancelledOnly: true,
+        runVacuum: true,
+        loadingPreview: false,
+        purging: false,
+        showConfirmModal: false,
+        errorMessage: '',
+        successMessage: '',
+        previewData: {
+            appointments_count: 0,
+            completed_count: 0,
+            cancelled_unpaid_count: 0,
+            payments_count: 0,
+            notifications_count: 0,
+            estimated_kb_freed: 0.0
+        },
+
+        async init() {
+            await this.runPreview();
+        },
+
+        setMonths(months) {
+            this.selectedMonths = months;
+            const d = new Date();
+            d.setDate(d.getDate() - (months * 30));
+            this.cutoffDate = d.toISOString().split('T')[0];
+            this.runPreview();
+        },
+
+        async runPreview() {
+            this.loadingPreview = true;
+            this.errorMessage = '';
+            try {
+                const params = new URLSearchParams({
+                    cutoff_date: this.cutoffDate,
+                    unpaid_cancelled_only: this.unpaidCancelledOnly ? 'true' : 'false'
+                });
+                const res = await adminFetch('/admin/api/maintenance/preview?' + params.toString());
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Falha ao calcular prévia da manutenção.');
+                }
+                this.previewData = await res.json();
+            } catch (e) {
+                this.errorMessage = e.message || 'Erro ao comunicar com o servidor.';
+            } finally {
+                this.loadingPreview = false;
+            }
+        },
+
+        downloadCsv() {
+            const params = new URLSearchParams({
+                cutoff_date: this.cutoffDate,
+                unpaid_cancelled_only: this.unpaidCancelledOnly ? 'true' : 'false'
+            });
+            window.location.href = '/admin/api/maintenance/export-csv?' + params.toString();
+        },
+
+        async executePurge() {
+            this.purging = true;
+            this.errorMessage = '';
+            this.successMessage = '';
+            try {
+                const res = await adminFetch('/admin/api/maintenance/purge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cutoff_date: this.cutoffDate,
+                        unpaid_cancelled_only: this.unpaidCancelledOnly,
+                        run_vacuum: this.runVacuum,
+                        confirmed: true
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Falha ao executar a limpeza de dados.');
+                }
+
+                this.successMessage = data.message;
+                this.showConfirmModal = false;
+                await this.runPreview();
+            } catch (e) {
+                this.errorMessage = e.message || 'Erro ao processar limpeza.';
+            } finally {
+                this.purging = false;
+            }
+        },
+
+        formatSpace(kb) {
+            if (!kb || kb <= 0) return '0 KB';
+            if (kb >= 1024) {
+                return (kb / 1024).toFixed(2) + ' MB';
+            }
+            return kb.toFixed(1) + ' KB';
+        },
+
+        formatDateBr(isoDate) {
+            if (!isoDate) return '';
+            const parts = isoDate.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return isoDate;
+        }
+    };
+}
+</script>
+{% endblock %}

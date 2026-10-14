@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if request.state.admin_context.method == 'session' %}
+    <meta name="csrf-token" content="{{ request.state.admin_context.csrf_token }}">
+    {% endif %}
+    <script>
+        function adminFetch(url, options = {}) {
+            const headers = new Headers(options.headers);
+            const method = (options.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content;
+                if (token) headers.set('X-CSRF-Token', token);
+            }
+            return fetch(url, {...options, headers, credentials: 'same-origin'});
+        }
+    </script>
+    <title>{% block title %}Admin - Agenda Atende{% endblock %}</title>
+    <link href="/admin/static/admin.css" rel="stylesheet">
+    <script defer src="/admin/static/admin-ui.js"></script>
+    <script defer src="/admin/static/vendor/alpine.min.js"></script>
+    <link href="/admin/static/vendor/fontawesome/css/all.min.css" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-50/50 min-h-screen text-slate-800" x-data="{ sidebarOpen: false }">
+    <div class="min-h-screen">
+        <!-- Sidebar -->
+        <aside class="sidebar fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col border-r border-slate-200/80 bg-white shadow-xl lg:translate-x-0 lg:shadow-none"
+             :class="{ 'translate-x-0': sidebarOpen, '-translate-x-full': !sidebarOpen }">
+            <div class="flex flex-col h-full">
+                <div class="border-b border-slate-200/80 px-6 py-5">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/20">
+                            <i class="fas fa-calendar-check text-base"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base font-semibold tracking-tight text-slate-900">Agenda Atende</h1>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">Painel Geral</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <nav class="flex-1 space-y-1.5 overflow-y-auto px-4 py-6" aria-label="Navegação principal">
+                    <p class="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Gestão</p>
+                    <a href="/admin"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path == '/admin' %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-tachometer-alt mr-3 w-5 text-center text-slate-500 {% if request.url.path == '/admin' %}text-blue-600{% endif %}"></i>
+                        Dashboard
+                    </a>
+                    <a href="/admin/appointments"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/appointments') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-calendar-check mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/appointments') %}text-blue-600{% endif %}"></i>
+                        Agendamentos
+                    </a>
+                    <a href="/admin/payments"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/payments') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-credit-card mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/payments') %}text-blue-600{% endif %}"></i>
+                        Pagamentos
+                    </a>
+                    <a href="/admin/clients"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/clients') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-user-friends mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/clients') %}text-blue-600{% endif %}"></i>
+                        Clientes
+                    </a>
+                    <a href="/admin/professionals"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/professionals') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-users mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/professionals') %}text-blue-600{% endif %}"></i>
+                        Profissionais
+                    </a>
+                    <a href="/admin/services"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/services') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-concierge-bell mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/services') %}text-blue-600{% endif %}"></i>
+                        Serviços
+                    </a>
+                    <a href="/admin/maintenance"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/maintenance') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-database mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/maintenance') %}text-blue-600{% endif %}"></i>
+                        Limpeza & Retenção
+                    </a>
+                </nav>
+                <div class="border-t border-slate-200/80 p-4 space-y-3">
+                    {% if request.state.admin_context.method == 'session' %}
+                    <a href="/admin/password" class="block rounded-xl px-3 py-2 text-center text-sm font-medium text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 transition-colors"{% if request.url.path == '/admin/password' %} aria-current="page"{% endif %}>
+                        <i class="fas fa-key mr-2 text-xs text-slate-400"></i>Alterar senha
+                    </a>
+                    <form action="/admin/logout" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.admin_context.csrf_token }}">
+                        <button type="submit" class="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-all shadow-xs">
+                            <i class="fas fa-sign-out-alt mr-2 text-xs text-slate-400"></i>Sair
+                        </button>
+                    </form>
+                    {% endif %}
+                    <div class="flex items-center gap-3 rounded-xl bg-slate-50/80 border border-slate-200/60 px-3 py-2.5 text-sm">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                            <i class="fas fa-shield-alt text-xs"></i>
+                        </span>
+                        <div>
+                            <p class="font-medium text-xs text-slate-800">Acesso administrativo</p>
+                            <p class="text-[11px] text-slate-500">Ambiente protegido</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-72">
+            <!-- Top Bar -->
+            <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 shadow-xs backdrop-blur-md">
+                <div class="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center">
+                        <button type="button"
+                                class="rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 lg:hidden transition-colors"
+                                @click="sidebarOpen = !sidebarOpen"
+                                :aria-expanded="sidebarOpen.toString()"
+                                aria-label="Abrir menu">
+                            <i class="fas fa-bars text-lg"></i>
+                        </button>
+                        <h2 class="ml-3 text-lg font-semibold tracking-tight text-slate-900 sm:ml-4">
+                            {% block page_title %}Dashboard{% endblock %}
+                        </h2>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="hidden items-center text-xs font-medium text-emerald-700 sm:inline-flex px-3 py-1 rounded-full bg-emerald-50/90 border border-emerald-200/80">
+                            <span class="mr-2 h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Sistema online</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Mobile sidebar overlay -->
+    <div x-show="sidebarOpen" x-transition:enter="transition-opacity ease-linear duration-300"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity ease-linear duration-300"
+         x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-40 bg-slate-950/40 lg:hidden"
+         @click="sidebarOpen = false"></div>
+
+    <div x-show="$store.adminUi.notice" x-cloak role="status" aria-live="polite"
+         class="fixed right-4 top-4 z-[70] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-xl backdrop-blur-md"
+         :class="$store.adminUi.notice?.type === 'error' ? 'border-rose-200 text-rose-900 bg-rose-50/90 shadow-rose-950/5' : 'border-emerald-200 text-emerald-900 bg-emerald-50/90 shadow-emerald-950/5'">
+        <span class="flex-1 text-sm font-medium" x-text="$store.adminUi.notice?.message"></span>
+        <button type="button" @click="$store.adminUi.dismissNotice()" aria-label="Fechar mensagem"
+                class="rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-black/5 transition-colors">&times;</button>
+    </div>
+
+    <div x-show="$store.adminUi.dialog" x-cloak
+         class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4"
+         @keydown.escape.window="$store.adminUi.cancel()"
+         @keydown.tab="$store.adminUi.trapFocus($event)"
+         @click.self="$store.adminUi.cancel()">
+        <section data-admin-dialog role="dialog" aria-modal="true" aria-labelledby="admin-dialog-title"
+                 class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80">
+            <h2 id="admin-dialog-title" class="text-lg font-semibold tracking-tight text-slate-900"
+                x-text="$store.adminUi.dialog?.title"></h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600" x-text="$store.adminUi.dialog?.message"></p>
+            <div x-show="$store.adminUi.dialog?.inputLabel" class="mt-4">
+                <label for="admin-dialog-input" class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600"
+                       x-text="$store.adminUi.dialog?.inputLabel"></label>
+                <textarea id="admin-dialog-input" data-admin-dialog-input rows="3"
+                          x-model="$store.adminUi.inputValue"
+                          :aria-invalid="Boolean($store.adminUi.inputError)"
+                          class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all"></textarea>
+                <p x-show="$store.adminUi.inputError" class="mt-1 text-xs font-medium text-rose-600"
+                   x-text="$store.adminUi.inputError"></p>
+            </div>
+            <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" @click="$store.adminUi.cancel()"
+                        class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-xs">
+                    Voltar
+                </button>
+                <button type="button" data-admin-dialog-confirm @click="$store.adminUi.accept()"
+                        class="rounded-xl px-4 py-2 text-sm font-medium text-white transition-all shadow-sm"
+                        :class="$store.adminUi.dialog?.destructive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'"
+                        x-text="$store.adminUi.dialog?.confirmLabel"></button>
+            </div>
+        </section>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

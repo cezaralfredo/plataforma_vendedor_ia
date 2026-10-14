@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}Agendamento #{{ detail.appointment.id }} - Admin Agenda Atende{% endblock %}
+
+{% block page_title %}Agendamento #{{ detail.appointment.id }}{% endblock %}
+
+{% block content %}
+<div x-data="appointmentDetail()" class="space-y-6">
+    <div x-show="notice" x-cloak role="status"
+         class="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-900 text-sm font-medium shadow-sm flex items-center gap-2" x-text="notice"></div>
+
+    <!-- Header -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <h3 class="text-lg font-semibold tracking-tight text-slate-900">Agendamento #{{ detail.appointment.id }}</h3>
+                <span class="status-badge" :class="'status-' + appointment.status" x-text="formatStatus(appointment.status)"></span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Criado em <span class="font-medium text-slate-700" x-text="formatDateTime(appointment.created_at)"></span></p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <a href="/admin/appointments"
+               class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl transition-all text-sm font-medium shadow-xs inline-flex items-center">
+                <i class="fas fa-arrow-left mr-2 text-xs text-slate-400"></i> Voltar aos agendamentos
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Overview Bar -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+        <div class="flex flex-wrap items-center gap-6">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Status Operacional:</span>
+                <span class="status-badge" :class="'status-' + appointment.status" x-text="formatStatus(appointment.status)"></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Status Financeiro:</span>
+                <span class="status-badge" :class="'payment-' + (payment?.status || 'pending')" x-text="payment ? formatPaymentStatus(payment.status) : 'Sem pagamento'"></span>
+            </div>
+            <template x-if="appointment.expires_at">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Expira em:</span>
+                    <span class="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200/80 px-2.5 py-0.5 rounded-full" x-text="formatDateTime(appointment.expires_at)"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Info -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Appointment Details -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Detalhes do Agendamento</h4>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Data/Hora Início</label>
+                            <p class="font-semibold text-slate-900 text-sm" x-text="formatDateTime(appointment.start_time)"></p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Data/Hora Fim</label>
+                            <p class="font-semibold text-slate-900 text-sm" x-text="formatDateTime(appointment.end_time)"></p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Duração Estimada</label>
+                            <p class="font-medium text-slate-800 text-sm" x-text="service.duration_minutes + ' minutos'"></p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Valor do Serviço</label>
+                            <p class="font-semibold text-emerald-700 text-sm" x-text="formatCurrency(service.price_cents)"></p>
+                        </div>
+                    </div>
+                    <template x-if="appointment.notes">
+                        <div class="border-t border-slate-100 pt-4">
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Observações do Atendimento</label>
+                            <p class="text-slate-800 text-sm whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-200/80" x-text="appointment.notes"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Client Info -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Dados do Cliente</h4>
+                </div>
+                <div class="p-5 space-y-3">
+                    <div class="flex items-center">
+                        <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 border border-blue-100/90 flex items-center justify-center font-semibold text-base">
+                            <span x-text="client.name.charAt(0)"></span>
+                        </div>
+                        <div class="ml-3.5">
+                            <p class="font-semibold text-slate-900 text-sm" x-text="client.name"></p>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="client.phone"></p>
+                        </div>
+                    </div>
+                    <template x-if="client.email">
+                        <div class="text-xs text-slate-600 flex items-center pt-2 border-t border-slate-100">
+                            <i class="fas fa-envelope mr-2 text-slate-400"></i>
+                            <span x-text="client.email"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Professional Info -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Profissional Responsável</h4>
+                </div>
+                <div class="p-5 space-y-3">
+                    <div class="flex items-center">
+                        <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100/90 flex items-center justify-center font-semibold text-base">
+                            <span x-text="professional.name.charAt(0)"></span>
+                        </div>
+                        <div class="ml-3.5">
+                            <p class="font-semibold text-slate-900 text-sm" x-text="professional.name"></p>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="professional.phone || 'Sem telefone cadastrado'"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Info -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Serviço Contratado</h4>
+                </div>
+                <div class="p-5 space-y-3">
+                    <p class="font-semibold text-slate-900 text-sm" x-text="service.name"></p>
+                    <template x-if="service.description">
+                        <p class="text-xs text-slate-600" x-text="service.description"></p>
+                    </template>
+                    <div class="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
+                        <div>
+                            <span class="text-slate-500">Categoria:</span>
+                            <span class="font-medium text-slate-800 ml-1" x-text="service.category || 'Não definida'"></span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500">Duração prevista:</span>
+                            <span class="font-medium text-slate-800 ml-1" x-text="service.duration_minutes + ' min'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar: Payment & Actions -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Payment Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Cobrança & Pagamento</h4>
+                </div>
+                <div class="p-5 space-y-4">
+                    <template x-if="payment">
+                        <div class="space-y-3.5">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">ID no Asaas</label>
+                                <p class="font-mono text-xs text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200/80" x-text="payment.asaas_payment_id"></p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Forma de Pagamento</label>
+                                <p class="font-medium text-slate-800 text-sm" x-text="formatBillingType(payment.billing_type)"></p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Valor Cobrado</label>
+                                <p class="text-2xl font-semibold tracking-tight text-slate-900" x-text="formatCurrency(payment.amount_cents)"></p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Status da Cobrança</label>
+                                <span class="status-badge" :class="'payment-' + payment.status" x-text="formatPaymentStatus(payment.status)"></span>
+                            </div>
+                            <template x-if="payment.received_at">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Recebido em</label>
+                                    <p class="font-medium text-slate-800 text-xs" x-text="formatDateTime(payment.received_at)"></p>
+                                </div>
+                            </template>
+                            <template x-if="payment.invoice_url">
+                                <div class="pt-2">
+                                    <a :href="payment.invoice_url" target="_blank"
+                                       class="w-full text-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                                        <i class="fas fa-file-invoice text-xs"></i> Ver Fatura
+                                    </a>
+                                </div>
+                            </template>
+                            <div class="border-t border-slate-100 pt-3 space-y-2">
+                                <button @click="refreshPayment(payment.id)"
+                                        :disabled="syncingPaymentId === payment.id"
+                                        class="w-full px-4 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-xs font-medium text-slate-700 transition-all disabled:opacity-50 disabled:cursor-wait shadow-xs flex items-center justify-center gap-2">
+                                    <i class="fas fa-sync-alt" :class="{ 'fa-spin': syncingPaymentId === payment.id }"></i>
+                                    <span x-text="syncingPaymentId === payment.id ? 'Sincronizando...' : 'Sincronizar com Asaas'"></span>
+                                </button>
+                                <template x-if="payment.status === 'received' || payment.status === 'confirmed'">
+                                    <button @click="refundPayment(payment.id)"
+                                            class="w-full px-4 py-2.5 border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-medium transition-all shadow-xs flex items-center justify-center gap-2">
+                                        <i class="fas fa-undo"></i> Estornar Pagamento
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!payment">
+                        <div class="text-center py-8">
+                            <i class="fas fa-exclamation-circle text-4xl text-slate-300 mb-2"></i>
+                            <p class="text-sm text-slate-500 font-medium">Nenhum pagamento vinculado</p>
+                            <a :href="'/api/docs#/Payments/create_payment_payments__post'"
+                               target="_blank"
+                               class="mt-3 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-all shadow-sm">
+                                Criar Cobrança
+                            </a>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Ações do Agendamento</h4>
+                </div>
+                <div class="p-5 space-y-3">
+                    <template x-if="appointment.status === 'pending'">
+                        <div class="space-y-2">
+                            <button @click="confirmAppointment()"
+                                    class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                                <i class="fas fa-check text-xs"></i> Confirmar Agendamento
+                            </button>
+                            <button @click="cancelAppointment()"
+                                    class="w-full px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl font-medium text-sm transition-all shadow-xs flex items-center justify-center gap-2">
+                                <i class="fas fa-times text-xs"></i> Cancelar Agendamento
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="appointment.status === 'confirmed'">
+                        <div class="space-y-2">
+                            <button @click="completeAppointment()"
+                                    class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                                <i class="fas fa-check-double text-xs"></i> Marcar Concluído
+                            </button>
+                            <button @click="cancelAppointment()"
+                                    class="w-full px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl font-medium text-sm transition-all shadow-xs flex items-center justify-center gap-2">
+                                <i class="fas fa-times text-xs"></i> Cancelar Agendamento
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="appointment.status === 'cancelled' || appointment.status === 'completed'">
+                        <div class="text-center py-6 text-slate-400">
+                            <i class="fas fa-lock text-2xl mb-2 text-slate-300"></i>
+                            <p class="text-xs font-medium">Agendamento finalizado — ações não disponíveis</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function appointmentDetail() {
+    return {
+        appointment: {{ detail.appointment | tojson }},
+        client: {{ detail.client | tojson }},
+        professional: {{ detail.professional | tojson }},
+        service: {{ detail.service | tojson }},
+        payment: {{ detail.payment | tojson }},
+        notice: '',
+        syncingPaymentId: null,
+
+        async confirmAppointment() {
+            const decision = await adminConfirm({
+                title: 'Confirmar agendamento',
+                message: 'O agendamento será marcado como confirmado.',
+                confirmLabel: 'Confirmar agendamento',
+                inputLabel: 'Observações (opcional)'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('confirm', decision.value);
+        },
+
+        async cancelAppointment() {
+            const decision = await adminConfirm({
+                title: 'Cancelar agendamento',
+                message: 'O horário será liberado e o agendamento será cancelado.',
+                confirmLabel: 'Cancelar agendamento',
+                destructive: true,
+                inputLabel: 'Motivo do cancelamento',
+                inputRequired: true
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('cancel', decision.value);
+        },
+
+        async completeAppointment() {
+            const decision = await adminConfirm({
+                title: 'Concluir agendamento',
+                message: 'Confirme que o serviço foi realizado.',
+                confirmLabel: 'Marcar como concluído',
+                inputLabel: 'Observações (opcional)'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('complete', decision.value);
+        },
+
+        async appointmentAction(action, notes) {
+            try {
+                const response = await adminFetch(`/admin/appointments/{{ detail.appointment.id }}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action, notes })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    adminNotify({type: 'error', message: result.detail});
+                }
+            } catch (error) {
+                adminNotify({type: 'error', message: 'Erro ao executar ação.'});
+            }
+        },
+
+        async refreshPayment(paymentId) {
+            this.syncingPaymentId = paymentId;
+            this.notice = '';
+            try {
+                const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action: 'refresh' })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    this.payment = result.payment;
+                    this.notice = result.message;
+                    adminNotify({type: 'success', message: result.message});
+                    if (result.payment && result.payment.status === 'cancelled') {
+                        if (this.appointment.status === 'pending' || this.appointment.status === 'awaiting_payment') {
+                            this.appointment.status = 'cancelled';
+                        }
+                    } else if (result.payment && (result.payment.status === 'confirmed' || result.payment.status === 'received')) {
+                        if (this.appointment.status === 'pending' || this.appointment.status === 'awaiting_payment') {
+                            this.appointment.status = 'confirmed';
+                        }
+                    }
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    adminNotify({type: 'error', message: result.detail});
+                }
+            } catch (error) {
+                adminNotify({type: 'error', message: 'Erro ao sincronizar.'});
+            } finally {
+                this.syncingPaymentId = null;
+            }
+        },
+
+        async refundPayment(paymentId) {
+            const decision = await adminConfirm({
+                title: 'Estornar pagamento',
+                message: 'O estorno será solicitado ao Asaas e o agendamento relacionado poderá ser cancelado.',
+                confirmLabel: 'Solicitar estorno',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
+            try {
+                const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action: 'refund' })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    adminNotify({type: 'error', message: result.detail});
+                }
+            } catch (error) {
+                adminNotify({type: 'error', message: 'Erro ao estornar.'});
+            }
+        },
+
+        formatDateTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        },
+
+        formatCurrency(cents) {
+            if (!cents) return 'R$ 0,00';
+            const reais = (cents / 100).toFixed(2);
+            return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        },
+
+        formatStatus(status) {
+            const labels = {
+                'pending': 'Pendente',
+                'confirmed': 'Confirmado',
+                'completed': 'Concluído',
+                'cancelled': 'Cancelado',
+                'awaiting_payment': 'Aguardando Pagamento'
+            };
+            return labels[status] || status;
+        },
+
+        formatPaymentStatus(status) {
+            const labels = {
+                'pending': 'Pendente',
+                'confirmed': 'Confirmado',
+                'received': 'Recebido',
+                'overdue': 'Vencido',
+                'refunded': 'Estornado',
+                'cancelled': 'Cancelado'
+            };
+            return labels[status] || status;
+        },
+
+        formatBillingType(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            const labels = {
+                'pix': 'PIX',
+                'boleto': 'Boleto',
+                'credit_card': 'Cartão de crédito'
+            };
+            return labels[normalized] || 'A definir';
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+# Portainer CE + Nginx Proxy Manager + Neon PostgreSQL.
+# Define all required values in the Portainer Stack environment table.
+services:
+  mcp-gateway:
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8000
+      API_KEY: "${API_KEY:?Defina API_KEY no Portainer}"
+      GATEWAY_KEY: "${MCP_GATEWAY_KEY:?Defina MCP_GATEWAY_KEY no Portainer}"
+    expose:
+      - "8080"
+    networks:
+      npm:
+        aliases:
+          - mcp-gateway
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/ready', timeout=2).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  api:
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?Defina DATABASE_URL no Portainer}"
+      API_KEY: "${API_KEY:?Defina API_KEY no Portainer}"
+      ADMIN_API_KEY: "${ADMIN_API_KEY:?Defina ADMIN_API_KEY no Portainer}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:?Defina ADMIN_USERNAME no Portainer}"
+      ADMIN_BOOTSTRAP_PASSWORD: "${ADMIN_BOOTSTRAP_PASSWORD?Defina ADMIN_BOOTSTRAP_PASSWORD no Portainer (vazio apos criar a conta)}"
+      ADMIN_SESSION_SECRET: "${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET no Portainer}"
+      ADMIN_RECOVERY_KEY: "${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY no Portainer}"
+      APP_NAME: "${APP_NAME:-Agenda Atende}"
+      APP_TIMEZONE: "${APP_TIMEZONE:-America/Sao_Paulo}"
+      DEBUG: "false"
+      ASAAS_API_KEY: "${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}"
+      ASAAS_BASE_URL: "${ASAAS_BASE_URL:-https://api.asaas.com/v3}"
+      ASAAS_WEBHOOK_TOKEN: "${ASAAS_WEBHOOK_TOKEN:?Defina ASAAS_WEBHOOK_TOKEN no Portainer}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      TRIAGE_ENABLED: "${TRIAGE_ENABLED:-true}"
+      TRIAGE_MODEL: "${TRIAGE_MODEL:-typesafe/jev-1.13}"
+    expose:
+      - "8000"
+    networks:
+      npm:
+        aliases:
+          - agenda-api
+      mcp_internal:
+
+networks:
+  npm:
+    external: true
+    name: "${NPM_NETWORK:-nginx-proxy_default}"
+  mcp_internal:
+    external: true
+    name: "${AGENDA_MCP_NETWORK:-agenda_mcp_internal}"

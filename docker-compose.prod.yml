@@ -1,0 +1,204 @@
+services:
+  # =============================================================================
+  # Traefik - Reverse Proxy + SSL Automático (Let's Encrypt)
+  # =============================================================================
+  traefik:
+    image: traefik:v3.0
+    container_name: agenda_atende_traefik
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - agenda_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
+
+  # =============================================================================
+  # PostgreSQL - Banco de Dados
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: agenda_atende_pg
+    environment:
+      POSTGRES_USER: agenda_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: agenda_atende
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    secrets:
+      - postgres_password
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agenda_user -d agenda_atende"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agenda_network
+
+  # =============================================================================
+  # API - FastAPI Application
+  # =============================================================================
+  api:
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-agenda-atende}:latest
+    container_name: agenda_atende_api
+    environment:
+      - DATABASE_URL=postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
+      - API_KEY_FILE=/run/secrets/api_key
+      - ADMIN_API_KEY_FILE=/run/secrets/admin_api_key
+      - ADMIN_USERNAME_FILE=/run/secrets/admin_username
+      - ADMIN_BOOTSTRAP_PASSWORD_FILE=/run/secrets/admin_bootstrap_password
+      - ADMIN_SESSION_SECRET_FILE=/run/secrets/admin_session_secret
+      - ADMIN_RECOVERY_KEY_FILE=/run/secrets/admin_recovery_key
+      - APP_NAME=${APP_NAME}
+      - DEBUG=false
+      - ASAAS_API_KEY_FILE=/run/secrets/asaas_api_key
+      - ASAAS_BASE_URL=${ASAAS_BASE_URL}
+      - ASAAS_WEBHOOK_TOKEN_FILE=/run/secrets/asaas_webhook_token
+    secrets:
+      - postgres_password
+      - api_key
+      - admin_api_key
+      - admin_username
+      - admin_bootstrap_password
+      - admin_session_secret
+      - admin_recovery_key
+      - asaas_api_key
+      - asaas_webhook_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    expose:
+      - "8000"
+    networks:
+      - agenda_network
+    labels:
+      - "traefik.enable=true"
+      # API Principal
+      - "traefik.http.routers.api.rule=Host(`api.${DOMAIN}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      # Admin Panel (protegido por IP ou auth extra)
+      - "traefik.http.routers.admin.rule=Host(`api.${DOMAIN}`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.admin.entrypoints=websecure"
+      - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.admin.loadbalancer.server.port=8000"
+      # Webhooks Asaas (sem rate limit rigoroso)
+      - "traefik.http.routers.webhooks.rule=Host(`api.${DOMAIN}`) && PathPrefix(`/webhooks`)"
+      - "traefik.http.routers.webhooks.entrypoints=websecure"
+      - "traefik.http.routers.webhooks.tls.certresolver=letsencrypt"
+      - "traefik.http.services.webhooks.loadbalancer.server.port=8000"
+      # MCP (timeout maior para agents)
+      - "traefik.http.routers.mcp.rule=Host(`api.${DOMAIN}`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.mcp.entrypoints=websecure"
+      - "traefik.http.routers.mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mcp.loadbalancer.server.port=8000"
+      # Rate limiting global
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=50"
+      - "traefik.http.routers.api.middlewares=api-ratelimit"
+      - "traefik.http.routers.admin.middlewares=api-ratelimit"
+      # Compressão
+      - "traefik.http.middlewares.compress.compress=true"
+      - "traefik.http.routers.api.middlewares=api-ratelimit,compress"
+      - "traefik.http.routers.admin.middlewares=api-ratelimit,compress"
+
+  # =============================================================================
+  # Backup Automático - pg_dump + Rclone (S3/Wasabi/GDrive)
+  # =============================================================================
+  backup:
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY}-backup:latest
+    container_name: agenda_atende_backup
+    environment:
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - BACKUP_SCHEDULE=0 3 * * *  # Diário às 03:00
+      - BACKUP_RETENTION_DAYS=30
+      - RCLONE_CONFIG_FILE=/config/rclone/rclone.conf
+      - RCLONE_DESTINATION=remote:bucket/agenda-atende
+    volumes:
+      - pgdata:/var/lib/postgresql/data:ro
+      - ./backups:/backups
+      - ./rclone:/config/rclone:ro
+    secrets:
+      - postgres_password
+    networks:
+      - agenda_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # =============================================================================
+  # Watchtower - Atualização Automática de Imagens (opcional)
+  # =============================================================================
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: agenda_atende_watchtower
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - agenda_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
+
+volumes:
+  pgdata:
+  traefik_letsencrypt:
+
+networks:
+  agenda_network:
+    driver: bridge
+
+secrets:
+  postgres_password:
+    external: true
+  api_key:
+    external: true
+  admin_api_key:
+    external: true
+  admin_username:
+    external: true
+  admin_bootstrap_password:
+    external: true
+  admin_session_secret:
+    external: true
+  admin_recovery_key:
+    external: true
+  asaas_api_key:
+    external: true
+  asaas_webhook_token:
+    external: true

@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+
+{% block title %}Agendamentos - Admin Agenda Atende{% endblock %}
+
+{% block page_title %}Agendamentos{% endblock %}
+
+{% block content %}
+<div x-data="appointments()" x-init="reload()" class="space-y-6">
+    <div x-show="loadError" x-cloak role="alert"
+         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-rose-900 shadow-sm">
+        <div class="flex items-center gap-2.5">
+            <i class="fas fa-exclamation-circle text-rose-600 text-base"></i>
+            <span class="text-sm font-medium" x-text="loadError"></span>
+        </div>
+        <button type="button" @click="reload()" class="text-sm font-semibold text-rose-700 hover:text-rose-900 transition-colors">
+            Tentar novamente
+        </button>
+    </div>
+
+    <!-- Header Section with Create Toggle -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-semibold tracking-tight text-slate-900">Gestão de agendamentos</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Registre reservas, atualize dados e acompanhe os status operacionais.</p>
+            </div>
+            <button @click="showCreate = !showCreate"
+                    class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all inline-flex items-center gap-2">
+                <i class="fas fa-plus text-xs" :class="{ 'rotate-45': showCreate }"></i>
+                <span x-text="showCreate ? 'Fechar formulário' : 'Novo agendamento'"></span>
+            </button>
+        </div>
+
+        <!-- Creation Form Drawer -->
+        <form x-show="showCreate" x-cloak @submit.prevent="createAppointment()"
+              class="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 border-t border-slate-100 pt-6">
+            <div class="xl:col-span-3">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">Cliente</span>
+                <div class="flex flex-wrap gap-4">
+                    <label class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 cursor-pointer hover:bg-slate-50 transition-colors"
+                           :class="{ 'border-blue-500 bg-blue-50/50 text-blue-800': newAppointment.clientMode === 'existing' }">
+                        <input type="radio" value="existing" x-model="newAppointment.clientMode" class="text-blue-600">
+                        Selecionar cliente existente
+                    </label>
+                    <label class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 cursor-pointer hover:bg-slate-50 transition-colors"
+                           :class="{ 'border-blue-500 bg-blue-50/50 text-blue-800': newAppointment.clientMode === 'new' }">
+                        <input type="radio" value="new" x-model="newAppointment.clientMode" class="text-blue-600">
+                        Cadastrar novo cliente
+                    </label>
+                </div>
+            </div>
+
+            <template x-if="newAppointment.clientMode === 'existing'">
+                <label class="block">
+                    <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Cliente cadastrado</span>
+                    <select x-model="newAppointment.user_id" required class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                        <option value="">Selecione um cliente</option>
+                        <template x-for="client in appointmentOptions.clients" :key="client.id">
+                            <option :value="client.id" x-text="client.name + ' · ' + client.masked_phone"></option>
+                        </template>
+                    </select>
+                </label>
+            </template>
+
+            <template x-if="newAppointment.clientMode === 'new'">
+                <div class="contents">
+                    <label class="block">
+                        <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Nome do novo cliente</span>
+                        <input x-model.trim="newAppointment.client_name" required placeholder="Nome completo" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    </label>
+                    <label class="block">
+                        <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Telefone</span>
+                        <input x-model.trim="newAppointment.client_phone" required placeholder="+5511999999999" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    </label>
+                    <label class="block">
+                        <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">E-mail (opcional)</span>
+                        <input type="email" x-model.trim="newAppointment.client_email" placeholder="cliente@exemplo.com" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    </label>
+                </div>
+            </template>
+
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Profissional</span>
+                <select x-model="newAppointment.professional_id" required class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    <option value="">Selecione</option>
+                    <template x-for="professional in appointmentOptions.professionals" :key="professional.id">
+                        <option :value="professional.id" x-text="professional.name"></option>
+                    </template>
+                </select>
+            </label>
+
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Serviço</span>
+                <select x-model="newAppointment.service_id" required class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    <option value="">Selecione</option>
+                    <template x-for="service in appointmentOptions.services" :key="service.id">
+                        <option :value="service.id" x-text="service.label"></option>
+                    </template>
+                </select>
+            </label>
+
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Início</span>
+                <input type="datetime-local" x-model="newAppointment.start_time" required class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+
+            <label class="block">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Fim</span>
+                <input type="datetime-local" x-model="newAppointment.end_time" required class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+
+            <label class="block md:col-span-2">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Observações</span>
+                <input x-model.trim="newAppointment.notes" placeholder="Ex.: Preferência por atendimento pontual" class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+
+            <div class="flex items-end">
+                <button type="submit" :disabled="creating"
+                        class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-sm shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    <i class="fas fa-check text-xs" x-show="!creating"></i>
+                    <i class="fas fa-circle-notch fa-spin text-xs" x-show="creating"></i>
+                    <span x-text="creating ? 'Salvando…' : 'Salvar agendamento'"></span>
+                </button>
+            </div>
+            <p x-show="createError" x-text="createError" class="xl:col-span-3 text-xs font-medium text-rose-600 mt-1"></p>
+        </form>
+    </section>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+        <form id="filters-form" @submit.prevent="page = 1; loadAppointments()" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Data Início</label>
+                <input type="date" name="date_from" x-model="filters.date_from"
+                       class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Data Fim</label>
+                <input type="date" name="date_to" x-model="filters.date_to"
+                       class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Profissional</label>
+                <select name="professional_id" x-model="filters.professional_id"
+                        class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    <option value="">Todos</option>
+                    <template x-for="prof in professionals" :key="prof.id">
+                        <option :value="prof.id" x-text="prof.name"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Status</label>
+                <select name="status" x-model="filters.status"
+                        class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                    <option value="">Todos</option>
+                    <option value="pending">Pendente</option>
+                    <option value="confirmed">Confirmado</option>
+                    <option value="completed">Concluído</option>
+                    <option value="cancelled">Cancelado</option>
+                    <option value="awaiting_payment">Aguardando Pagamento</option>
+                </select>
+            </div>
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Buscar</label>
+                <input type="text" name="search" x-model="filters.search" placeholder="Nome, telefone, serviço..."
+                       class="w-full px-3.5 py-2 border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div class="lg:col-span-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-3 border-t border-slate-100">
+                <label class="inline-flex items-center text-xs font-medium text-slate-700 cursor-pointer select-none">
+                    <input type="checkbox" name="hide_unpaid_cancelled" x-model="filters.hide_unpaid_cancelled" @change="page = 1; loadAppointments()"
+                           class="rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500 mr-2 h-4 w-4">
+                    <span>Ocultar cancelados sem pagamento</span>
+                </label>
+                <div class="flex items-center space-x-3">
+                    <a href="/admin/appointments"
+                       class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 text-slate-700 hover:text-slate-900 font-medium text-sm rounded-xl transition-all shadow-xs flex items-center">
+                        <i class="fas fa-times mr-2 text-slate-400"></i> Limpar
+                    </a>
+                    <button type="submit"
+                            class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl transition-all shadow-sm hover:shadow flex items-center">
+                        <i class="fas fa-search mr-2"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <div class="p-5 border-b border-slate-200/80 flex items-center justify-between bg-white">
+            <h3 class="text-base font-semibold tracking-tight text-slate-900">
+                Agendamentos (<span x-text="total"></span>)
+            </h3>
+            <div class="flex items-center space-x-2">
+                <select x-model="pageSize" @change="loadAppointments()"
+                        class="px-3 py-1.5 border border-slate-300/80 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-blue-500">
+                    <option value="10">10 por página</option>
+                    <option value="20">20 por página</option>
+                    <option value="50">50 por página</option>
+                    <option value="100">100 por página</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+            <template x-for="apt in appointments" :key="apt.id">
+                <article class="space-y-3 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900" x-text="apt.service_name || 'Serviço não informado'"></p>
+                            <p class="text-xs text-slate-500" x-text="formatDateTime(apt.start_time)"></p>
+                        </div>
+                        <span class="status-badge" :class="'status-' + apt.status" x-text="formatStatus(apt.status)"></span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <p class="text-xs text-slate-500">Cliente</p>
+                            <p class="font-medium text-slate-800" x-text="apt.client_name || 'N/A'"></p>
+                            <p class="text-xs text-slate-500" x-text="maskPhone(apt.client_phone)"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500">Profissional</p>
+                            <p class="font-medium text-slate-800" x-text="apt.professional_name || 'N/A'"></p>
+                            <p class="text-xs text-slate-500" x-text="formatCurrency(apt.service_price_cents)"></p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-sm font-semibold">
+                        <a :href="'/admin/appointments/' + apt.id" class="text-blue-600 hover:text-blue-800">Ver detalhes</a>
+                        <button x-show="apt.status === 'pending'" @click="confirmAppointment(apt.id)" class="text-emerald-600 hover:text-emerald-800">Confirmar</button>
+                        <button x-show="apt.status === 'pending' || apt.status === 'confirmed'" @click="cancelAppointment(apt.id)" class="text-rose-600 hover:text-rose-800">Cancelar</button>
+                        <button x-show="apt.status === 'confirmed'" @click="completeAppointment(apt.id)" class="text-blue-600 hover:text-blue-800">Concluir</button>
+                        <button x-show="apt.status === 'pending' || apt.status === 'cancelled'" @click="deleteAppointment(apt.id)" class="text-rose-600 hover:text-rose-800">Excluir</button>
+                    </div>
+                </article>
+            </template>
+            <div x-show="appointments.length === 0 && !loading && !loadError" class="p-8 text-center">
+                <p class="text-sm text-slate-500">Nenhum agendamento encontrado.</p>
+                <button type="button" @click="showCreate = true" class="mt-3 text-sm font-semibold text-blue-600 hover:text-blue-800">Criar novo agendamento</button>
+            </div>
+        </div>
+
+        <div class="admin-table hidden md:block overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80 bg-slate-50/75">
+                        <th class="py-3 px-4">ID</th>
+                        <th class="py-3 px-4">Data/Hora</th>
+                        <th class="py-3 px-4">Cliente</th>
+                        <th class="py-3 px-4">Profissional</th>
+                        <th class="py-3 px-4">Serviço</th>
+                        <th class="py-3 px-4">Valor</th>
+                        <th class="py-3 px-4">Status</th>
+                        <th class="py-3 px-4">Pagamento</th>
+                        <th class="py-3 px-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100/80">
+                    <template x-for="apt in appointments" :key="apt.id">
+                        <tr class="hover:bg-blue-50/20 transition-colors">
+                            <td class="py-3.5 px-4 text-xs font-mono text-slate-600" x-text="'#' + apt.id"></td>
+                            <td class="py-3.5 px-4 text-sm text-slate-900">
+                                <div class="font-medium text-slate-800" x-text="formatDateTime(apt.start_time)"></div>
+                                <div class="text-xs text-slate-400" x-text="formatDateTime(apt.end_time)"></div>
+                            </td>
+                            <td class="py-3.5 px-4">
+                                <div class="text-sm font-medium text-slate-900" x-text="apt.client_name || 'N/A'"></div>
+                                <div class="text-xs text-slate-500" x-text="apt.client_phone || ''"></div>
+                            </td>
+                            <td class="py-3.5 px-4 text-sm text-slate-800" x-text="apt.professional_name || 'N/A'"></td>
+                            <td class="py-3.5 px-4 text-sm text-slate-800" x-text="apt.service_name || 'N/A'"></td>
+                            <td class="py-3.5 px-4 text-sm font-semibold text-slate-900" x-text="formatCurrency(apt.service_price_cents)"></td>
+                            <td class="py-3.5 px-4">
+                                <span class="status-badge" :class="'status-' + apt.status" x-text="formatStatus(apt.status)"></span>
+                            </td>
+                            <td class="py-3.5 px-4">
+                                <span class="status-badge" :class="'payment-' + (apt.payment_status || 'pending')" x-text="formatPaymentStatus(apt.payment_status)"></span>
+                            </td>
+                            <td class="py-3.5 px-4">
+                                <div class="flex items-center space-x-2 text-xs font-medium">
+                                    <a :href="'/admin/appointments/' + apt.id"
+                                       class="text-blue-600 hover:text-blue-800">
+                                        Ver
+                                    </a>
+                                    <template x-if="apt.status === 'pending'">
+                                        <div class="contents">
+                                            <button @click="editAppointmentNotes(apt)"
+                                                    class="text-slate-600 hover:text-slate-900">
+                                                Editar
+                                            </button>
+                                            <button @click="confirmAppointment(apt.id)"
+                                                    class="text-emerald-600 hover:text-emerald-800">
+                                                Confirmar
+                                            </button>
+                                            <button @click="cancelAppointment(apt.id)"
+                                                    class="text-rose-600 hover:text-rose-800">
+                                                Cancelar
+                                            </button>
+                                            <button @click="deleteAppointment(apt.id)"
+                                                    class="text-rose-600 hover:text-rose-800">
+                                                Excluir
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <template x-if="apt.status === 'confirmed'">
+                                        <div class="contents">
+                                            <button @click="cancelAppointment(apt.id)"
+                                                    class="text-rose-600 hover:text-rose-800">
+                                                Cancelar
+                                            </button>
+                                            <button @click="completeAppointment(apt.id)"
+                                                    class="text-blue-600 hover:text-blue-800">
+                                                Concluir
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <template x-if="apt.status === 'cancelled'">
+                                        <button @click="deleteAppointment(apt.id)"
+                                                class="text-rose-600 hover:text-rose-800">
+                                            Excluir
+                                        </button>
+                                    </template>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="appointments.length === 0 && !loading && !loadError">
+                        <td colspan="9" class="py-12 text-center text-slate-500">
+                            <p class="text-sm">Nenhum agendamento encontrado.</p>
+                            <button type="button" @click="showCreate = true" class="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800">Criar novo agendamento</button>
+                        </td>
+                    </tr>
+                    <tr x-show="loading">
+                        <td colspan="9" class="py-12 text-center text-slate-500">
+                            <div class="flex justify-center items-center gap-2">
+                                <i class="fas fa-circle-notch fa-spin text-blue-600"></i>
+                                <span class="text-sm">Carregando agendamentos...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="p-4 border-t border-slate-200/80 flex items-center justify-between bg-white" x-show="totalPages > 1">
+            <div class="text-xs text-slate-500">
+                Página <span class="font-medium text-slate-800" x-text="page"></span> de <span class="font-medium text-slate-800" x-text="totalPages"></span>
+                (Total: <span class="font-medium text-slate-800" x-text="total"></span>)
+            </div>
+            <div class="flex space-x-2">
+                <button @click="prevPage()" :disabled="page <= 1"
+                        class="px-3 py-1.5 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xs">
+                    Anterior
+                </button>
+                <button @click="nextPage()" :disabled="page >= totalPages"
+                        class="px-3 py-1.5 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xs">
+                    Próxima
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function appointments() {
+    return {
+        appointments: [],
+        professionals: [],
+        appointmentOptions: {{ appointment_options | tojson }},
+        showCreate: false,
+        creating: false,
+        createError: '',
+        newAppointment: {
+            clientMode: 'existing',
+            user_id: '',
+            client_name: '',
+            client_phone: '',
+            client_email: '',
+            professional_id: '',
+            service_id: '',
+            start_time: '',
+            end_time: '',
+            notes: ''
+        },
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+        loading: false,
+        loadError: '',
+        filters: {
+            date_from: '{{ filters.date_from }}',
+            date_to: '{{ filters.date_to }}',
+            professional_id: '{{ filters.professional_id }}',
+            status: '{{ filters.status }}',
+            search: '{{ filters.search }}',
+            hide_unpaid_cancelled: {{ 'true' if filters.hide_unpaid_cancelled else 'false' }}
+        },
+
+        async reload() {
+            await Promise.all([this.loadAppointments(), this.loadProfessionals()]);
+        },
+
+        async loadAppointments() {
+            this.loading = true;
+            this.loadError = '';
+            try {
+                const params = new URLSearchParams();
+                params.append('page', this.page);
+                params.append('page_size', this.pageSize);
+                Object.entries(this.filters).forEach(([key, value]) => {
+                    if (value !== '' && value !== null && value !== undefined && value !== false) {
+                        params.append(key, value);
+                    }
+                });
+
+                const response = await adminFetch('/admin/api/appointments?' + params.toString());
+                if (!response.ok) throw new Error('appointments-load-failed');
+                const data = await response.json();
+                this.appointments = data.data;
+                this.total = data.total;
+                this.page = data.page;
+                this.totalPages = data.total_pages;
+            } catch (error) {
+                console.error('Erro ao carregar agendamentos:', error);
+                this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadProfessionals() {
+            try {
+                const response = await adminFetch('/admin/api/professionals');
+                if (!response.ok) throw new Error('professionals-load-failed');
+                this.professionals = await response.json();
+            } catch (error) {
+                console.error('Erro ao carregar profissionais:', error);
+            }
+        },
+
+        async createAppointment() {
+            this.creating = true;
+            this.createError = '';
+            const payload = {
+                professional_id: Number(this.newAppointment.professional_id),
+                service_id: Number(this.newAppointment.service_id),
+                start_time: this.newAppointment.start_time,
+                end_time: this.newAppointment.end_time,
+                notes: this.newAppointment.notes || null
+            };
+            if (this.newAppointment.clientMode === 'new') {
+                payload.new_client = {
+                    name: this.newAppointment.client_name,
+                    phone: this.newAppointment.client_phone,
+                    email: this.newAppointment.client_email || null
+                };
+            } else {
+                payload.user_id = Number(this.newAppointment.user_id);
+            }
+            try {
+                const response = await adminFetch('/admin/api/appointments', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    this.createError = result.detail || 'Não foi possível criar o agendamento.';
+                    return;
+                }
+                this.showCreate = false;
+                this.newAppointment = {
+                    clientMode: 'existing', user_id: '', client_name: '', client_phone: '',
+                    client_email: '', professional_id: '', service_id: '', start_time: '',
+                    end_time: '', notes: ''
+                };
+                this.loadAppointments();
+            } catch (_error) {
+                this.createError = 'Não foi possível comunicar com o servidor.';
+            } finally {
+                this.creating = false;
+            }
+        },
+
+        prevPage() {
+            if (this.page > 1) {
+                this.page--;
+                this.loadAppointments();
+            }
+        },
+
+        nextPage() {
+            if (this.page < this.totalPages) {
+                this.page++;
+                this.loadAppointments();
+            }
+        },
+
+        async confirmAppointment(id) {
+            const decision = await adminConfirm({
+                title: 'Confirmar agendamento',
+                message: `O agendamento #${id} será marcado como confirmado.`,
+                confirmLabel: 'Confirmar agendamento'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction(id, 'confirm');
+        },
+
+        async completeAppointment(id) {
+            const decision = await adminConfirm({
+                title: 'Concluir agendamento',
+                message: `Confirme que o serviço do agendamento #${id} foi realizado.`,
+                confirmLabel: 'Marcar como concluído'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction(id, 'complete');
+        },
+
+        async cancelAppointment(id) {
+            const decision = await adminConfirm({
+                title: 'Cancelar agendamento',
+                message: `O horário do agendamento #${id} será liberado.`,
+                confirmLabel: 'Cancelar agendamento',
+                destructive: true,
+                inputLabel: 'Motivo do cancelamento',
+                inputRequired: true
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction(id, 'cancel', decision.value);
+        },
+
+        async editAppointmentNotes(appointment) {
+            const decision = await adminConfirm({
+                title: 'Editar observações',
+                message: `Atualize as observações do agendamento #${appointment.id}.`,
+                confirmLabel: 'Salvar observações',
+                inputLabel: 'Observações',
+                value: appointment.notes || ''
+            });
+            if (!decision.confirmed) return;
+            try {
+                const response = await adminFetch(`/admin/api/appointments/${appointment.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({notes: decision.value})
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    adminNotify({type: 'error', message: error.detail || 'Não foi possível alterar o agendamento.'});
+                    return;
+                }
+                this.loadAppointments();
+            } catch (_error) {
+                adminNotify({type: 'error', message: 'Erro ao alterar o agendamento.'});
+            }
+        },
+
+        async deleteAppointment(id) {
+            const decision = await adminConfirm({
+                title: 'Excluir agendamento',
+                message: `Excluir o agendamento #${id}? Cobranças locais vencidas ou canceladas, sem recebimento, também serão removidas. Pagamentos pendentes ou com histórico financeiro impedem a exclusão. Esta ação não cancela cobranças no Asaas.`,
+                confirmLabel: 'Excluir agendamento',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
+            try {
+                const response = await adminFetch(`/admin/api/appointments/${id}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    adminNotify({type: 'error', message: error.detail || 'Não foi possível excluir o agendamento.'});
+                    return;
+                }
+                this.loadAppointments();
+            } catch (_error) {
+                adminNotify({type: 'error', message: 'Erro ao excluir o agendamento.'});
+            }
+        },
+
+        async appointmentAction(id, action, notes = '') {
+            try {
+                const response = await adminFetch(`/admin/appointments/${id}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action, notes })
+                });
+                if (response.ok) {
+                    this.loadAppointments();
+                } else {
+                    const error = await response.json();
+                    adminNotify({type: 'error', message: error.detail});
+                }
+            } catch (error) {
+                adminNotify({type: 'error', message: 'Erro ao executar ação.'});
+            }
+        },
+
+        formatDateTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        },
+
+        formatCurrency(cents) {
+            if (!cents) return 'R$ 0,00';
+            const reais = (cents / 100).toFixed(2);
+            return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        },
+
+        maskPhone(value) {
+            const digits = String(value || '').replace(/\D/g, '');
+            if (digits.length < 6) return 'Não informado';
+            return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+        },
+
+        maskEmail(value) {
+            if (!value || !value.includes('@')) return '';
+            const [name, domain] = value.split('@');
+            return `${name.slice(0, 2)}•••@${domain}`;
+        },
+
+        formatStatus(status) {
+            const labels = {
+                'pending': 'Pendente',
+                'confirmed': 'Confirmado',
+                'completed': 'Concluído',
+                'cancelled': 'Cancelado',
+                'awaiting_payment': 'Aguardando Pagamento'
+            };
+            return labels[status] || status;
+        },
+
+        formatPaymentStatus(status) {
+            const labels = {
+                'pending': 'Pendente',
+                'confirmed': 'Confirmado',
+                'received': 'Recebido',
+                'overdue': 'Vencido',
+                'refunded': 'Estornado',
+                'cancelled': 'Cancelado'
+            };
+            return labels[status] || (status || 'Sem pagamento');
+        }
+    }
+}
+</script>
+{% endblock %}
