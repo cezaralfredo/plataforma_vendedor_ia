@@ -26,6 +26,9 @@ services:
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - AGENDA_API_URL=${AGENDA_API_URL:-http://agenda-api:8000}
       - AGENDA_API_KEY=${API_KEY:?Defina API_KEY no Portainer}
+      # Configurações para Evolution API (WhatsApp QR Code)
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://evolution-api:8080}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-}
       # Provedor de Notificação: 'hermes' (padrão) ou 'meta'
       - WHATSAPP_NOTIFICATION_PROVIDER=${WHATSAPP_NOTIFICATION_PROVIDER:-hermes}
       - HERMES_WHATSAPP_BRIDGE_URL=${HERMES_WHATSAPP_BRIDGE_URL:-http://hermes:3000}

@@ -69,6 +69,12 @@ No painel do n8n (**Workflows** → menu **Import from File**), você pode impor
    - **Gatilho**: Agendamento diário (Cron 08:00).
    - **Ação**: Consulta agendamentos confirmados e orquestra mensagens de lembrete preventivo no WhatsApp.
 
+6. **[orquestrador_whatsapp_ia.json](workflows/orquestrador_whatsapp_ia.json)** (Orquestrador WhatsApp IA - Omnichannel):
+   - **Gatilho**: Webhooks de entrada WhatsApp:
+     - Evolution API (`POST /webhook/whatsapp/evolution`)
+     - Meta WhatsApp Cloud API Oficial (`POST /webhook/whatsapp/meta`)
+   - **Ação**: Normaliza mensagens inbound (Adapter), aciona o nó **AI Agent** nativo do n8n com as ferramentas MCP da API (`listar_servicos`, `verificar_disponibilidade`, `criar_reserva`, `gerar_cobranca`) e despacha a resposta automaticamente de volta ao canal de origem (Evolution ou Meta).
+
 ## Variáveis obrigatórias do n8n
 
 Configure estas variáveis no container `agenda_n8n` pelo Portainer. Mantenha as chaves fora do repositório:

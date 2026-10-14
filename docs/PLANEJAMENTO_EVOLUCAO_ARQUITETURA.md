@@ -37,38 +37,63 @@ Antes de inicializar o Git no novo projeto, remover da pasta duplicada:
 
 ---
 
-## 3. A Nova Arquitetura Proposta
+## 3. A Nova Arquitetura Proposta: Omnichannel Híbrido
 
-### 3.1. Mudança de Papéis
-| Componente | Papel Atual | Novo Papel no Novo Projeto |
+### 3.1. Suporte a Múltiplos Provedores de WhatsApp
+O cliente/empresa poderá escolher livremente o canal de conexão:
+1. **Evolution API (QR Code / Baileys):** Conexão rápida e sem burocracia, ideal para estabelecimentos que desejam usar o número existente sem taxas da Meta.
+2. **Meta Cloud API Oficial (WhatsApp Business Platform):** Alta estabilidade empresarial, sem risco de desconexão de celular ou banimentos, permitindo selo de empresa verificada.
+
+### 3.2. Mudança de Papéis
+| Componente | Papel Anterior | Novo Papel na Arquitetura n8n |
 | :--- | :--- | :--- |
-| **WhatsApp (Evolution API)** | Conectado ao Hermes | Dispara webhooks de mensagens diretamente para o **n8n** |
-| **n8n** | Subagentes de background | **Orquestrador Central & Roteador WhatsApp** (gerencia regras de negócio, horários, transbordo humano e direcionamento multi-cliente) |
-| **Camada de Inteligência (IA)** | Hermes (WhatsApp + Raciocínio) | **Apenas Inteligência / Cérebro**: recebe o contexto do n8n, raciocina, executa ferramentas MCP e devolve a resposta |
-| **API Agenda** | Backend transacional | Backend transacional com MCP Tools e suporte a multi-instância / multi-tenant |
+| **WhatsApp Inbound** | Hermes conectado ao WhatsApp | Webhooks recebidos no **n8n** (Webhook Evolution ou Webhook Meta Oficial) |
+| **n8n Adapter / Normalizer** | Inexistente | Normaliza os payloads distintos para um formato unificado (`phone`, `message_text`, `channel`, `instance_or_phone_id`) |
+| **n8n Orquestrador** | Subagentes isolados | **Orquestrador Central**: Roteamento, regras de negócio, limites e controle de sessão |
+| **Camada de IA** | Hermes (WhatsApp + Raciocínio) | **AI Agent nativo do n8n** (ou Dify/Hermes como cérebro puro): raciocínio, contexto e execução de MCP Tools |
+| **API Agenda** | Backend transacional | Backend transacional com MCP Tools e suporte multi-tenant |
+| **WhatsApp Outbound** | Hermes enviando mensagem | Nó Switch no n8n despachando para a API da Evolution ou Graph API da Meta |
 
 ---
 
-### 3.2. Fluxo de Atendimento no Novo Modelo
+### 3.3. Fluxo de Atendimento Híbrido no n8n (Padrão Adapter)
 ```mermaid
 flowchart TD
-    Cliente[Cliente no WhatsApp] -->|Mensagem| Evo[Evolution API]
-    Evo -->|Webhook Inbound| n8n[n8n: Orquestrador Central]
-    
-    subgraph n8n_Logic [Orquestrador n8n]
-        n8n --> Identifica[1. Identifica Empresa & Instância]
-        Identifica --> Regras[2. Checa Horário / Anti-spam / Transbordo]
-        Regras --> ChamaIA[3. Envia mensagem + histórico para a IA]
+    subgraph Entrada [1. Canais de Entrada WhatsApp]
+        Evo[Cliente via Evolution - QR Code] -->|Webhook Inbound /evolution| InEvo[Payload Evolution]
+        Meta[Cliente via Meta Oficial - Cloud API] -->|Webhook Inbound /meta| InMeta[Payload Meta]
     end
-    
-    ChamaIA --> Inteligencia[Motor de IA: n8n AI Agent / Dify / Hermes]
-    Inteligencia -->|Consulta / Executa| MCP[API Agenda MCP Gateway]
-    MCP -->|Resultado| Inteligencia
-    Inteligencia -->|Texto de Resposta| n8n
-    
-    n8n -->|Dispara Resposta| Evo
-    Evo -->|WhatsApp| Cliente
+
+    subgraph n8n_Normalizacao [2. n8n Adapter / Roteador]
+        InEvo --> Normaliza[Normalizador de Entrada:\n• phone\n• message_text\n• channel: evolution | meta\n• instance_id / phone_number_id]
+        InMeta --> Normaliza
+        Normaliza --> Regras[Identificação do Tenant + Checagem de Horário/Transbordo]
+    end
+
+    subgraph Inteligencia [3. Motor de IA Unificado]
+        Regras --> AIAgent[AI Agent n8n + Memória de Conversa]
+        AIAgent <--> MCP[API Agenda - MCP Gateway /mcp]
+        AIAgent --> RespostaTexto[Texto de Resposta Padronizado]
+    end
+
+    subgraph Envio [4. Roteamento de Saída]
+        RespostaTexto --> Switch{Canal é Meta ou Evolution?}
+        Switch -->|Evolution| SendEvo[HTTP: /message/sendText Evolution]
+        Switch -->|Meta| SendMeta[HTTP: /messages Graph API Meta]
+        SendEvo --> EvoOut[Disparo WhatsApp via Evolution]
+        SendMeta --> MetaOut[Disparo WhatsApp via Meta Oficial]
+    end
 ```
+
+---
+
+### 3.4. Atributos Multi-Tenant para Provedor de Mensageria
+Na modelagem da empresa/tenant:
+* `whatsapp_provider`: `'evolution'` ou `'meta'`
+* `evolution_instance`: Nome da instância criada na Evolution API
+* `meta_phone_number_id`: ID do número de telefone no portal Meta Developers
+* `meta_access_token`: Token permanente do WhatsApp Business Account
+* `meta_waba_id`: ID da WhatsApp Business Account
 
 ---
 
@@ -78,7 +103,7 @@ flowchart TD
 * **Como funciona:** O próprio n8n possui o nó `AI Agent` (baseado em LangChain) com nó de modelo (OpenRouter, OpenAI ou Groq), nó de memória de conversa (`PostgreSQL/Redis Chat Memory` por telefone/sessão) e nós de ferramentas (`Custom Tool` chamando os endpoints `/mcp`).
 * **Vantagens:** 
   * Elimina completamente a necessidade de containers extras do Hermes.
-  * O prompt e as credenciais da empresa podem ser passados dinamicamente com base na instância da Evolution API.
+  * O prompt e as credenciais da empresa podem ser passados dinamicamente com base na instância da Evolution API ou Phone ID da Meta.
   * Todo o fluxo visual fica em uma única plataforma (n8n).
 
 ### Opção B: Dify.ai *(Melhor se desejar painel visual de IA)*
@@ -91,14 +116,16 @@ flowchart TD
 
 ---
 
-## 5. Roteiro de Continuidade (Assim que a pasta for duplicada)
+## 5. Roteiro de Execução
 
-Quando a pasta duplicada for aberta no editor, o plano de execução será:
-1. **Etapa 1:** Validação da limpeza da pasta duplicada e inicialização do repositório Git novo.
-2. **Etapa 2:** Configuração da Evolution API para apontar o webhook diretamente para o n8n.
-3. **Etapa 3:** Construção do Workflow Principal no n8n:
-   * Nó de recepção da mensagem da Evolution API.
-   * Definição da Inteligência (implementação do nó `AI Agent` do n8n com as ferramentas MCP da API).
-   * Nó de envio de resposta de volta ao WhatsApp.
-4. **Etapa 4:** Teste fim a fim de conversação, consulta de serviços, agendamento e pagamento.
-5. **Etapa 5:** Estruturação da lógica multi-cliente (roteamento dinâmico por instância).
+- [x] **Etapa 1:** Limpeza da pasta duplicada e inicialização do repositório Git novo (`cezaralfredo/plataforma_vendedor_online`).
+- [ ] **Etapa 2:** Especificação e configuração dos Webhooks de Entrada no n8n:
+  - Endpoint Webhook para Evolution API (`/webhook/whatsapp/evolution`).
+  - Endpoint Webhook para Meta Cloud API Oficial (`/webhook/whatsapp/meta` com validação de `hub.challenge`).
+- [ ] **Etapa 3:** Construção do Workflow Principal no n8n (`n8n/workflows/orquestrador_whatsapp_ia.json`):
+  - Nó Normalizador JavaScript (Adapter).
+  - Nó AI Agent configurado com o modelo LLM e memória de sessão por telefone.
+  - Nós de Tools MCP integrados aos endpoints `/mcp` da API Agenda (`listar_servicos`, `consultar_disponibilidade`, `criar_agendamento`, `gerar_cobranca_pix`).
+  - Nó Router Switch direcionando a resposta de volta ao canal de origem (Evolution ou Meta).
+- [ ] **Etapa 4:** Teste fim a fim de conversação, consulta de serviços, agendamento e pagamento.
+- [ ] **Etapa 5:** Estruturação da lógica multi-cliente (roteamento dinâmico por instância/phone_number_id no banco).

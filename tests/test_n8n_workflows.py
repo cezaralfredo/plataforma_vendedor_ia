@@ -19,6 +19,7 @@ def test_n8n_workflows_exist():
     [
         "notificacao_pagamento_hermes.json",
         "orquestrador_agendamentos.json",
+        "orquestrador_whatsapp_ia.json",
         "subagente_cancelamento.json",
         "subagente_financeiro.json",
         "subagente_lembretes.json",
