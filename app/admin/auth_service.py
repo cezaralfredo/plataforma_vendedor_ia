@@ -144,3 +144,38 @@ def change_admin_password(db: Session, account: AdminAccount, new_password: str)
     account.locked_until = None  # type: ignore[assignment]
     db.commit()
     db.refresh(account)
+
+
+def upsert_admin_account(db: Session, username: str, password: str) -> AdminAccount:
+    """Cria ou atualiza as credenciais de acesso do administrador.
+
+    Se o login já existir, atualiza o nome de usuário, calcula novo hash seguro com scrypt,
+    incrementa auth_version (revogando instantaneamente qualquer sessão aberta anterior)
+    e zera os contadores de falhas/bloqueios.
+    Se não existir, cria a conta primária id=1.
+    """
+    if len(password) < 12:
+        raise ValueError("A senha deve possuir pelo menos 12 caracteres.")
+    if not username.strip():
+        raise ValueError("O nome de usuário não pode estar em branco.")
+
+    account = db.scalar(
+        select(AdminAccount).where(AdminAccount.id == 1).with_for_update()
+    )
+    if account is not None:
+        account.username = username.strip()
+        account.password_hash = hash_password(password)
+        account.auth_version += 1
+        account.failed_login_count = 0
+        account.locked_until = None  # type: ignore[assignment]
+    else:
+        account = AdminAccount(
+            id=1,
+            username=username.strip(),
+            password_hash=hash_password(password),
+        )
+        db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
+

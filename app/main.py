@@ -3,7 +3,8 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from fastapi import Depends, FastAPI, Response
+from fastapi import Depends, FastAPI, Request, Response
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -76,6 +77,26 @@ def create_app(
         https_only=not app_settings.debug,
         same_site="lax",
     )
+
+    @application.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        if not app_settings.debug:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+    @application.get("/", include_in_schema=False)
+    async def root_redirect():
+        return RedirectResponse("/admin", status_code=303)
+
+    @application.get("/login", include_in_schema=False)
+    async def login_redirect():
+        return RedirectResponse("/admin/login", status_code=303)
 
     application.include_router(health_router)
     application.include_router(users_router)
