@@ -2,7 +2,7 @@
 # Define all required values in the Portainer Stack environment table.
 services:
   mcp-gateway:
-    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_online}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       API_BASE_URL: http://api:8000
@@ -24,7 +24,7 @@ services:
       retries: 3
 
   api:
-    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_online}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       DATABASE_URL: "${DATABASE_URL:?Defina DATABASE_URL no Portainer}"

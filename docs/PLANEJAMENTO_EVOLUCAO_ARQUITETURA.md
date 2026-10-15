@@ -9,27 +9,30 @@
 
 ## 1. Contexto Atual do Sistema em Produção
 
-* **Plataforma Atende Agenda:**
-  * Backend em **FastAPI**, **SQLAlchemy 2.0** e **PostgreSQL 16**.
-  * Painel Administrativo Web em [app/admin](file:///e:/Projetos/plataforma_atende_agenda/app/admin) (Tailwind + Jinja2).
-  * Gestão de agendamentos, catálogo de serviços, profissionais e pagamentos PIX/Boleto/Cartão via **Asaas**.
-  * **MCP (Model Context Protocol):** Endpoints `/mcp` e gateway expondo ferramentas prontas para agentes de IA.
-* **Operação Atual (Single-Tenant):**
-  * O sistema está em produção atendendo **um único cliente/estabelecimento**.
-  * O **Hermes** está conectado diretamente ao WhatsApp, atuando como interface conversacional e orquestrador direto.
-  * O **n8n** atua em segundo plano com subagentes (reconciliação financeira, cancelamentos, notificações de pagamento e lembretes).
+- **Plataforma Atende Agenda:**
+  - Backend em **FastAPI**, **SQLAlchemy 2.0** e **PostgreSQL 16**.
+  - Painel Administrativo Web em [app/admin](file:///e:/Projetos/plataforma_atende_agenda/app/admin) (Tailwind + Jinja2).
+  - Gestão de agendamentos, catálogo de serviços, profissionais e pagamentos PIX/Boleto/Cartão via **Asaas**.
+  - **MCP (Model Context Protocol):** Endpoints `/mcp` e gateway expondo ferramentas prontas para agentes de IA.
+- **Operação Atual (Single-Tenant):**
+  - O sistema está em produção atendendo **um único cliente/estabelecimento**.
+  - O **Hermes** está conectado diretamente ao WhatsApp, atuando como interface conversacional e orquestrador direto.
+  - O **n8n** atua em segundo plano com subagentes (reconciliação financeira, cancelamentos, notificações de pagamento e lembretes).
 
 ---
 
 ## 2. Decisão: Criação de um Novo Projeto Isolado
 
 Para evoluir o sistema sem colocar em risco a operação em produção do cliente atual:
+
 1. **Duplicação da pasta:** O projeto será copiado para um novo diretório (ex.: `plataforma_atende_agenda_v2` ou novo nome do SaaS).
 2. **Repositório Git independente:** Início de um novo histórico Git (`git init`), desvinculado do repositório anterior.
 3. **Preservação:** O cliente atual permanece rodando intacto no ambiente original.
 
 ### Checklist de Limpeza ao Duplicar a Pasta:
+
 Antes de inicializar o Git no novo projeto, remover da pasta duplicada:
+
 - [x] Pasta `.git/` antiga (para criar um repositório limpo).
 - [x] Arquivo `.env` com senhas e chaves reais de produção do cliente atual (manter apenas os arquivos `.env.example`).
 - [x] Caches locais: `.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`, `node_modules/`, `__pycache__/`, `.worktrees/`.
@@ -40,23 +43,27 @@ Antes de inicializar o Git no novo projeto, remover da pasta duplicada:
 ## 3. A Nova Arquitetura Proposta: Omnichannel Híbrido
 
 ### 3.1. Suporte a Múltiplos Provedores de WhatsApp
+
 O cliente/empresa poderá escolher livremente o canal de conexão:
+
 1. **Evolution API (QR Code / Baileys):** Conexão rápida e sem burocracia, ideal para estabelecimentos que desejam usar o número existente sem taxas da Meta.
 2. **Meta Cloud API Oficial (WhatsApp Business Platform):** Alta estabilidade empresarial, sem risco de desconexão de celular ou banimentos, permitindo selo de empresa verificada.
 
 ### 3.2. Mudança de Papéis
-| Componente | Papel Anterior | Novo Papel na Arquitetura n8n |
-| :--- | :--- | :--- |
-| **WhatsApp Inbound** | Hermes conectado ao WhatsApp | Webhooks recebidos no **n8n** (Webhook Evolution ou Webhook Meta Oficial) |
-| **n8n Adapter / Normalizer** | Inexistente | Normaliza os payloads distintos para um formato unificado (`phone`, `message_text`, `channel`, `instance_or_phone_id`) |
-| **n8n Orquestrador** | Subagentes isolados | **Orquestrador Central**: Roteamento, regras de negócio, limites e controle de sessão |
-| **Camada de IA** | Hermes (WhatsApp + Raciocínio) | **AI Agent nativo do n8n** (ou Dify/Hermes como cérebro puro): raciocínio, contexto e execução de MCP Tools |
-| **API Agenda** | Backend transacional | Backend transacional com MCP Tools e suporte multi-tenant |
-| **WhatsApp Outbound** | Hermes enviando mensagem | Nó Switch no n8n despachando para a API da Evolution ou Graph API da Meta |
+
+| Componente                   | Papel Anterior                 | Novo Papel na Arquitetura n8n                                                                                          |
+| :--------------------------- | :----------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
+| **WhatsApp Inbound**         | Hermes conectado ao WhatsApp   | Webhooks recebidos no **n8n** (Webhook Evolution ou Webhook Meta Oficial)                                              |
+| **n8n Adapter / Normalizer** | Inexistente                    | Normaliza os payloads distintos para um formato unificado (`phone`, `message_text`, `channel`, `instance_or_phone_id`) |
+| **n8n Orquestrador**         | Subagentes isolados            | **Orquestrador Central**: Roteamento, regras de negócio, limites e controle de sessão                                  |
+| **Camada de IA**             | Hermes (WhatsApp + Raciocínio) | **AI Agent nativo do n8n** (ou Dify/Hermes como cérebro puro): raciocínio, contexto e execução de MCP Tools            |
+| **API Agenda**               | Backend transacional           | Backend transacional com MCP Tools e suporte multi-tenant                                                              |
+| **WhatsApp Outbound**        | Hermes enviando mensagem       | Nó Switch no n8n despachando para a API da Evolution ou Graph API da Meta                                              |
 
 ---
 
 ### 3.3. Fluxo de Atendimento Híbrido no n8n (Padrão Adapter)
+
 ```mermaid
 flowchart TD
     subgraph Entrada [1. Canais de Entrada WhatsApp]
@@ -88,12 +95,14 @@ flowchart TD
 ---
 
 ### 3.4. Atributos Multi-Tenant para Provedor de Mensageria
+
 Na modelagem da empresa/tenant:
-* `whatsapp_provider`: `'evolution'` ou `'meta'`
-* `evolution_instance`: Nome da instância criada na Evolution API
-* `meta_phone_number_id`: ID do número de telefone no portal Meta Developers
-* `meta_access_token`: Token permanente do WhatsApp Business Account
-* `meta_waba_id`: ID da WhatsApp Business Account
+
+- `whatsapp_provider`: `'evolution'` ou `'meta'`
+- `evolution_instance`: Nome da instância criada na Evolution API
+- `meta_phone_number_id`: ID do número de telefone no portal Meta Developers
+- `meta_access_token`: Token permanente do WhatsApp Business Account
+- `meta_waba_id`: ID da WhatsApp Business Account
 
 ---
 
@@ -130,81 +139,88 @@ flowchart TD
 #### Estrutura Detalhada dos Módulos:
 
 1. **Módulo Financeiro & Gateways (`financial_settings`):**
-   * `payment_required` (`boolean`):
-     * `false` (Padrão para quem não cobra antecipado): O agendamento criado vai direto para o status `confirmed` sem bloquear o cliente.
-     * `true`: Mantém o fluxo com pagamento antecipado obrigatório (`awaiting_payment` com reserva temporária e cancelamento por timeout).
-   * `default_gateway`: Identificador do provedor ativo (`'asaas'`, `'mercadopago'`, `'stripe'`, `'pix_direto'`, `'manual'`).
-   * `gateway_credentials`: JSONB seguro contendo as chaves da conta da empresa naquele provedor.
+   - `payment_required` (`boolean`):
+     - `false` (Padrão para quem não cobra antecipado): O agendamento criado vai direto para o status `confirmed` sem bloquear o cliente.
+     - `true`: Mantém o fluxo com pagamento antecipado obrigatório (`awaiting_payment` com reserva temporária e cancelamento por timeout).
+   - `default_gateway`: Identificador do provedor ativo (`'asaas'`, `'mercadopago'`, `'stripe'`, `'pix_direto'`, `'manual'`).
+   - `gateway_credentials`: JSONB seguro contendo as chaves da conta da empresa naquele provedor.
 
 2. **Módulo de Comissionamento (`commission_settings`):**
-   * `commission_model`:
-     * `'percentage'`: Percentual sobre o valor do serviço executado pelo profissional (ex: 30%, 50%).
-     * `'fixed_value'`: Valor monetário fixo por atendimento (ex: R$ 25,00 por procedimento).
-     * `'split_gateway'`: Divisão automática de recebíveis efetuada diretamente pela API do gateway de pagamento.
-     * `'manual_settlement'`: Apenas gera relatórios de fechamento para acerto periódico entre a empresa e os profissionais.
-     * `'none'`: Profissionais assalariados ou sem repasse por atendimento.
+   - `commission_model`:
+     - `'percentage'`: Percentual sobre o valor do serviço executado pelo profissional (ex: 30%, 50%).
+     - `'fixed_value'`: Valor monetário fixo por atendimento (ex: R$ 25,00 por procedimento).
+     - `'split_gateway'`: Divisão automática de recebíveis efetuada diretamente pela API do gateway de pagamento.
+     - `'manual_settlement'`: Apenas gera relatórios de fechamento para acerto periódico entre a empresa e os profissionais.
+     - `'none'`: Profissionais assalariados ou sem repasse por atendimento.
 
 3. **Módulo WhatsApp & Canais (`channel_settings`):**
-   * `provider`: `'evolution'` (QR Code) ou `'meta'` (Cloud API Oficial).
-   * Identificadores e credenciais específicas do canal escolhido.
+   - `provider`: `'evolution'` (QR Code) ou `'meta'` (Cloud API Oficial).
+   - Identificadores e credenciais específicas do canal escolhido.
 
 4. **Módulo de IA & Regras de Atendimento (`ai_profile_settings`):**
-   * `company_name`: Nome da empresa inserido dinamicamente no prompt.
-   * `assistant_name`: Nome da persona do agente virtual (ex: "Clara", "Alex").
-   * `tone`: Tom da comunicação (`'formal'` para clínicas/escritórios, `'casual'` para barbearias/estéticas, `'executive'` para consultorias).
-   * `require_cpf`: Se exige ou dispensa o CPF no primeiro contato.
+   - `company_name`: Nome da empresa inserido dinamicamente no prompt.
+   - `assistant_name`: Nome da persona do agente virtual (ex: "Clara", "Alex").
+   - `tone`: Tom da comunicação (`'formal'` para clínicas/escritórios, `'casual'` para barbearias/estéticas, `'executive'` para consultorias).
+   - `require_cpf`: Se exige ou dispensa o CPF no primeiro contato.
 
 ---
 
 ### 3.6. Catálogo de Produtos & Vendas (Conversational Commerce)
+
 A plataforma atua como **Vendedor Online Completo**, unificando:
+
 1. **Serviços:** Agendamentos baseados em tempo, profissionais e slots livres.
 2. **Produtos Físicos por Categoria:** Itens de varejo (pomadas, cosméticos, kits homecare, rações, acessórios) com controle de estoque (`stock_quantity`) e categorização (`category`).
 
 #### Ferramentas MCP para Venda de Produtos:
-* `listar_produtos`: Consulta catálogo por categoria ou termo de busca, exibindo preços e itens em estoque.
-* `consultar_produto`: Detalhamento do produto e checagem de estoque em tempo real.
+
+- `listar_produtos`: Consulta catálogo por categoria ou termo de busca, exibindo preços e itens em estoque.
+- `consultar_produto`: Detalhamento do produto e checagem de estoque em tempo real.
 
 #### Estratégias de Venda no WhatsApp:
-* **Venda Direta:** Atendimento de clientes que desejam comprar produtos sem realizar agendamento.
-* **Cross-Selling Inteligente:** A IA sugere produtos complementares logo após a confirmação de um agendamento.
+
+- **Venda Direta:** Atendimento de clientes que desejam comprar produtos sem realizar agendamento.
+- **Cross-Selling Inteligente:** A IA sugere produtos complementares logo após a confirmação de um agendamento.
 
 ### 3.7 Domínio de Produção e Acesso Administrativo Seguro (`loja.anauedesign.com.br`)
 
 Para a operação comercial e gestão do **Vendedor Online**, o domínio principal definido é **`loja.anauedesign.com.br`**:
 
-* **Roteamento e SSL Automático (Traefik):**
-  * Suporte nativo tanto ao domínio raiz `loja.anauedesign.com.br` quanto ao subdomínio `api.loja.anauedesign.com.br` com Let's Encrypt TLS automático.
-  * Redirecionamentos seguros HTTP -> HTTPS automáticos.
-  * Redirecionamento da raiz (`/`) e atalho direto (`/login`) para `/admin/login`.
-* **Segurança e Robustez da Autenticação:**
-  * **Criptografia e Hashing:** Algoritmo de derivação de chaves `scrypt-v1 (N=16384, r=8, p=1, dklen=64)` com salt aleatório criptográfico.
-  * **Proteção contra Força Bruta:** Bloqueio temporário automático após 5 tentativas consecutivas incorretas (lockout de 15 minutos).
-  * **Sessões Assinadas e Revogação Instantânea:** Cookies assinados por HMAC-SHA256 associados a `auth_version`. Ao criar ou trocar credenciais, `auth_version` é incrementada, invalidando imediatamente qualquer sessão aberta anteriormente.
-  * **Cabeçalhos de Segurança HTTP:** Inclusão de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` e HSTS.
-  * **Proteção CSRF:** Tokens de mutação validados em todas as requisições de escrita (`require_admin_mutation`).
-* **Criação e Redefinição Flexível de Credenciais:**
-  * Função idempotente `upsert_admin_account` no serviço de autenticação.
-  * Script utilitário seguro de terminal: `scripts/create_or_reset_admin.py` permitindo definir novo usuário e senha ou gerar senha com alta entropia criptográfica.
+- **Roteamento e SSL Automático (Traefik):**
+  - Suporte nativo tanto ao domínio raiz `loja.anauedesign.com.br` quanto ao subdomínio `api.loja.anauedesign.com.br` com Let's Encrypt TLS automático.
+  - Redirecionamentos seguros HTTP -> HTTPS automáticos.
+  - Redirecionamento da raiz (`/`) e atalho direto (`/login`) para `/admin/login`.
+- **Segurança e Robustez da Autenticação:**
+  - **Criptografia e Hashing:** Algoritmo de derivação de chaves `scrypt-v1 (N=16384, r=8, p=1, dklen=64)` com salt aleatório criptográfico.
+  - **Proteção contra Força Bruta:** Bloqueio temporário automático após 5 tentativas consecutivas incorretas (lockout de 15 minutos).
+  - **Sessões Assinadas e Revogação Instantânea:** Cookies assinados por HMAC-SHA256 associados a `auth_version`. Ao criar ou trocar credenciais, `auth_version` é incrementada, invalidando imediatamente qualquer sessão aberta anteriormente.
+  - **Cabeçalhos de Segurança HTTP:** Inclusão de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` e HSTS.
+  - **Proteção CSRF:** Tokens de mutação validados em todas as requisições de escrita (`require_admin_mutation`).
+- **Criação e Redefinição Flexível de Credenciais:**
+  - Função idempotente `upsert_admin_account` no serviço de autenticação.
+  - Script utilitário seguro de terminal: `scripts/create_or_reset_admin.py` permitindo definir novo usuário e senha ou gerar senha com alta entropia criptográfica.
 
 ---
 
 ## 4. Opções Avaliadas para a Camada de Inteligência
 
-### Opção A: Nó nativo "AI Agent" do n8n *(Mais Recomendada para simplificar a stack)*
-* **Como funciona:** O próprio n8n possui o nó `AI Agent` (baseado em LangChain) com nó de modelo (OpenRouter, OpenAI ou Groq), nó de memória de conversa (`PostgreSQL/Redis Chat Memory` por telefone/sessão) e nós de ferramentas (`Custom Tool` chamando os endpoints `/mcp`).
-* **Vantagens:** 
-  * Elimina completamente a necessidade de containers extras do Hermes.
-  * O prompt e as credenciais da empresa podem ser passados dinamicamente com base na instância da Evolution API ou Phone ID da Meta.
-  * Todo o fluxo visual fica em uma única plataforma (n8n).
+### Opção A: Nó nativo "AI Agent" do n8n _(Mais Recomendada para simplificar a stack)_
 
-### Opção B: Dify.ai *(Melhor se desejar painel visual de IA)*
-* **Como funciona:** Stack Docker do Dify rodando na VPS. O n8n recebe a mensagem do WhatsApp e repassa para a API do Dify (`/v1/chat-messages`).
-* **Vantagens:** Workspaces nativos para cada cliente, histórico rico de conversas, métricas de tokens e painel onde o dono da empresa pode personalizar o tom da IA sem tocar em código.
+- **Como funciona:** O próprio n8n possui o nó `AI Agent` (baseado em LangChain) com nó de modelo (OpenRouter, OpenAI ou Groq), nó de memória de conversa (`PostgreSQL/Redis Chat Memory` por telefone/sessão) e nós de ferramentas (`Custom Tool` chamando os endpoints `/mcp`).
+- **Vantagens:**
+  - Elimina completamente a necessidade de containers extras do Hermes.
+  - O prompt e as credenciais da empresa podem ser passados dinamicamente com base na instância da Evolution API ou Phone ID da Meta.
+  - Todo o fluxo visual fica em uma única plataforma (n8n).
+
+### Opção B: Dify.ai _(Melhor se desejar painel visual de IA)_
+
+- **Como funciona:** Stack Docker do Dify rodando na VPS. O n8n recebe a mensagem do WhatsApp e repassa para a API do Dify (`/v1/chat-messages`).
+- **Vantagens:** Workspaces nativos para cada cliente, histórico rico de conversas, métricas de tokens e painel onde o dono da empresa pode personalizar o tom da IA sem tocar em código.
 
 ### Opção C: Hermes Multi-Container
-* **Como funciona:** Manter o Hermes atual, mas rodando 1 container leve (~60-100MB RAM) para cada cliente, isolando o `config.yaml` e os perfis.
-* **Vantagens:** Reutiliza o perfil já testado do Hermes; porém exige gerenciar múltiplos containers e arquivos YAML.
+
+- **Como funciona:** Manter o Hermes atual, mas rodando 1 container leve (~60-100MB RAM) para cada cliente, isolando o `config.yaml` e os perfis.
+- **Vantagens:** Reutiliza o perfil já testado do Hermes; porém exige gerenciar múltiplos containers e arquivos YAML.
 
 ---
 
@@ -224,6 +240,9 @@ Para a operação comercial e gestão do **Vendedor Online**, o domínio princip
   - Design premium e glassmorphic dark-mode na página de login e recuperação de senha.
   - Headers de segurança contra clickjacking, MIME sniffing e XSS.
   - Função `upsert_admin_account` e utilitário CLI `scripts/create_or_reset_admin.py` para criar ou renovar login/senha em qualquer momento com algoritmo scrypt e invalidação instantânea de sessões antigas.
+- [x] **Etapa 4.2:** Migração de Banco e Preparação de CI/CD para Deploy Portainer:
+  - Criação da migração Alembic `d8e9f0a1b2c3` para criação de `company_settings` e `products` com integridade e índices.
+  - Ajuste de triggers no CI/CD (`.github/workflows/ci-cd.yml`) para a branch `main`.
+  - Ajuste de fallbacks de imagens Docker no `docker-compose.portainer-npm.yml` e `docker-compose.portainer-neon.yml` para `cezaralfredo/plataforma_vendedor_online`.
 - [ ] **Etapa 5:** Teste fim a fim de conversação (agendamento com e sem pagamento obrigatório, compra de produtos).
 - [ ] **Etapa 6:** Roteamento multi-cliente dinâmico por instância/phone_number_id no banco.
-

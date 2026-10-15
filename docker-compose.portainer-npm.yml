@@ -3,7 +3,7 @@
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
   mcp-gateway:
-    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_online}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       API_BASE_URL: http://api:8000
@@ -44,7 +44,7 @@ services:
       - agenda_internal
 
   api:
-    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_online}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
