@@ -30,13 +30,21 @@ class AppointmentService:
         now = datetime.now(UTC)
         self._expire_pending()
         start_time, end_time, offering = self._validate_booking(data)
+        from app.models.company_settings import CompanySettings
+
+        settings = self.repo.db.query(CompanySettings).first()
+        payment_required = settings.payment_required if settings is not None else True
+
+        initial_status = "pending" if payment_required else "confirmed"
+        expires_at = (now + timedelta(minutes=30)) if payment_required else None
+
         try:
             return self.repo.create(
                 **data.model_dump(exclude={"start_time", "end_time"}),
                 start_time=start_time,
                 end_time=end_time,
-                status="pending",
-                expires_at=now + timedelta(minutes=30),
+                status=initial_status,
+                expires_at=expires_at,
                 created_at=now,
                 service_price_cents=offering.service.price_cents,
                 service_duration_minutes=offering.service.duration_minutes,

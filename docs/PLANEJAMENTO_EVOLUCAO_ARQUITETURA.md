@@ -97,6 +97,65 @@ Na modelagem da empresa/tenant:
 
 ---
 
+### 3.5. Layout Padrão de Configurações Modulares por Empresa (Tenant Settings Blueprint)
+
+Cada cliente/empresa terá um perfil independente de operação, dividido em 4 módulos flexíveis:
+
+```mermaid
+flowchart TD
+    Tenant[Empresa / Tenant Profile] --> ModFin[1. Módulo Financeiro]
+    Tenant --> ModCom[2. Módulo de Comissões]
+    Tenant --> ModCanal[3. Módulo WhatsApp]
+    Tenant --> ModIA[4. Módulo de Atendimento IA]
+
+    ModFin --> FinOpt["• payment_required: true | false
+• default_gateway: asaas | mercadopago | stripe | manual | none
+• credentials: chaves/tokens específicos
+• accepted_methods: ['pix', 'credit_card', 'in_person']"]
+
+    ModCom --> ComOpt["• model: percent | fixed_value | split_gateway | manual_settlement | none
+• default_rate: taxa percentual ou valor fixo
+• split_enabled: divisão direta no gateway"]
+
+    ModCanal --> CanOpt["• provider: evolution | meta
+• evolution_instance / meta_phone_number_id"]
+
+    ModIA --> IAOpt["• company_name: Nome fantasia
+• assistant_name: Nome da assistente
+• tone: formal | casual | executive
+• require_cpf: true | false
+• flow: agendamento_direto vs pagamento_primeiro"]
+```
+
+#### Estrutura Detalhada dos Módulos:
+
+1. **Módulo Financeiro & Gateways (`financial_settings`):**
+   * `payment_required` (`boolean`):
+     * `false` (Padrão para quem não cobra antecipado): O agendamento criado vai direto para o status `confirmed` sem bloquear o cliente.
+     * `true`: Mantém o fluxo com pagamento antecipado obrigatório (`awaiting_payment` com reserva temporária e cancelamento por timeout).
+   * `default_gateway`: Identificador do provedor ativo (`'asaas'`, `'mercadopago'`, `'stripe'`, `'pix_direto'`, `'manual'`).
+   * `gateway_credentials`: JSONB seguro contendo as chaves da conta da empresa naquele provedor.
+
+2. **Módulo de Comissionamento (`commission_settings`):**
+   * `commission_model`:
+     * `'percentage'`: Percentual sobre o valor do serviço executado pelo profissional (ex: 30%, 50%).
+     * `'fixed_value'`: Valor monetário fixo por atendimento (ex: R$ 25,00 por procedimento).
+     * `'split_gateway'`: Divisão automática de recebíveis efetuada diretamente pela API do gateway de pagamento.
+     * `'manual_settlement'`: Apenas gera relatórios de fechamento para acerto periódico entre a empresa e os profissionais.
+     * `'none'`: Profissionais assalariados ou sem repasse por atendimento.
+
+3. **Módulo WhatsApp & Canais (`channel_settings`):**
+   * `provider`: `'evolution'` (QR Code) ou `'meta'` (Cloud API Oficial).
+   * Identificadores e credenciais específicas do canal escolhido.
+
+4. **Módulo de IA & Regras de Atendimento (`ai_profile_settings`):**
+   * `company_name`: Nome da empresa inserido dinamicamente no prompt.
+   * `assistant_name`: Nome da persona do agente virtual (ex: "Clara", "Alex").
+   * `tone`: Tom da comunicação (`'formal'` para clínicas/escritórios, `'casual'` para barbearias/estéticas, `'executive'` para consultorias).
+   * `require_cpf`: Se exige ou dispensa o CPF no primeiro contato.
+
+---
+
 ## 4. Opções Avaliadas para a Camada de Inteligência
 
 ### Opção A: Nó nativo "AI Agent" do n8n *(Mais Recomendada para simplificar a stack)*
@@ -119,13 +178,11 @@ Na modelagem da empresa/tenant:
 ## 5. Roteiro de Execução
 
 - [x] **Etapa 1:** Limpeza da pasta duplicada e inicialização do repositório Git novo (`cezaralfredo/plataforma_vendedor_online`).
-- [ ] **Etapa 2:** Especificação e configuração dos Webhooks de Entrada no n8n:
-  - Endpoint Webhook para Evolution API (`/webhook/whatsapp/evolution`).
-  - Endpoint Webhook para Meta Cloud API Oficial (`/webhook/whatsapp/meta` com validação de `hub.challenge`).
-- [ ] **Etapa 3:** Construção do Workflow Principal no n8n (`n8n/workflows/orquestrador_whatsapp_ia.json`):
-  - Nó Normalizador JavaScript (Adapter).
-  - Nó AI Agent configurado com o modelo LLM e memória de sessão por telefone.
-  - Nós de Tools MCP integrados aos endpoints `/mcp` da API Agenda (`listar_servicos`, `consultar_disponibilidade`, `criar_agendamento`, `gerar_cobranca_pix`).
-  - Nó Router Switch direcionando a resposta de volta ao canal de origem (Evolution ou Meta).
-- [ ] **Etapa 4:** Teste fim a fim de conversação, consulta de serviços, agendamento e pagamento.
-- [ ] **Etapa 5:** Estruturação da lógica multi-cliente (roteamento dinâmico por instância/phone_number_id no banco).
+- [x] **Etapa 2:** Especificação e configuração dos Webhooks de Entrada no n8n (`/webhook/whatsapp/evolution` e `/webhook/whatsapp/meta`).
+- [x] **Etapa 3:** Construção e validação do Workflow Principal Omnichannel no n8n (`n8n/workflows/orquestrador_whatsapp_ia.json` com Adapter + AI Agent + MCP Tools + Router).
+- [ ] **Etapa 4:** Estruturação da Camada de Configurações Modulares (Tenant Settings & Payment Adapter):
+  - Modelo e Schema de `TenantSettings` (Módulos: Financeiro, Comissões, WhatsApp, IA).
+  - Interface Abstrata `BasePaymentGateway` com implementação `AsaasGateway` e `ManualGateway` (pagamento opcional/balcão).
+  - Suporte a `payment_required == false` na criação de agendamento (confirmação imediata).
+- [ ] **Etapa 5:** Teste fim a fim de conversação (agendamento com e sem pagamento obrigatório).
+- [ ] **Etapa 6:** Roteamento multi-cliente dinâmico por instância/phone_number_id no banco.

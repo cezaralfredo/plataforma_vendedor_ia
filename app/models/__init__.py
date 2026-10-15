@@ -1,6 +1,7 @@
 from app.models.admin_account import AdminAccount
 from app.models.appointment import Appointment
 from app.models.availability import Availability
+from app.models.company_settings import CompanySettings
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
@@ -14,6 +15,7 @@ __all__ = [
     "AdminAccount",
     "Appointment",
     "Availability",
+    "CompanySettings",
     "NotificationDelivery",
     "NotificationLog",
     "Payment",
