@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - Admin Vendedor Online{% endblock %}
+{% block page_title %}Configurações da Empresa & Módulos{% endblock %}
+
+{% block content %}
+<div id="settings-data" hidden data-settings="{{ settings | tojson | forceescape }}"></div>
+
+<div x-data="companySettingsManager()" class="space-y-6 max-w-5xl">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <p class="text-xs text-slate-500 font-medium">Personalize a identidade da empresa, regras de pagamento, comissionamento e canais de WhatsApp.</p>
+        </div>
+        <button type="button" @click="saveSettings()" class="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 hover:shadow transition-all gap-2">
+            <i class="fas fa-save text-xs"></i>Salvar alterações
+        </button>
+    </div>
+
+    <!-- Feedback Message -->
+    <div x-show="message" x-cloak class="rounded-2xl border px-4 py-3 text-sm font-medium shadow-xs" :class="messageError ? 'border-rose-200 bg-rose-50/90 text-rose-900' : 'border-emerald-200 bg-emerald-50/90 text-emerald-900'" x-text="message"></div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-200/80 pb-2">
+        <button type="button" @click="activeTab = 'financial'" class="rounded-xl px-4 py-2 text-xs font-medium transition-all" :class="activeTab === 'financial' ? 'bg-blue-50 text-blue-700 font-semibold ring-1 ring-blue-500/20' : 'text-slate-600 hover:bg-slate-100/70'">
+            <i class="fas fa-credit-card mr-2"></i>Financeiro & Pagamentos
+        </button>
+        <button type="button" @click="activeTab = 'ai'" class="rounded-xl px-4 py-2 text-xs font-medium transition-all" :class="activeTab === 'ai' ? 'bg-blue-50 text-blue-700 font-semibold ring-1 ring-blue-500/20' : 'text-slate-600 hover:bg-slate-100/70'">
+            <i class="fas fa-robot mr-2"></i>Atendimento & IA
+        </button>
+        <button type="button" @click="activeTab = 'whatsapp'" class="rounded-xl px-4 py-2 text-xs font-medium transition-all" :class="activeTab === 'whatsapp' ? 'bg-blue-50 text-blue-700 font-semibold ring-1 ring-blue-500/20' : 'text-slate-600 hover:bg-slate-100/70'">
+            <i class="fab fa-whatsapp mr-2"></i>Canais WhatsApp
+        </button>
+        <button type="button" @click="activeTab = 'commission'" class="rounded-xl px-4 py-2 text-xs font-medium transition-all" :class="activeTab === 'commission' ? 'bg-blue-50 text-blue-700 font-semibold ring-1 ring-blue-500/20' : 'text-slate-600 hover:bg-slate-100/70'">
+            <i class="fas fa-percentage mr-2"></i>Comissões
+        </button>
+    </div>
+
+    <!-- 1. Módulo Financeiro & Pagamentos -->
+    <div x-show="activeTab === 'financial'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-900">Regras de Cobrança e Gateway</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Defina se os agendamentos exigem pagamento imediato ou se podem ser confirmados sem taxa prévia.</p>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+            <!-- Payment Required Toggle -->
+            <div class="sm:col-span-2 rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 flex items-center justify-between">
+                <div>
+                    <p class="font-semibold text-slate-900 text-xs">Exigir Pagamento Antecipado para Agendar?</p>
+                    <p class="text-[11px] text-slate-500">Se desativado, o agendamento é confirmado de imediato e o cliente paga no local ou no balcão.</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" x-model="form.payment_required" class="sr-only peer">
+                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Gateway Padrão Ativo</label>
+                <select x-model="form.default_gateway" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                    <option value="asaas">Asaas (Cobranças PIX, Boleto e Cartão)</option>
+                    <option value="mercadopago">Mercado Pago (Em Breve)</option>
+                    <option value="manual">Manual / Pagamento no Balcão</option>
+                    <option value="none">Nenhum (Sem cobrança)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Métodos de Pagamento Permitidos</label>
+                <div class="flex items-center gap-4 mt-2">
+                    <label class="inline-flex items-center text-xs text-slate-700">
+                        <input type="checkbox" value="pix" x-model="form.accepted_payment_methods" class="rounded border-slate-300 text-blue-600 mr-2" /> PIX
+                    </label>
+                    <label class="inline-flex items-center text-xs text-slate-700">
+                        <input type="checkbox" value="credit_card" x-model="form.accepted_payment_methods" class="rounded border-slate-300 text-blue-600 mr-2" /> Cartão
+                    </label>
+                    <label class="inline-flex items-center text-xs text-slate-700">
+                        <input type="checkbox" value="in_person" x-model="form.accepted_payment_methods" class="rounded border-slate-300 text-blue-600 mr-2" /> No Local
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Módulo de Atendimento & IA -->
+    <div x-show="activeTab === 'ai'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-900">Personalidade e Conduta da IA</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Defina a forma como a IA se apresenta e atende os clientes no WhatsApp.</p>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Nome Fantasia da Empresa *</label>
+                <input type="text" x-model="form.company_name" required placeholder="Ex: Barbearia Elegance" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+            </div>
+
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Persona Virtual *</label>
+                <input type="text" x-model="form.assistant_name" required placeholder="Ex: Sofia, Clara, Alex" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+            </div>
+
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Tom de Linguagem</label>
+                <select x-model="form.tone" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                    <option value="casual">Casual / Descontraído (Ideal para salões, barbearias, petshops)</option>
+                    <option value="formal">Formal / Clínico (Ideal para consultórios, médicos, advogados)</option>
+                    <option value="executive">Executivo / Direto (Ideal para consultorias e empresas B2B)</option>
+                </select>
+            </div>
+
+            <div class="flex items-center gap-3 pt-5">
+                <input type="checkbox" id="require_cpf" x-model="form.require_cpf" class="rounded border-slate-300 text-blue-600" />
+                <label for="require_cpf" class="text-xs font-medium text-slate-700 cursor-pointer">
+                    Exigir CPF no primeiro cadastro do cliente
+                </label>
+            </div>
+
+            <div class="sm:col-span-2">
+                <label class="block font-medium text-slate-700 text-xs mb-1">Mensagem de Boas-Vindas Customizada</label>
+                <textarea x-model="form.welcome_message" rows="2" placeholder="Ex: Olá! Seja bem-vindo à Barbearia Elegance. Em que posso te ajudar hoje?" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Módulo WhatsApp & Canais -->
+    <div x-show="activeTab === 'whatsapp'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-900">Provedor e Conexão WhatsApp</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Selecione entre a Evolution API (QR Code) ou a Meta Cloud API Oficial.</p>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+            <div class="sm:col-span-2">
+                <label class="block font-medium text-slate-700 text-xs mb-1">Provedor de Conexão Ativo</label>
+                <div class="grid grid-cols-2 gap-4 mt-2">
+                    <label class="flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all" :class="form.whatsapp_provider === 'evolution' ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <input type="radio" value="evolution" x-model="form.whatsapp_provider" class="text-blue-600" />
+                        <div>
+                            <p class="font-semibold text-xs text-slate-900">Evolution API (QR Code)</p>
+                            <p class="text-[11px] text-slate-500">Conexão rápida por QR Code via celular.</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all" :class="form.whatsapp_provider === 'meta' ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <input type="radio" value="meta" x-model="form.whatsapp_provider" class="text-blue-600" />
+                        <div>
+                            <p class="font-semibold text-xs text-slate-900">Meta Cloud API Oficial</p>
+                            <p class="text-[11px] text-slate-500">Alta estabilidade empresarial direta com a Meta.</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Evolution Fields -->
+            <div x-show="form.whatsapp_provider === 'evolution'" class="sm:col-span-2 space-y-4">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Instância na Evolution API</label>
+                    <input type="text" x-model="form.evolution_instance" placeholder="Ex: empresa_principal" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+            </div>
+
+            <!-- Meta Fields -->
+            <div x-show="form.whatsapp_provider === 'meta'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Phone Number ID da Meta</label>
+                    <input type="text" x-model="form.meta_phone_number_id" placeholder="Ex: 102938475612345" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">WABA ID (Conta WhatsApp Business)</label>
+                    <input type="text" x-model="form.meta_waba_id" placeholder="Ex: 987654321098765" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Token de Acesso Permanente (System User Token)</label>
+                    <input type="password" x-model="form.meta_access_token" placeholder="EAAB..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Módulo de Comissões -->
+    <div x-show="activeTab === 'commission'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-900">Modelo Padrão de Comissionamento</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Configure como os profissionais da empresa são remunerados por serviço.</p>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Modelo de Comissão</label>
+                <select x-model="form.commission_model" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                    <option value="percentage">Percentual (%) sobre o valor do serviço</option>
+                    <option value="fixed_value">Valor Fixo (R$) por atendimento</option>
+                    <option value="split_gateway">Split Automático no Gateway de Pagamento</option>
+                    <option value="manual_settlement">Acerto Manual Periódico</option>
+                    <option value="none">Sem Comissões (Salário ou Fixo)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">Taxa / Percentual Padrão</label>
+                <input type="number" step="0.1" min="0" x-model.number="form.default_commission_rate" placeholder="Ex: 30.0" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+            </div>
+
+            <div class="sm:col-span-2 flex items-center gap-3">
+                <input type="checkbox" id="split_enabled" x-model="form.split_enabled" class="rounded border-slate-300 text-blue-600" />
+                <label for="split_enabled" class="text-xs font-medium text-slate-700 cursor-pointer">
+                    Habilitar split bancário automático diretamente na conta do profissional quando o PIX for pago
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function companySettingsManager() {
+    const rawData = document.getElementById('settings-data');
+    let settings = {};
+    try {
+        settings = JSON.parse(rawData.dataset.settings || '{}');
+    } catch(e) {
+        console.error('Error parsing settings data', e);
+    }
+
+    return {
+        activeTab: 'financial',
+        message: '',
+        messageError: false,
+        form: {
+            company_name: settings.company_name || 'Minha Empresa',
+            assistant_name: settings.assistant_name || 'Assistente',
+            tone: settings.tone || 'casual',
+            require_cpf: !!settings.require_cpf,
+            welcome_message: settings.welcome_message || '',
+            payment_required: settings.payment_required !== undefined ? !!settings.payment_required : true,
+            default_gateway: settings.default_gateway || 'asaas',
+            accepted_payment_methods: settings.accepted_payment_methods || ['pix'],
+            whatsapp_provider: settings.whatsapp_provider || 'evolution',
+            evolution_instance: settings.evolution_instance || '',
+            meta_phone_number_id: settings.meta_phone_number_id || '',
+            meta_waba_id: settings.meta_waba_id || '',
+            meta_access_token: settings.meta_access_token || '',
+            commission_model: settings.commission_model || 'percentage',
+            default_commission_rate: settings.default_commission_rate || 0,
+            split_enabled: !!settings.split_enabled
+        },
+
+        async saveSettings() {
+            try {
+                const res = await fetch('/admin/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': '{{ request.state.admin_context.csrf_token }}'
+                    },
+                    body: JSON.stringify(this.form)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Erro ao salvar configurações');
+                this.showMessage('Configurações salvas com sucesso!');
+            } catch(e) {
+                this.showMessage(e.message, true);
+            }
+        },
+
+        showMessage(msg, isError = false) {
+            this.message = msg;
+            this.messageError = isError;
+            setTimeout(() => { this.message = ''; }, 4000);
+        }
+    };
+}
+</script>
+{% endblock %}

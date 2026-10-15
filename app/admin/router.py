@@ -36,17 +36,23 @@ from app.admin.schemas import (
 from app.admin.service import AdminService
 from app.database import get_db
 from app.models.admin_account import AdminAccount
+from app.models.company_settings import CompanySettings
 from app.models.payment import Payment
+from app.models.product import Product
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
+from app.schemas.company_settings import CompanySettingsResponse, CompanySettingsUpdate
+from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
 from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
 from app.schemas.user import UserImportRequest, UserImportSummary
 from app.security import AdminContext, require_admin, require_admin_mutation, require_csrf_token
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.client_import_service import ClientImportService
+from app.services.company_settings_service import CompanySettingsService
 from app.services.payment_service import PaymentService
+from app.services.product_service import ProductService
 from app.services.professional_service import ProfessionalService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -418,6 +424,87 @@ async def services_page(request: Request, db: Session = Depends(get_db)):
         "request": request,
         "dashboard": dashboard,
     })
+
+
+@router.get("/products", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def products_page(request: Request, db: Session = Depends(get_db)):
+    service = ProductService(db)
+    products = service.list_products(active_only=False)
+    categories = service.list_categories()
+    serialized_products = jsonable_encoder([ProductResponse.model_validate(p) for p in products])
+    return templates.TemplateResponse(
+        request=request,
+        name="products.html",
+        context={
+            "products": serialized_products,
+            "categories": categories,
+        },
+    )
+
+
+@router.post("/api/products", dependencies=[Depends(require_admin_mutation)])
+async def api_create_product(payload: ProductCreate, db: Session = Depends(get_db)):
+    service = ProductService(db)
+    product = service.create(payload)
+    return jsonable_encoder(ProductResponse.model_validate(product))
+
+
+@router.put("/api/products/{product_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_update_product(
+    product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)
+):
+    service = ProductService(db)
+    product = service.update(product_id, payload)
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    return jsonable_encoder(ProductResponse.model_validate(product))
+
+
+@router.post("/api/products/{product_id}/stock", dependencies=[Depends(require_admin_mutation)])
+async def api_adjust_product_stock(
+    product_id: int, request: Request, db: Session = Depends(get_db)
+):
+    body = await request.json()
+    delta = body.get("quantity_delta", 0)
+    service = ProductService(db)
+    try:
+        product = service.adjust_stock(product_id, int(delta))
+        return jsonable_encoder(ProductResponse.model_validate(product))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/api/products/{product_id}/toggle-active", dependencies=[Depends(require_admin_mutation)])
+async def api_toggle_product_active(product_id: int, db: Session = Depends(get_db)):
+    service = ProductService(db)
+    product = service.get_by_id(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    product.active = not product.active
+    db.commit()
+    db.refresh(product)
+    return jsonable_encoder(ProductResponse.model_validate(product))
+
+
+@router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def settings_page(request: Request, db: Session = Depends(get_db)):
+    service = CompanySettingsService(db)
+    settings = service.get_or_create_default()
+    serialized_settings = jsonable_encoder(CompanySettingsResponse.model_validate(settings))
+    return templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={
+            "settings": serialized_settings,
+        },
+    )
+
+
+@router.post("/api/settings", dependencies=[Depends(require_admin_mutation)])
+async def api_update_settings(payload: CompanySettingsUpdate, db: Session = Depends(get_db)):
+    service = CompanySettingsService(db)
+    settings = service.update(payload)
+    return jsonable_encoder(CompanySettingsResponse.model_validate(settings))
 
 
 @router.get(
