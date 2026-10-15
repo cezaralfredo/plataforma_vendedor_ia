@@ -5,6 +5,7 @@ from app.models.company_settings import CompanySettings
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
+from app.models.product import Product
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
@@ -19,6 +20,7 @@ __all__ = [
     "NotificationDelivery",
     "NotificationLog",
     "Payment",
+    "Product",
     "Professional",
     "ProfessionalService",
     "Service",

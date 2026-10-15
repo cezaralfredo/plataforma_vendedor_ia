@@ -156,6 +156,21 @@ flowchart TD
 
 ---
 
+### 3.6. Catálogo de Produtos & Vendas (Conversational Commerce)
+A plataforma atua como **Vendedor Online Completo**, unificando:
+1. **Serviços:** Agendamentos baseados em tempo, profissionais e slots livres.
+2. **Produtos Físicos por Categoria:** Itens de varejo (pomadas, cosméticos, kits homecare, rações, acessórios) com controle de estoque (`stock_quantity`) e categorização (`category`).
+
+#### Ferramentas MCP para Venda de Produtos:
+* `listar_produtos`: Consulta catálogo por categoria ou termo de busca, exibindo preços e itens em estoque.
+* `consultar_produto`: Detalhamento do produto e checagem de estoque em tempo real.
+
+#### Estratégias de Venda no WhatsApp:
+* **Venda Direta:** Atendimento de clientes que desejam comprar produtos sem realizar agendamento.
+* **Cross-Selling Inteligente:** A IA sugere produtos complementares logo após a confirmação de um agendamento.
+
+---
+
 ## 4. Opções Avaliadas para a Camada de Inteligência
 
 ### Opção A: Nó nativo "AI Agent" do n8n *(Mais Recomendada para simplificar a stack)*

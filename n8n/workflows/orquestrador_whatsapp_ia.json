@@ -44,7 +44,7 @@
         "promptType": "define",
         "text": "={{ $json.message_text }}",
         "options": {
-          "systemMessage": "=Você é o Assistente Virtual e Vendedor Online da plataforma de agendamentos e serviços.\nSeu objetivo é prestar um atendimento acolhedor, rápido e objetivo pelo WhatsApp.\n\nRegras de Comportamento:\n1. Apresente-se amigavelmente usando o nome do cliente se disponível ({{ $json.push_name }}).\n2. Quando o cliente quiser agendar ou consultar opções, use a ferramenta 'Tool Listar Servicos' para verificar o catálogo e preços.\n3. Para consultar dias e horários livres, use a ferramenta 'Tool Verificar Disponibilidade'.\n4. Para confirmar o agendamento, certifique-se de ter os dados do cliente (Nome, Telefone {{ $json.phone }}) e use a ferramenta 'Tool Criar Reserva'.\n5. Quando o cliente desejar pagar via PIX, gere o pagamento usando a ferramenta 'Tool Gerar Cobranca' e envie a chave copia e cola com clareza.\n6. Mantenha as mensagens concisas e ideais para leitura no WhatsApp."
+          "systemMessage": "=Você é o Assistente Virtual e Vendedor Online da plataforma de agendamentos e vendas.\nSeu objetivo é prestar um atendimento acolhedor, rápido e objetivo pelo WhatsApp.\n\nRegras de Comportamento:\n1. Apresente-se amigavelmente usando o nome do cliente se disponível ({{ $json.push_name }}).\n2. Quando o cliente quiser agendar ou consultar serviços, use a ferramenta 'Tool Listar Servicos' para verificar o catálogo e preços.\n3. Quando o cliente quiser comprar produtos, cosméticos ou itens da loja, use a ferramenta 'Tool Listar Produtos' para apresentar preços, opções e estoque.\n4. Para consultar dias e horários livres, use a ferramenta 'Tool Verificar Disponibilidade'.\n5. Para confirmar o agendamento, certifique-se de ter os dados do cliente (Nome, Telefone {{ $json.phone }}) e use a ferramenta 'Tool Criar Reserva'.\n6. Quando o cliente desejar pagar via PIX, gere o pagamento usando a ferramenta 'Tool Gerar Cobranca' e envie a chave copia e cola com clareza.\n7. Mantenha as mensagens concisas e ideais para leitura no WhatsApp."
         }
       },
       "id": "agent-orchestrator",
@@ -193,6 +193,35 @@
       "type": "@n8n/n8n-nodes-langchain.toolCustom",
       "typeVersion": 1.1,
       "position": [1020, 620]
+    },
+    {
+      "parameters": {
+        "name": "listar_produtos",
+        "description": "Lista os produtos físicos disponíveis para venda no estabelecimento por categoria ou busca, com preço e estoque.",
+        "method": "POST",
+        "url": "http://agenda-api:8000/mcp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($env.API_KEY || 'dev-api-key-change-in-production') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"list_products\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"listar_produtos\",\n    \"arguments\": {\n      \"category\": \"{{ $fromAI('category', '') }}\",\n      \"search\": \"{{ $fromAI('search', '') }}\"\n    }\n  }\n}"
+      },
+      "id": "tool-list-products",
+      "name": "Tool Listar Produtos",
+      "type": "@n8n/n8n-nodes-langchain.toolCustom",
+      "typeVersion": 1.1,
+      "position": [1160, 500]
     },
     {
       "parameters": {
@@ -395,6 +424,17 @@
       ]
     },
     "Tool Gerar Cobranca": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Central",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool Listar Produtos": {
       "ai_tool": [
         [
           {

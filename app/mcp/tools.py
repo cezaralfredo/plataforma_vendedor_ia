@@ -12,12 +12,14 @@ from app.models.appointment import Appointment
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
+from app.models.product import Product
 from app.schemas.appointment import AppointmentCreate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
+from app.services.product_service import ProductService
 from app.services.professional_service_offering_service import ProfessionalOfferingService
 from app.services.user_service import UserService
 
@@ -98,6 +100,29 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "professional_id": {"description": "ID do profissional (número) ou nome do profissional (opcional)"},
                 "category": {"type": "string", "description": "Categoria do serviço (opcional)"},
+            },
+        },
+    },
+    {
+        "name": "listar_produtos",
+        "description": "Lista produtos físicos disponíveis para venda no estabelecimento por categoria ou termo de busca, com preço e estoque",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "description": "Categoria do produto (ex: 'Cabelo', 'Barba', 'Homecare') (opcional)"},
+                "search": {"type": "string", "description": "Termo de busca pelo nome ou descrição (opcional)"},
+                "in_stock_only": {"type": "boolean", "description": "Se verdadeiro, lista apenas itens com estoque > 0 (padrão: true)"},
+            },
+        },
+    },
+    {
+        "name": "consultar_produto",
+        "description": "Consulta detalhes, preço e estoque de um produto específico por ID ou nome",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "integer", "description": "ID do produto (opcional)"},
+                "name": {"type": "string", "description": "Nome ou parte do nome do produto (opcional)"},
             },
         },
     },
@@ -400,6 +425,75 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     }
                 ]
             }
+
+        elif name == "listar_produtos":
+            product_service = ProductService(db)
+            category = arguments.get("category")
+            search = arguments.get("search")
+            in_stock_only = arguments.get("in_stock_only", True)
+
+            products = product_service.list_products(
+                category=category,
+                search=search,
+                in_stock_only=in_stock_only,
+            )
+
+            if not products:
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Nenhum produto encontrado com os filtros informados.",
+                        }
+                    ]
+                }
+
+            lines = ["Produtos disponíveis para venda:"]
+            for prod in products:
+                price = f"R$ {prod.price_cents / 100:.2f}".replace(".", ",")
+                cat_tag = f" [{prod.category}]" if prod.category else ""
+                lines.append(
+                    f"  #{prod.id} {prod.name} - {price} (Estoque: {prod.stock_quantity}){cat_tag}"
+                )
+            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+        elif name == "consultar_produto":
+            product_service = ProductService(db)
+            product_id = arguments.get("product_id")
+            name_arg = arguments.get("name")
+
+            product = None
+            if product_id:
+                product = product_service.get_by_id(int(product_id))
+            elif name_arg:
+                matches = product_service.find_by_name(name_arg)
+                if matches:
+                    product = matches[0]
+
+            if not product:
+                return {
+                    "content": [
+                        {"type": "text", "text": "Produto não encontrado no catálogo."}
+                    ]
+                }
+
+            price = f"R$ {product.price_cents / 100:.2f}".replace(".", ",")
+            desc = f"\n  Descrição: {product.description}" if product.description else ""
+            cat = f"\n  Categoria: {product.category}" if product.category else ""
+            status_est = (
+                f"{product.stock_quantity} unidades disponíveis"
+                if product.stock_quantity > 0
+                else "Esgotado no momento"
+            )
+
+            text = (
+                f"Produto #{product.id}: {product.name}\n"
+                f"  Preço: {price}\n"
+                f"  Estoque: {status_est}"
+                f"{cat}"
+                f"{desc}"
+            )
+            return {"content": [{"type": "text", "text": text}]}
 
         elif name == "verificar_disponibilidade":
             availability_service = AvailabilityService(db)
