@@ -36,9 +36,7 @@ from app.admin.schemas import (
 from app.admin.service import AdminService
 from app.database import get_db
 from app.models.admin_account import AdminAccount
-from app.models.company_settings import CompanySettings
 from app.models.payment import Payment
-from app.models.product import Product
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate

@@ -1,8 +1,9 @@
 import logging
+
 from sqlalchemy.orm import Session
 
 from app.models.company_settings import CompanySettings
-from app.schemas.company_settings import CompanySettingsCreate, CompanySettingsUpdate
+from app.schemas.company_settings import CompanySettingsUpdate
 
 logger = logging.getLogger(__name__)
 

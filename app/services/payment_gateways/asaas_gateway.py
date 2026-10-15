@@ -39,7 +39,7 @@ class AsaasPaymentGateway(BasePaymentGateway):
         if billing_type.lower() == "pix" and payment_id:
             try:
                 pix_qr = await self.client.get_pix_qr_code(payment_id)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
         return {

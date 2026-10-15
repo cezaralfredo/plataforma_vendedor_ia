@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.mcp.tools import handle_tool_call
-from app.schemas.product import ProductCreate, ProductUpdate
+from app.schemas.product import ProductCreate
 from app.services.product_service import ProductService
 
 
@@ -21,7 +21,7 @@ def test_product_crud_and_stock(db_session: Session):
         )
     )
 
-    p2 = service.create(
+    service.create(
         ProductCreate(
             name="Óleo Hidratante de Barba",
             description="Óleo essencial com fragrância amadeirada",

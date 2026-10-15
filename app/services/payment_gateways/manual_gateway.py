@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.services.payment_gateways.base import BasePaymentGateway
@@ -27,7 +27,7 @@ class ManualPaymentGateway(BasePaymentGateway):
         return {
             "gateway_payment_id": gateway_payment_id,
             "status": "confirmed",
-            "received_at": datetime.now(timezone.utc),
+            "received_at": datetime.now(UTC),
         }
 
     async def refund(self, gateway_payment_id: str, reason: str | None = None) -> dict[str, Any]:

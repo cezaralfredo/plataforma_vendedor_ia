@@ -1,11 +1,11 @@
 import subprocess
 import sys
-from fastapi.testclient import TestClient
+
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.admin.auth_service import authenticate_admin, upsert_admin_account
-from app.models.admin_account import AdminAccount
+from app.admin.auth_service import upsert_admin_account
 
 
 def test_root_and_login_redirects(anonymous_client: TestClient):
@@ -33,7 +33,7 @@ def test_upsert_admin_account_creates_and_updates(db_session: Session):
     """Valida se criar ou atualizar o login administrativo preserva o singleton e zera bloqueios."""
     # Criação do primeiro acesso com usuário Anauê
     account = upsert_admin_account(
-        db_session, username="admin_anaue", password="SenhaSegura@2026!Store"
+        db_session, username="admin_anaue", password="SenhaSegura@2026!Store"  # noqa: S106
     )
     assert account.id == 1
     assert account.username == "admin_anaue"
@@ -43,7 +43,7 @@ def test_upsert_admin_account_creates_and_updates(db_session: Session):
     # Simula se já existir uma conta e for solicitada nova credencial de acesso
     v1 = account.auth_version
     updated_account = upsert_admin_account(
-        db_session, username="anaue_master", password="NovaSenhaSegura#2026!Vendedor"
+        db_session, username="anaue_master", password="NovaSenhaSegura#2026!Vendedor"  # noqa: S106
     )
     assert updated_account.id == 1
     assert updated_account.username == "anaue_master"
@@ -53,10 +53,10 @@ def test_upsert_admin_account_creates_and_updates(db_session: Session):
 def test_upsert_admin_account_validates_strength(db_session: Session):
     """Impede senhas fracas ou nomes de usuário vazios."""
     with pytest.raises(ValueError, match="pelo menos 12 caracteres"):
-        upsert_admin_account(db_session, username="admin", password="curta")
+        upsert_admin_account(db_session, username="admin", password="curta")  # noqa: S106
 
     with pytest.raises(ValueError, match="não pode estar em branco"):
-        upsert_admin_account(db_session, username="  ", password="SenhaValida12345!")
+        upsert_admin_account(db_session, username="  ", password="SenhaValida12345!")  # noqa: S106
 
 
 def test_cli_create_or_reset_script(tmp_path):
@@ -74,7 +74,7 @@ def test_cli_create_or_reset_script(tmp_path):
         "--database-url",
         f"sqlite:///{db_file.as_posix()}",
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
     assert "loja.anauedesign.com.br" in proc.stdout
     assert "admin_loja_anaue" in proc.stdout
     assert "Credenciais de Acesso Administrativo Configuradas" in proc.stdout

@@ -12,7 +12,6 @@ from app.models.appointment import Appointment
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
-from app.models.product import Product
 from app.schemas.appointment import AppointmentCreate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService

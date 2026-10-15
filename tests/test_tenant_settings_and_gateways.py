@@ -1,9 +1,8 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
+
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.appointment import Appointment
-from app.models.company_settings import CompanySettings
 from app.schemas.appointment import AppointmentCreate
 from app.schemas.company_settings import CompanySettingsUpdate
 from app.services.appointment_service import AppointmentService
