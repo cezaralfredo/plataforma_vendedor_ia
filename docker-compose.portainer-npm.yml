@@ -55,7 +55,7 @@ services:
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD?Defina ADMIN_BOOTSTRAP_PASSWORD no Portainer (vazio apos criar a conta)}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET no Portainer}
       ADMIN_RECOVERY_KEY: ${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY no Portainer}
-      APP_NAME: ${APP_NAME:-Agenda Atende}
+      APP_NAME: ${APP_NAME:-Anauê Design - Vendedor Online}
       DEBUG: "false"
       ASAAS_API_KEY: ${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/v3}
@@ -77,6 +77,9 @@ services:
       npm:
         aliases:
           - agenda-api
+          - vendedor-api
+          - loja-api
+          - loja-anauedesign
       mcp_internal:
 
 volumes:

@@ -1,79 +1,128 @@
-# Deploy no Portainer Community Edition com Nginx Proxy Manager e PostgreSQL local
+# Deploy no Portainer com Nginx Proxy Manager (NPM) como SSL
 
-> Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também a imagem `-backup`. API e métricas usam Bearer; o painel usa Basic.
+> **Plataforma Vendedor Online — Anauê Design (`loja.anauedesign.com.br`)**  
+> O Nginx Proxy Manager (NPM) gerencia as portas 80 e 443 e emite os certificados SSL (Let's Encrypt) automaticamente. A aplicação roda isolada internamente na rede Docker e recebe tráfego seguro por proxy reverso.
 
-Use `docker-compose.portainer-npm.yml` para criar uma nova Stack. Esta é a variante com PostgreSQL local, feita para um Docker comum (sem Swarm) e para o Nginx Proxy Manager já instalado no ambiente. Para a topologia com PostgreSQL externo no Neon, siga [DEPLOY_PORTAINER_NEON.md](DEPLOY_PORTAINER_NEON.md).
+---
 
-## Variáveis da Stack
+## 1. Topologia da Rede e Portas
 
-Cadastre estas variáveis no Portainer antes do deploy:
-
-```env
-POSTGRES_PASSWORD=uma-senha-forte-sem-espacos
-API_KEY=chave-privada-para-mcp
-ADMIN_API_KEY=chave-privada-para-admin
-ASAAS_API_KEY=sua-chave-asaas
-ASAAS_WEBHOOK_TOKEN=seu-token-de-webhook-asaas
-ASAAS_BASE_URL=https://api.asaas.com/v3
-APP_NAME=Agenda Atende
-REGISTRY=ghcr.io
-GITHUB_REPOSITORY=cezaralfredo/plataforma_atende_agenda
-NPM_NETWORK=nginx-proxy_default
-
-# MCP Gateway (para Hermes externo)
-MCP_GATEWAY_KEY=chave-forte-para-gateway-hermes
-MCP_GATEWAY_IMAGE_TAG=sha-da-mesma-publicacao-da-api
+```
+[ Usuário / WhatsApp ]
+         │ (HTTPS : 443 - SSL Seguro)
+         ▼
+[ Nginx Proxy Manager (NPM) ] ──── SSL Terminado
+         │ (HTTP rede interna 'npm')
+         ├─────────────────────────────────────────┐
+         ▼                                         ▼
+[ vendedor-api : 8000 ]                   [ n8n : 5678 ]
+(FastAPI - Loja & Painel Admin)     (Orquestrador Omnichannel IA)
+         │                                         │
+         ▼                                         ▼
+[ PostgreSQL : 5432 ]                  [ Evolution / Meta API ]
 ```
 
-`NPM_NETWORK` já usa como padrão a rede encontrada nesta VPS. Só a altere se a rede do Nginx Proxy Manager mudar.
+* **Nenhuma porta 80/443 exposta na aplicação:** As portas públicas pertencem exclusivamente ao NPM.
+* **Rede externa compartilhada:** `npm` (ou `nginx-proxy_default`).
+* **Aliases internos da API:** `vendedor-api`, `agenda-api`, `loja-anauedesign`.
 
-## Após o deploy
+---
 
-No Nginx Proxy Manager, crie **dois Proxy Hosts**:
+## 2. Implantação da Stack no Portainer
 
-### 1. API Principal
-- Domain Names: `api.seudominio.com`
-- Scheme: `http`
-- Forward Hostname / IP: `agenda-api`
-- Forward Port: `8000`
-- SSL: solicite um novo certificado Let's Encrypt e force SSL.
+1. Acesse o **Portainer → Stacks → Add stack**.
+2. Nome: `vendedor-online` (ou `anauedesign`).
+3. Cole o conteúdo de [`docker-compose.portainer-npm.yml`](docker-compose.portainer-npm.yml).
+4. No campo **Environment variables**, defina:
 
-### 2. MCP Gateway (para Hermes)
-- Domain Names: `mcp.seudominio.com` (ou subdomínio dedicado)
-- Scheme: `http`
-- Forward Hostname / IP: `mcp-gateway`
-- Forward Port: `8080`
-- SSL: solicite certificado Let's Encrypt e force SSL.
+```env
+POSTGRES_PASSWORD=defina-uma-senha-forte-para-o-banco
+API_KEY=sua-api-key-secreta-com-pelo-menos-32-chars
+ADMIN_API_KEY=sua-admin-key-secreta-com-pelo-menos-32-chars
+ADMIN_USERNAME=admin_anaue
+ADMIN_BOOTSTRAP_PASSWORD=DefinaSuaSenhaSegura123!
+ADMIN_SESSION_SECRET=gere-com-openssl-rand-hex-32-64-caracteres
+ADMIN_RECOVERY_KEY=gere-com-openssl-rand-hex-32-64-caracteres
+APP_NAME=Anauê Design - Vendedor Online
+APP_TIMEZONE=America/Sao_Paulo
+REGISTRY=ghcr.io
+GITHUB_REPOSITORY=cezaralfredo/plataforma_vendedor_online
+NPM_NETWORK=nginx-proxy_default
 
-Em seguida, valide:
-- `https://api.seudominio.com/ready` — API e banco prontos
-- `https://mcp.seudominio.com/ready` — gateway e API interna prontos
-- Uma chamada JSON-RPC `tools/list` pelo domínio MCP, com `X-Gateway-Key`.
+# Gateway Financeiro (Asaas ou Manual/Balcão)
+ASAAS_API_KEY=sua-chave-asaas-producao
+ASAAS_BASE_URL=https://api.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=token-webhook-seguro-asaas
 
-Para o painel administrativo em `https://api.seudominio.com/admin`, use autenticação HTTP Basic com `ADMIN_API_KEY` como senha.
+# MCP Gateway
+MCP_GATEWAY_KEY=chave-secreta-gateway-mcp-64-chars
+MCP_GATEWAY_IMAGE_TAG=latest
+IMAGE_TAG=latest
+```
 
-## Hermes + MCP Gateway
+5. Clique em **Deploy the stack**.
 
-1. Configure `~/.hermes/config.yaml` baseado em `hermes/config.yaml.example`:
-   ```yaml
-   gateway:
-     base_url: "https://mcp.seudominio.com"
-     headers:
-       X-Gateway-Key: "mesmo-valor-do-MCP_GATEWAY_KEY"
-   ```
+---
 
-2. Perfis Hermes em `hermes/profiles/` já usam toolset `gateway` (não `mcp_tools`).
+## 3. Configuração do Proxy Host no Nginx Proxy Manager (NPM)
 
-3. Execute: `hermes run --profile orquestrador`
+Após subir a stack no Portainer, acesse o painel do seu NPM (`http://seu-ip:81`):
 
-## Limitações deliberadas
+### Proxy Host 1: Loja e Painel Administrativo
 
-Esta Stack não publica as portas 80 e 443, pois elas já pertencem ao Nginx Proxy Manager. Ela também usa variáveis de ambiente em vez de Docker secrets, porque o ambiente atual não opera em Docker Swarm.
+1. Vá em **Hosts → Proxy Hosts → Add Proxy Host**.
+2. **Details:**
+   - **Domain Names:** `loja.anauedesign.com.br`
+   - **Scheme:** `http`
+   - **Forward Hostname / IP:** `vendedor-api` *(ou `agenda-api`)*
+   - **Forward Port:** `8000`
+   - Marque:
+     - [x] **Cache Assets**
+     - [x] **Block Common Exploits**
+     - [x] **Websockets Support**
+3. **SSL Tab:**
+   - **SSL Certificate:** *Request a new SSL Certificate*
+   - Marque:
+     - [x] **Force SSL**
+     - [x] **HTTP/2 Support**
+     - [x] **HSTS Enabled**
+     - [x] **I Agree to the Let's Encrypt Terms of Service**
+4. Clique em **Save**.
 
-## Backup e restauração
+---
 
-Mantenha um backup diário fora da VPS, com retenção definida. Antes de qualquer
-atualização relevante, confirme a existência de um backup recente. Pelo menos
-uma vez por trimestre, restaure um backup em banco isolado e valide a abertura
-da aplicação; um arquivo de backup sem teste de restauração não é garantia de
-recuperação.
+### Proxy Host 2: n8n (Orquestrador WhatsApp IA - opcional)
+
+Se utilizar o n8n para a orquestração da Evolution API / Meta:
+1. **Domain Names:** `n8n.anauedesign.com.br`
+2. **Scheme:** `http`
+3. **Forward Hostname / IP:** `n8n`
+4. **Forward Port:** `5678`
+5. **Websockets Support:** [x] Marcado
+6. **SSL:** Solicite certificado Let's Encrypt com Force SSL.
+
+---
+
+## 4. Testes de Validação Pós-Deploy
+
+Valide pelo navegador ou via curl:
+
+```bash
+# 1. Checagem de integridade da API e Banco
+curl -k https://loja.anauedesign.com.br/ready
+
+# 2. Acesso ao Painel Administrativo
+# Abra no navegador: https://loja.anauedesign.com.br/login
+# (ou https://loja.anauedesign.com.br/admin/login)
+```
+
+---
+
+## 5. Gerenciando Senha e Acesso Administrativo
+
+* **Primeiro acesso:** Entre com `ADMIN_USERNAME` e a senha definida em `ADMIN_BOOTSTRAP_PASSWORD`.
+* **Alterar senha:** Acesse `https://loja.anauedesign.com.br/admin/password` para trocar por senha exclusiva.
+* **Criar/Resetar senha via terminal:**
+  ```bash
+  docker exec -it <container_api> python scripts/create_or_reset_admin.py --username admin_anaue --generate
+  ```
