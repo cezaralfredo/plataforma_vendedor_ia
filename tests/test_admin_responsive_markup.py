@@ -9,12 +9,7 @@ from tests.test_admin_login_flow import login
 @pytest.mark.parametrize("path,factory", [
     ("/admin/appointments", "appointments()"),
     ("/admin/payments", "payments()"),
-    ("/admin/professionals", "professionals()"),
     ("/admin/clients", "clientsPage()"),
-    (
-        "/admin/services",
-        "serviceCatalog({services: [], metrics: {}, issues: []})",
-    ),
 ])
 def test_admin_management_lists_offer_mobile_cards_with_masked_contacts(
     anonymous_client, db_session, path, factory,

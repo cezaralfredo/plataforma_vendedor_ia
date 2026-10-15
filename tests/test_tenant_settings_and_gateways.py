@@ -86,8 +86,6 @@ def test_appointment_creation_when_payment_is_mandatory(db_session: Session):
     appointment = service.create(
         AppointmentCreate(
             user_id=entities["user"].id,
-            professional_id=entities["professional"].id,
-            service_id=entities["service"].id,
             start_time=datetime(2026, 7, 30, 10, 0, 0),
             end_time=datetime(2026, 7, 30, 11, 0, 0),
         )
@@ -106,8 +104,6 @@ def test_appointment_creation_when_payment_is_optional(db_session: Session):
     appointment = service.create(
         AppointmentCreate(
             user_id=entities["user"].id,
-            professional_id=entities["professional"].id,
-            service_id=entities["service"].id,
             start_time=datetime(2026, 7, 30, 14, 0, 0),
             end_time=datetime(2026, 7, 30, 15, 0, 0),
         )

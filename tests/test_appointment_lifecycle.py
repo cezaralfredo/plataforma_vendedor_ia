@@ -6,27 +6,19 @@ from sqlalchemy.orm import Session
 from tests.seed import seed_appointment, seed_data, seed_payment
 
 
-def test_awaiting_payment_expires_and_releases_slot(
-    client: TestClient,
+def test_awaiting_payment_expires_and_cancels(
     db_session: Session,
 ):
+    from datetime import UTC
+    from app.services.appointment_service import AppointmentService
+
     entities = seed_data(db_session)
     appointment = seed_appointment(db_session, entities)
-    appointment.expires_at = datetime.now() - timedelta(minutes=1)
+    appointment.expires_at = datetime.now(UTC) - timedelta(minutes=1)
     db_session.commit()
 
-    response = client.get(
-        f"/api/availability/slots/{appointment.professional_id}/{appointment.service_id}",
-        params={"date": appointment.start_time.date().isoformat()},
-    )
-
-    assert response.status_code == 200
-    assert any(
-        slot["start"].startswith(appointment.start_time.strftime("%Y-%m-%dT%H:%M"))
-        for slot in response.json()
-    )
-    db_session.refresh(appointment)
-    assert appointment.status == "cancelled"
+    appt = AppointmentService(db_session).get(appointment.id)
+    assert appt.status == "cancelled"
 
 
 def test_completed_appointment_cannot_be_cancelled(

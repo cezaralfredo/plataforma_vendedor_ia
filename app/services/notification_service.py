@@ -19,32 +19,38 @@ def _as_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
-def format_payment_confirmation_message(appointment: Appointment, payment: Payment) -> str:
+def format_payment_confirmation_message(appointment: Appointment | None, payment: Payment) -> str:
     """Gera mensagem formatada e humanizada de confirmação para envio via WhatsApp."""
-    user_name = appointment.user.name if appointment.user else "Cliente"
-    service_name = appointment.service.name if appointment.service else "Serviço"
-    professional_name = appointment.professional.name if appointment.professional else "Profissional"
-    date_str = appointment.start_time.strftime("%d/%m/%Y às %H:%M")
+    user = (appointment.user if appointment and getattr(appointment, "user", None) else getattr(payment, "user", None))
+    user_name = user.name if user else "Cliente"
     amount = f"R$ {payment.amount_cents / 100:.2f}"
     billing = (payment.billing_type or "PIX").upper()
 
+    if getattr(payment, "product", None):
+        product_name = payment.product.name
+        return (
+            f"Olá, {user_name}! 👋\n\n"
+            f"✅ Seu pagamento de {amount} ({billing}) foi confirmado com sucesso!\n\n"
+            f"📦 *Detalhes da sua Compra:*\n"
+            f"• *Produto:* {product_name}\n"
+            f"• *Código do Pedido:* #{payment.id}\n\n"
+            f"Seu pedido foi confirmado e logo será despachado. Qualquer dúvida, é só responder por aqui!"
+        )
+
+    apt_id_str = f"#{appointment.id}" if appointment else f"#{payment.id}"
     return (
         f"Olá, {user_name}! 👋\n\n"
         f"✅ Seu pagamento de {amount} ({billing}) foi confirmado com sucesso!\n\n"
-        f"📋 *Detalhes da sua Reserva:*\n"
-        f"• *Serviço:* {service_name}\n"
-        f"• *Profissional:* {professional_name}\n"
-        f"• *Data e Horário:* {date_str}\n"
-        f"• *Código da Reserva:* #{appointment.id}\n\n"
-        f"Sua vaga está garantida na nossa agenda. Qualquer dúvida, é só responder por aqui!"
+        f"📋 *Detalhes da sua Compra:*\n"
+        f"• *Código:* {apt_id_str}\n\n"
+        f"Seu pagamento foi confirmado com sucesso. Qualquer dúvida, é só responder por aqui!"
     )
 
 
-def build_payment_notification_payload(appointment: Appointment, payment: Payment) -> dict[str, Any]:
-    """Monta payload padronizado para envio ao n8n ou Hermes."""
-    user = appointment.user
-    service = appointment.service
-    prof = appointment.professional
+def build_payment_notification_payload(appointment: Appointment | None, payment: Payment) -> dict[str, Any]:
+    """Monta payload padronizado para envio ao n8n ou webhook."""
+    user = (appointment.user if appointment and getattr(appointment, "user", None) else getattr(payment, "user", None))
+    product = getattr(payment, "product", None)
 
     client_phone = user.phone if user else ""
     whatsapp = getattr(user, "whatsapp_number", None) or client_phone
@@ -52,12 +58,12 @@ def build_payment_notification_payload(appointment: Appointment, payment: Paymen
     return {
         "event": "payment.confirmed",
         "timestamp": datetime.now(UTC).isoformat(),
-        "appointment_id": appointment.id,
+        "appointment_id": appointment.id if appointment else None,
         "chatId": whatsapp,
         "whatsapp": whatsapp,
         "payment_id": payment.id,
         "asaas_payment_id": payment.asaas_payment_id,
-        "status": appointment.status,
+        "status": appointment.status if appointment else "confirmed",
         "payment_status": payment.status,
         "amount_cents": payment.amount_cents,
         "billing_type": payment.billing_type,
@@ -67,22 +73,18 @@ def build_payment_notification_payload(appointment: Appointment, payment: Paymen
             "phone": client_phone,
             "whatsapp_number": whatsapp,
         },
-        "service": {
-            "id": service.id if service else None,
-            "name": service.name if service else "Serviço",
-            "duration_minutes": getattr(service, "duration_minutes", None),
-            "price_cents": getattr(service, "price_cents", None),
-        },
-        "professional": {
-            "id": prof.id if prof else None,
-            "name": prof.name if prof else "Profissional",
-        },
+        "product": {
+            "id": product.id if product else None,
+            "name": product.name if product else None,
+            "price_cents": product.price_cents if product else None,
+            "weight_kg": float(product.weight_kg) if product and product.weight_kg is not None else None,
+        } if product else None,
         "appointment": {
             "id": appointment.id,
             "start_time": appointment.start_time.isoformat() if appointment.start_time else None,
             "end_time": appointment.end_time.isoformat() if appointment.end_time else None,
             "notes": appointment.notes,
-        },
+        } if appointment else None,
         "formatted_message": format_payment_confirmation_message(appointment, payment),
     }
 
@@ -170,8 +172,6 @@ class NotificationService:
             self.db.query(Appointment)
             .options(
                 joinedload(Appointment.user),
-                joinedload(Appointment.service),
-                joinedload(Appointment.professional),
             )
             .filter(Appointment.id == delivery.appointment_id)
             .first()

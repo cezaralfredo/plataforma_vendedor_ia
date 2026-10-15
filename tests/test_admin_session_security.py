@@ -10,7 +10,7 @@ from app.config import Settings, settings
 from app.database import get_db
 from app.main import create_app
 from app.models.admin_account import AdminAccount
-from app.models.service import Service
+from app.models.product import Product
 from tests.conftest import TestingSessionLocal
 
 
@@ -93,29 +93,29 @@ def test_invalid_session_is_rejected(anonymous_client, overrides):
 def test_cookie_mutation_requires_matching_csrf(anonymous_client, db_session, csrf):
     set_admin_session(anonymous_client)
     headers = {} if csrf is None else {"X-CSRF-Token": csrf}
-    response = anonymous_client.post("/admin/api/services", json={"name": "Blocked"}, headers=headers)
+    response = anonymous_client.post("/admin/api/products", json={"name": "Blocked", "price_cents": 5000}, headers=headers)
     assert response.status_code == 403
     assert "fixture-csrf-token" not in response.text
-    assert db_session.query(Service).count() == 0
+    assert db_session.query(Product).count() == 0
 
 
 def test_cookie_mutation_with_matching_csrf_creates_service(anonymous_client, db_session):
     set_admin_session(anonymous_client)
     response = anonymous_client.post(
-        "/admin/api/services", json={"name": "Allowed", "price_cents": 5000, "duration_minutes": 60},
+        "/admin/api/products", json={"name": "Allowed", "price_cents": 5000},
         headers={"X-CSRF-Token": "fixture-csrf-token"},
     )
-    assert response.status_code == 201
-    assert db_session.query(Service).one().name == "Allowed"
+    assert response.status_code == 200
+    assert db_session.query(Product).one().name == "Allowed"
 
 
 def test_technical_mutation_needs_no_csrf_even_with_stale_cookie(anonymous_client):
     set_admin_session(anonymous_client, auth_version=0)
     response = anonymous_client.post(
-        "/admin/api/services", json={"name": "Technical", "price_cents": 5000, "duration_minutes": 60},
+        "/admin/api/products", json={"name": "Technical", "price_cents": 5000},
         headers={"X-Admin-Key": settings.admin_api_key},
     )
-    assert response.status_code == 201
+    assert response.status_code == 200
 
 
 def test_invalid_technical_key_does_not_fall_back_to_cookie(anonymous_client):
@@ -176,17 +176,9 @@ def test_production_cookie_is_secure_and_uses_application_settings(db_session):
 @pytest.mark.parametrize("method,path", [
     ("POST", "/admin/appointments/1/action"),
     ("POST", "/admin/payments/1/action"),
-    ("PUT", "/admin/api/services/1"),
-    ("DELETE", "/admin/api/services/1"),
-    ("POST", "/admin/api/services/1/reactivate"),
-    ("POST", "/admin/api/professionals"),
-    ("PUT", "/admin/api/professionals/1"),
-    ("DELETE", "/admin/api/professionals/1"),
-    ("POST", "/admin/api/professionals/1/services"),
-    ("DELETE", "/admin/api/professionals/1/services/1"),
-    ("POST", "/admin/api/professionals/1/availability"),
-    ("PUT", "/admin/api/professionals/1/availability/1"),
-    ("DELETE", "/admin/api/professionals/1/availability/1"),
+    ("POST", "/admin/api/products"),
+    ("PUT", "/admin/api/products/1"),
+    ("POST", "/admin/api/settings"),
     ("POST", "/admin/api/appointments"),
     ("PUT", "/admin/api/appointments/1"),
     ("DELETE", "/admin/api/appointments/1"),
@@ -194,3 +186,4 @@ def test_production_cookie_is_secure_and_uses_application_settings(db_session):
 def test_all_admin_mutations_reject_cookie_without_csrf(anonymous_client, method, path):
     set_admin_session(anonymous_client)
     assert anonymous_client.request(method, path, json={}).status_code == 403
+

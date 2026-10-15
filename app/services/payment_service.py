@@ -97,11 +97,9 @@ class PaymentService:
     @staticmethod
     def _appointment_price_cents(appointment: Appointment) -> int:
         snapshot = getattr(appointment, "service_price_cents", None)
-        if snapshot is not None and snapshot >= 500:
+        if snapshot is not None and snapshot >= 0:
             return snapshot
-        if not appointment.service:
-            raise ValueError("Agendamento sem serviço")
-        return appointment.service.price_cents
+        return 0
 
     @staticmethod
     def _payment_from_asaas(
@@ -115,6 +113,7 @@ class PaymentService:
         remote_status = payload.get("status")
         return Payment(
             appointment_id=appointment.id,
+            user_id=appointment.user_id,
             asaas_payment_id=payment_id,
             amount_cents=PaymentService._appointment_price_cents(appointment),
             billing_type=billing_type,
@@ -132,13 +131,64 @@ class PaymentService:
         return (
             self.db.query(Appointment)
             .options(
-                joinedload(Appointment.service),
-                joinedload(Appointment.professional),
                 joinedload(Appointment.user),
             )
             .filter(Appointment.id == appointment_id)
             .with_for_update(of=Appointment)
         )
+
+    async def create_direct_charge(
+        self,
+        user_id: int,
+        amount_cents: int,
+        product_id: int | None = None,
+        description: str | None = None,
+        billing_type: str = "undefined",
+    ) -> Payment:
+        if amount_cents <= 0:
+            raise ValueError("O valor da cobrança deve ser maior que zero")
+
+        billing_type = billing_type.lower()
+        asaas_billing_type = billing_type.upper()
+        if asaas_billing_type not in {"PIX", "BOLETO", "CREDIT_CARD", "UNDEFINED"}:
+            raise ValueError("Invalid billing type")
+
+        customer_id = await self.ensure_asaas_customer(user_id)
+        due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        charge_desc = description or "Pagamento de produto"
+        if product_id and not description:
+            from app.models.product import Product
+            prod = self.db.query(Product).filter(Product.id == product_id).first()
+            if prod:
+                charge_desc = f"Produto: {prod.name}"
+
+        remote_payment = await self.asaas.create_payment(
+            customer_id=customer_id,
+            value=amount_cents / 100.0,
+            due_date=due_date,
+            description=charge_desc,
+            billing_type=asaas_billing_type,
+        )
+
+        payment_id = remote_payment.get("id")
+        remote_status = remote_payment.get("status")
+        payment = Payment(
+            user_id=user_id,
+            product_id=product_id,
+            description=charge_desc,
+            asaas_payment_id=payment_id,
+            amount_cents=amount_cents,
+            billing_type=billing_type,
+            status=ASAAS_STATUS_MAP.get(remote_status, "pending") if isinstance(remote_status, str) else "pending",
+            invoice_url=remote_payment.get("invoiceUrl"),
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        self.db.add(payment)
+        self.db.commit()
+        self.db.refresh(payment)
+        return payment
 
     async def create_charge(
         self,
@@ -162,8 +212,6 @@ class PaymentService:
         appointment = (
             self.db.query(Appointment)
             .options(
-                joinedload(Appointment.service),
-                joinedload(Appointment.professional),
                 joinedload(Appointment.user),
             )
             .filter(Appointment.id == appointment_id)
@@ -196,14 +244,13 @@ class PaymentService:
         if remote_payment is None:
             customer_id = await self.ensure_asaas_customer(appointment.user_id)
             due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+            charge_desc = getattr(appointment, "notes", None) or f"Agendamento #{appointment.id}"
             try:
                 remote_payment = await self.asaas.create_payment(
                     customer_id=customer_id,
                     value=value_cents / 100.0,
                     due_date=due_date,
-                    description=(
-                        f"{appointment.service.name} - {appointment.professional.name}"
-                    ),
+                    description=charge_desc,
                     billing_type=asaas_billing_type,
                     external_reference=external_reference,
                 )
@@ -363,8 +410,6 @@ class PaymentService:
             self.db.query(Appointment)
             .options(
                 joinedload(Appointment.user),
-                joinedload(Appointment.service),
-                joinedload(Appointment.professional),
                 joinedload(Appointment.payments),
             )
             .filter(

@@ -23,14 +23,10 @@ def test_admin_appointments_hide_unpaid_cancelled_filter(
 ):
     entities = seed_data(db_session)
     user = entities["user"]
-    prof = entities["professional"]
-    serv = entities["service"]
 
     # 1. Agendamento confirmado com pagamento confirmado
     apt_paid = Appointment(
         user_id=user.id,
-        professional_id=prof.id,
-        service_id=serv.id,
         start_time=datetime(2026, 8, 10, 10, 0, tzinfo=UTC),
         end_time=datetime(2026, 8, 10, 10, 45, tzinfo=UTC),
         status="confirmed",
@@ -47,8 +43,6 @@ def test_admin_appointments_hide_unpaid_cancelled_filter(
     # 2. Agendamento cancelado SEM pagamento (abandonado)
     apt_unpaid_cancelled = Appointment(
         user_id=user.id,
-        professional_id=prof.id,
-        service_id=serv.id,
         start_time=datetime(2026, 8, 11, 14, 0, tzinfo=UTC),
         end_time=datetime(2026, 8, 11, 14, 45, tzinfo=UTC),
         status="cancelled",
@@ -58,8 +52,6 @@ def test_admin_appointments_hide_unpaid_cancelled_filter(
     # 3. Agendamento cancelado COM pagamento recebido/estornado
     apt_paid_cancelled = Appointment(
         user_id=user.id,
-        professional_id=prof.id,
-        service_id=serv.id,
         start_time=datetime(2026, 8, 12, 16, 0, tzinfo=UTC),
         end_time=datetime(2026, 8, 12, 16, 45, tzinfo=UTC),
         status="cancelled",
@@ -99,15 +91,11 @@ def test_maintenance_preview_and_csv_export(
 ):
     entities = seed_data(db_session)
     user = entities["user"]
-    prof = entities["professional"]
-    serv = entities["service"]
 
     # Cria agendamento antigo (há 200 dias)
     past_date = datetime.now(UTC) - timedelta(days=200)
     apt_old = Appointment(
         user_id=user.id,
-        professional_id=prof.id,
-        service_id=serv.id,
         start_time=past_date,
         end_time=past_date + timedelta(minutes=45),
         status="completed",
@@ -144,8 +132,6 @@ def test_maintenance_preview_and_csv_export(
     recent_date = datetime.now(UTC) - timedelta(days=10)
     apt_recent = Appointment(
         user_id=user.id,
-        professional_id=prof.id,
-        service_id=serv.id,
         start_time=recent_date,
         end_time=recent_date + timedelta(minutes=45),
         status="confirmed",
@@ -193,15 +179,11 @@ def test_maintenance_purge_execution(
 ):
     entities = seed_data(db_session)
     user = entities["user"]
-    prof = entities["professional"]
-    serv = entities["service"]
 
     # Cria agendamento antigo abandonado (cancelado sem pagamento)
     past_date = datetime.now(UTC) - timedelta(days=220)
     apt_abandoned = Appointment(
         user_id=user.id,
-        professional_id=prof.id,
-        service_id=serv.id,
         start_time=past_date,
         end_time=past_date + timedelta(minutes=45),
         status="cancelled",

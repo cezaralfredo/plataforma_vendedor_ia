@@ -19,7 +19,27 @@ router = APIRouter(
 async def create_payment(data: PaymentCreate, db: Session = Depends(get_db)):
     svc = PaymentService(db)
     try:
-        payment = await svc.create_charge(data.appointment_id, data.billing_type, data.amount_cents)
+        if data.appointment_id:
+            payment = await svc.create_charge(data.appointment_id, data.billing_type, data.amount_cents)
+        elif data.user_id:
+            amount = data.amount_cents
+            if amount is None and data.product_id:
+                from app.models.product import Product
+                prod = db.query(Product).filter(Product.id == data.product_id).first()
+                if not prod:
+                    raise HTTPException(status_code=404, detail="Produto não encontrado")
+                amount = prod.price_cents
+            if not amount or amount <= 0:
+                raise HTTPException(status_code=400, detail="amount_cents é obrigatório para cobrança direta")
+            payment = await svc.create_direct_charge(
+                user_id=data.user_id,
+                amount_cents=amount,
+                product_id=data.product_id,
+                description=data.description,
+                billing_type=data.billing_type,
+            )
+        else:
+            raise HTTPException(status_code=400, detail="appointment_id ou user_id deve ser informado")
         return payment
     except AsaasReconciliationError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e

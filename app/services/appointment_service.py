@@ -7,20 +7,15 @@ from app.business_time import as_business_time
 from app.models.appointment import Appointment
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
-from app.models.professional import Professional
-from app.models.professional_service import ProfessionalService
-from app.models.service import Service
 from app.models.user import User
 from app.repositories import AppointmentRepository
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
-from app.services.availability_service import AvailabilityService
 from app.services.payment_state_service import _is_expired
 
 
 class AppointmentService:
     def __init__(self, db: Session):
         self.repo = AppointmentRepository(db)
-        self.availability_service = AvailabilityService(db)
 
     def _expire_pending(self) -> None:
         self.repo.expire_reservations(datetime.now(UTC))
@@ -29,7 +24,7 @@ class AppointmentService:
     def create(self, data: AppointmentCreate):
         now = datetime.now(UTC)
         self._expire_pending()
-        start_time, end_time, offering = self._validate_booking(data)
+        start_time, end_time = self._validate_booking(data)
         from app.models.company_settings import CompanySettings
 
         settings = self.repo.db.query(CompanySettings).first()
@@ -46,69 +41,26 @@ class AppointmentService:
                 status=initial_status,
                 expires_at=expires_at,
                 created_at=now,
-                service_price_cents=offering.service.price_cents,
-                service_duration_minutes=offering.service.duration_minutes,
-                professional_commission_percent=offering.commission_percent,
             )
         except IntegrityError as exc:
             self.repo.db.rollback()
-            constraint_name = getattr(
-                getattr(exc.orig, "diag", None), "constraint_name", None
-            )
-            if constraint_name == "exclude_professional_overlapping_appointments":
-                raise ValueError("Já existe uma reserva neste horário") from exc
-            raise
+            raise ValueError("Erro ao criar reserva") from exc
 
     def _validate_booking(
         self, data: AppointmentCreate, exclude_appointment_id: int | None = None
-    ) -> tuple[datetime, datetime, ProfessionalService]:
+    ) -> tuple[datetime, datetime]:
         client = self.repo.db.get(User, data.user_id)
         if not client:
             raise ValueError("Cliente não encontrado")
         if not client.active:
             raise ValueError("Cliente arquivado não pode receber novos agendamentos.")
-        professional = self.repo.db.get(Professional, data.professional_id)
-        if not professional or not professional.active:
-            raise ValueError("Profissional não encontrado ou inativo")
-        service = self.repo.db.get(Service, data.service_id)
-        if not service or not service.active:
-            raise ValueError("Serviço indisponível")
-        offering = (
-            self.repo.db.query(ProfessionalService)
-            .filter(
-                ProfessionalService.professional_id == data.professional_id,
-                ProfessionalService.service_id == data.service_id,
-                ProfessionalService.active.is_(True),
-            )
-            .first()
-        )
-        if not offering:
-            raise ValueError("Serviço indisponível para o profissional informado")
 
         start_time = as_business_time(data.start_time)
         end_time = as_business_time(data.end_time)
-        expected_end = start_time + timedelta(
-            minutes=offering.service.duration_minutes
-        )
-        if end_time != expected_end:
-            raise ValueError(
-                "A duração da reserva deve corresponder à duração do serviço"
-            )
-        if not self.availability_service.is_interval_available(
-            data.professional_id, start_time, end_time
-        ):
-            raise ValueError(
-                "O horário solicitado está fora da disponibilidade do profissional"
-            )
-        conflicts = self.repo.find_conflicting(
-            data.professional_id,
-            start_time,
-            end_time,
-            exclude_id=exclude_appointment_id,
-        )
-        if conflicts:
-            raise ValueError("Já existe uma reserva neste horário")
-        return start_time, end_time, offering
+        if end_time <= start_time:
+            raise ValueError("Horário final deve ser posterior ao horário inicial")
+
+        return start_time, end_time
 
     def update_booking(self, appointment_id: int, data: AppointmentCreate):
         appointment = self.get(appointment_id)
@@ -121,7 +73,7 @@ class AppointmentService:
         ).first():
             raise ValueError("Não é possível alterar um agendamento com pagamento")
 
-        start_time, end_time, offering = self._validate_booking(
+        start_time, end_time = self._validate_booking(
             data, exclude_appointment_id=appointment_id
         )
         appointment.user_id = data.user_id
@@ -130,9 +82,6 @@ class AppointmentService:
         appointment.start_time = start_time
         appointment.end_time = end_time
         appointment.notes = data.notes
-        appointment.service_price_cents = offering.service.price_cents
-        appointment.service_duration_minutes = offering.service.duration_minutes
-        appointment.professional_commission_percent = offering.commission_percent
         self.repo.db.commit()
         self.repo.db.refresh(appointment)
         return appointment

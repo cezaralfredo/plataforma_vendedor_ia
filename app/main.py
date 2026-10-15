@@ -14,12 +14,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.admin.auth_service import bootstrap_admin_account
 from app.admin.router import router as admin_router
 from app.api.appointments import router as appointments_router
-from app.api.availability import router as availability_router
 from app.api.health import router as health_router
 from app.api.notification_deliveries import router as notification_deliveries_router
 from app.api.payments import router as payments_router
-from app.api.professionals import router as professionals_router
-from app.api.services import router as services_router
 from app.api.triage import router as triage_router
 from app.api.users import router as users_router
 from app.api.webhooks import router as webhooks_router
@@ -100,9 +97,6 @@ def create_app(
 
     application.include_router(health_router)
     application.include_router(users_router)
-    application.include_router(professionals_router)
-    application.include_router(services_router)
-    application.include_router(availability_router)
     application.include_router(appointments_router)
     application.include_router(payments_router)
     application.include_router(webhooks_router)

@@ -12,8 +12,7 @@ ACTIVE_MUTATION_TEMPLATES = [
     "appointments.html",
     "appointment_detail.html",
     "payments.html",
-    "professional_detail.html",
-    "services.html",
+    "products.html",
     "users.html",
 ]
 
@@ -23,7 +22,7 @@ def _admin_headers() -> dict[str, str]:
 
 
 def test_admin_assets_are_served_locally(anonymous_client):
-    response = anonymous_client.get("/admin/services", headers=_admin_headers())
+    response = anonymous_client.get("/admin/products", headers=_admin_headers())
     assert response.status_code == 200
     for host in ("unpkg.com", "cdn.tailwindcss.com", "cdnjs.cloudflare.com"):
         assert host not in response.text
@@ -38,7 +37,7 @@ def test_admin_assets_are_served_locally(anonymous_client):
 
 
 def test_admin_shell_exposes_accessible_shared_feedback(anonymous_client):
-    response = anonymous_client.get("/admin/services", headers=_admin_headers())
+    response = anonymous_client.get("/admin/products", headers=_admin_headers())
 
     assert response.status_code == 200
     assert 'src="/admin/static/admin-ui.js"' in response.text

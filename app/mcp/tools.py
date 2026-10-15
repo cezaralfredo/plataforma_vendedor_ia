@@ -9,17 +9,12 @@ from sqlalchemy.orm import Session, joinedload
 from app.business_time import as_business_time
 from app.config import settings
 from app.models.appointment import Appointment
-from app.models.professional import Professional
-from app.models.professional_service import ProfessionalService
-from app.models.service import Service
 from app.schemas.appointment import AppointmentCreate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.asaas_client import AsaasIntegrationError
-from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
-from app.services.professional_service_offering_service import ProfessionalOfferingService
 from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -81,34 +76,12 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "listar_profissionais",
-        "description": "Lista todos os profissionais cadastrados na plataforma com seus IDs, especialidades e serviços que realizam",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Nome ou parte do nome do profissional (opcional)"},
-                "service_id": {"type": "integer", "description": "ID do serviço para filtrar profissionais que o realizam (opcional)"},
-            },
-        },
-    },
-    {
-        "name": "listar_servicos",
-        "description": "Lista serviços disponíveis por profissional ou categoria",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "professional_id": {"description": "ID do profissional (número) ou nome do profissional (opcional)"},
-                "category": {"type": "string", "description": "Categoria do serviço (opcional)"},
-            },
-        },
-    },
-    {
         "name": "listar_produtos",
-        "description": "Lista produtos físicos disponíveis para venda no estabelecimento por categoria ou termo de busca, com preço e estoque",
+        "description": "Lista produtos disponíveis para venda por categoria ou termo de busca, com preço, peso (kg) e estoque",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "category": {"type": "string", "description": "Categoria do produto (ex: 'Cabelo', 'Barba', 'Homecare') (opcional)"},
+                "category": {"type": "string", "description": "Categoria do produto (opcional)"},
                 "search": {"type": "string", "description": "Termo de busca pelo nome ou descrição (opcional)"},
                 "in_stock_only": {"type": "boolean", "description": "Se verdadeiro, lista apenas itens com estoque > 0 (padrão: true)"},
             },
@@ -116,27 +89,13 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "consultar_produto",
-        "description": "Consulta detalhes, preço e estoque de um produto específico por ID ou nome",
+        "description": "Consulta detalhes, preço, peso (kg) e estoque de um produto específico por ID ou nome",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "product_id": {"type": "integer", "description": "ID do produto (opcional)"},
                 "name": {"type": "string", "description": "Nome ou parte do nome do produto (opcional)"},
             },
-        },
-    },
-    {
-        "name": "verificar_disponibilidade",
-        "description": "Verifica horários livres de um profissional em uma data específica. Pode informar o professional_id ou o professional_name, e opcionalmente o service_id para listar os horários exatos de início",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "professional_id": {"description": "ID do profissional (número) ou nome do profissional (opcional se professional_name informado)"},
-                "professional_name": {"type": "string", "description": "Nome ou parte do nome do profissional (ex: 'Marilde Vieira')"},
-                "date": {"type": "string", "description": "Data no formato YYYY-MM-DD (ex: 2026-09-23)"},
-                "service_id": {"description": "ID ou nome do serviço (opcional). Quando informado, calcula e retorna os horários de início exatos para esse serviço."},
-            },
-            "required": ["date"],
         },
     },
     {
@@ -168,18 +127,21 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "criar_cobranca_asaas",
-        "description": "Cria uma cobrança no Asaas para um agendamento e retorna o link de pagamento",
+        "description": "Cria uma cobrança no Asaas para uma venda de produto ou agendamento e retorna o link de pagamento",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "appointment_id": {"type": "integer", "description": "ID do agendamento"},
+                "appointment_id": {"type": "integer", "description": "ID do agendamento (opcional se fornecido user_id)"},
+                "user_id": {"type": "integer", "description": "ID do cliente (opcional se appointment_id informado)"},
+                "product_id": {"type": "integer", "description": "ID do produto vendido (opcional)"},
+                "amount_cents": {"type": "integer", "description": "Valor em centavos (opcional, calculado automaticamente se product_id informado)"},
+                "description": {"type": "string", "description": "Descrição da venda (opcional)"},
                 "billing_type": {
                     "type": "string",
                     "description": "Tipo: PIX, BOLETO, CREDIT_CARD ou UNDEFINED",
                     "default": "UNDEFINED",
                 },
             },
-            "required": ["appointment_id"],
         },
     },
     {
@@ -355,76 +317,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": f"WhatsApp vinculado com sucesso!\n{_format_cliente(user)}"}]}
 
-        elif name == "listar_profissionais":
-            query = (
-                db.query(Professional)
-                .options(
-                    joinedload(Professional.service_offerings).joinedload(ProfessionalService.service)
-                )
-                .filter(Professional.active.is_(True))
-            )
-
-            search_name = arguments.get("name")
-            if search_name:
-                query = query.filter(func.lower(Professional.name).like(f"%{search_name.strip().lower()}%"))
-
-            service_id = arguments.get("service_id")
-            if service_id:
-                query = query.join(Professional.service_offerings).filter(
-                    ProfessionalService.service_id == service_id,
-                    ProfessionalService.active.is_(True),
-                )
-
-            professionals = query.order_by(Professional.id).all()
-            if not professionals:
-                return {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Nenhum profissional encontrado com os critérios informados.",
-                        }
-                    ]
-                }
-
-            lines = ["Profissionais disponíveis:"]
-            for p in professionals:
-                servs = [
-                    f"{off.service.name} (#{off.service_id})"
-                    for off in p.service_offerings
-                    if off.active and off.service and off.service.active
-                ]
-                servs_str = ", ".join(servs) if servs else "Nenhum serviço vinculado"
-                lines.append(f"• ID #{p.id}: {p.name} | Serviços: {servs_str}")
-
-            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
-
-        elif name == "listar_servicos":
-            prof_id = arguments.get("professional_id")
-            if isinstance(prof_id, str):
-                if prof_id.isdigit():
-                    prof_id = int(prof_id)
-                else:
-                    prof_match = db.query(Professional).filter(
-                        func.lower(Professional.name).like(f"%{prof_id.strip().lower()}%")
-                    ).first()
-                    prof_id = prof_match.id if prof_match else None
-
-            offerings = ProfessionalOfferingService(db).list_active(
-                professional_id=prof_id,
-                category=arguments.get("category"),
-            )
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": _format_servicos(
-                            offerings,
-                            include_professional=prof_id is None,
-                        ),
-                    }
-                ]
-            }
-
         elif name == "listar_produtos":
             product_service = ProductService(db)
             category = arguments.get("category")
@@ -451,8 +343,9 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             for prod in products:
                 price = f"R$ {prod.price_cents / 100:.2f}".replace(".", ",")
                 cat_tag = f" [{prod.category}]" if prod.category else ""
+                weight_tag = f" - Peso: {prod.weight_kg} kg" if prod.weight_kg is not None else ""
                 lines.append(
-                    f"  #{prod.id} {prod.name} - {price} (Estoque: {prod.stock_quantity}){cat_tag}"
+                    f"  #{prod.id} {prod.name} - {price}{weight_tag} (Estoque: {prod.stock_quantity}){cat_tag}"
                 )
             return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
@@ -479,6 +372,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             price = f"R$ {product.price_cents / 100:.2f}".replace(".", ",")
             desc = f"\n  Descrição: {product.description}" if product.description else ""
             cat = f"\n  Categoria: {product.category}" if product.category else ""
+            weight = f"\n  Peso: {product.weight_kg} kg" if product.weight_kg is not None else ""
             status_est = (
                 f"{product.stock_quantity} unidades disponíveis"
                 if product.stock_quantity > 0
@@ -489,102 +383,11 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 f"Produto #{product.id}: {product.name}\n"
                 f"  Preço: {price}\n"
                 f"  Estoque: {status_est}"
+                f"{weight}"
                 f"{cat}"
                 f"{desc}"
             )
             return {"content": [{"type": "text", "text": text}]}
-
-        elif name == "verificar_disponibilidade":
-            availability_service = AvailabilityService(db)
-            prof_id = arguments.get("professional_id")
-            prof_name = arguments.get("professional_name")
-
-            if isinstance(prof_id, str):
-                if prof_id.isdigit():
-                    prof_id = int(prof_id)
-                elif not prof_name:
-                    prof_name = prof_id
-                    prof_id = None
-
-            prof = None
-            if prof_id is not None:
-                prof = db.get(Professional, prof_id)
-            elif prof_name:
-                prof = db.query(Professional).filter(
-                    func.lower(Professional.name).like(f"%{prof_name.strip().lower()}%")
-                ).first()
-                if prof:
-                    prof_id = prof.id
-
-            if not prof or prof_id is None:
-                return {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Profissional '{prof_name or prof_id}' não encontrado.",
-                        }
-                    ]
-                }
-
-            # Resolver service_id se fornecido
-            service_val = arguments.get("service_id")
-            service_id = None
-            service_obj = None
-            if service_val is not None:
-                if isinstance(service_val, int) or (isinstance(service_val, str) and service_val.strip().isdigit()):
-                    service_id = int(service_val)
-                    service_obj = db.get(Service, service_id)
-                else:
-                    service_obj = db.query(Service).filter(
-                        func.lower(Service.name).like(f"%{str(service_val).strip().lower()}%")
-                    ).first()
-                    if service_obj:
-                        service_id = service_obj.id
-
-            if service_id and service_obj:
-                slots = availability_service.get_time_slots_for_service(
-                    professional_id=prof_id,
-                    service_id=service_id,
-                    date_str=arguments["date"],
-                )
-                if not slots:
-                    return {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": f"Não há horários disponíveis para {prof.name} em {arguments['date']} para o serviço '{service_obj.name}' ({service_obj.duration_minutes} min).",
-                            }
-                        ]
-                    }
-                start_times = [as_business_time(s.start).strftime("%H:%M") for s in slots]
-                last_time = start_times[-1]
-                text = (
-                    f"Horários de início disponíveis para {prof.name} (ID: {prof.id}) em {arguments['date']}\n"
-                    f"Serviço: {service_obj.name} (duração: {service_obj.duration_minutes} min):\n"
-                    f"  " + ", ".join(start_times) + "\n"
-                    f"(Atenção: o último horário de início disponível no dia é às {last_time}, pois o expediente encerra após este atendimento)."
-                )
-                return {"content": [{"type": "text", "text": text}]}
-
-            slots = availability_service.check_availability(
-                professional_id=prof_id,
-                date_str=arguments["date"],
-            )
-            if not slots:
-                return {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Nenhum horário de atendimento para {prof.name} (ID: {prof.id}) na data {arguments['date']}.",
-                        }
-                    ]
-                }
-            lines = [f"Expediente/Horários de atendimento para {prof.name} (ID: {prof.id}) em {arguments['date']}:"]
-            for s in slots:
-                start_fmt = as_business_time(s.start).strftime("%H:%M")
-                end_fmt = as_business_time(s.end).strftime("%H:%M")
-                lines.append(f"  Das {start_fmt} às {end_fmt} (Atenção: o expediente encerra pontualmente às {end_fmt}; o agendamento deve iniciar antes das {end_fmt}, respeitando a duração do serviço).")
-            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
         elif name == "criar_reserva":
             appointment_service = AppointmentService(db)
@@ -619,10 +422,19 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "criar_cobranca_asaas":
             payment_service = PaymentService(db)
-            payment = await payment_service.create_charge(
-                appointment_id=arguments["appointment_id"],
-                billing_type=arguments.get("billing_type", "UNDEFINED"),
-            )
+            if arguments.get("appointment_id"):
+                payment = await payment_service.create_charge(
+                    appointment_id=arguments["appointment_id"],
+                    billing_type=arguments.get("billing_type", "UNDEFINED"),
+                )
+            else:
+                payment = await payment_service.create_direct_charge(
+                    user_id=arguments.get("user_id"),
+                    product_id=arguments.get("product_id"),
+                    amount_cents=arguments.get("amount_cents"),
+                    description=arguments.get("description"),
+                    billing_type=arguments.get("billing_type", "UNDEFINED"),
+                )
             return {
                 "content": [
                     {
@@ -666,11 +478,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             for a in unnotified:
                 cliente_nome = a.user.name if a.user else "Desconhecido"
                 cliente_tel = getattr(a.user, "whatsapp_number", None) or getattr(a.user, "phone", "Sem telefone")
-                servico = a.service.name if a.service else "Serviço"
-                prof = a.professional.name if a.professional else "Profissional"
                 lines.append(
-                    f"• Agendamento #{a.id}: Cliente {cliente_nome} ({cliente_tel}) | "
-                    f"Serviço: {servico} ({prof}) | Data/Hora: {a.start_time}"
+                    f"• Agendamento #{a.id}: Cliente {cliente_nome} ({cliente_tel}) | Data/Hora: {a.start_time}"
                 )
             return {
                 "content": [
@@ -717,8 +526,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             appointments = (
                 db.query(Appointment)
                 .options(
-                    joinedload(Appointment.service),
-                    joinedload(Appointment.professional),
                     joinedload(Appointment.payments),
                 )
                 .filter(Appointment.user_id == user_id)
@@ -742,8 +549,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
             lines = ["Seus agendamentos:"]
             for a in visible_appointments:
-                serv_name = a.service.name if a.service else "Serviço"
-                prof_name = a.professional.name if a.professional else "Profissional"
                 data_hora = a.start_time.strftime("%d/%m/%Y às %H:%M")
 
                 latest_payment = a.payments[-1] if a.payments else None
@@ -758,9 +563,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                         pay_info = f" | Pagamento: {latest_payment.status}"
 
                 status_label = "Confirmado" if a.status == "confirmed" else ("Cancelado" if a.status == "cancelled" else a.status)
-                serv_id_str = f"Serviço #{a.service_id}" if a.service_id else "Sem serviço"
-                prof_id_str = f"Profissional #{a.professional_id}" if a.professional_id else "Sem profissional"
-                lines.append(f"• #{a.id}: {serv_name} ({serv_id_str}) com {prof_name} ({prof_id_str}) em {data_hora} | Status: {status_label}{pay_info}")
+                lines.append(f"• #{a.id}: Agendamento em {data_hora} | Status: {status_label}{pay_info}")
 
             return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
@@ -788,8 +591,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 db.query(Appointment)
                 .options(
                     joinedload(Appointment.user),
-                    joinedload(Appointment.service),
-                    joinedload(Appointment.professional),
                 )
                 .filter(Appointment.id == appointment_id)
                 .first()
@@ -805,8 +606,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     await notification_service.dispatch_payment_confirmed(delivery.id)
 
                 cli_name = appointment.user.name if appointment and appointment.user else "Cliente"
-                serv_name = appointment.service.name if appointment and appointment.service else "Serviço"
-                prof_name = appointment.professional.name if appointment and appointment.professional else "Profissional"
                 data_hora = appointment.start_time.strftime("%d/%m/%Y às %H:%M") if appointment else ""
                 val = f"R$ {payment.amount_cents / 100:.2f}"
                 forma = (payment.billing_type or "PIX").upper()
@@ -818,12 +617,10 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                             "text": (
                                 f"✅ Pagamento CONFIRMADO com sucesso!\n\n"
                                 f"• Cliente: {cli_name}\n"
-                                f"• Agendamento: #{appointment_id}\n"
-                                f"• Serviço: {serv_name}\n"
-                                f"• Profissional: {prof_name}\n"
+                                f"• Referência: #{appointment_id}\n"
                                 f"• Data e Horário: {data_hora}\n"
                                 f"• Valor Pago: {val} ({forma})\n\n"
-                                f"A reserva está 100% confirmada e garantida na agenda!"
+                                f"A venda/reserva está 100% confirmada!"
                             ),
                         }
                     ]
@@ -855,37 +652,15 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 }
 
         elif name == "solicitar_agendamento_orquestrador_n8n":
-            prof_arg = arguments["professional_id"]
-            if isinstance(prof_arg, str) and not prof_arg.isdigit():
-                prof_obj = db.query(Professional).filter(
-                    func.lower(Professional.name).like(f"%{prof_arg.strip().lower()}%")
-                ).first()
-                prof_id = prof_obj.id if prof_obj else 1
-            else:
-                prof_id = int(prof_arg)
+            prof_arg = arguments.get("professional_id", 1)
+            prof_id = int(prof_arg) if str(prof_arg).isdigit() else 1
 
-            serv_arg = arguments["service_id"]
-            if isinstance(serv_arg, str) and not serv_arg.isdigit():
-                serv_obj = db.query(Service).filter(
-                    func.lower(Service.name).like(f"%{serv_arg.strip().lower()}%")
-                ).first()
-                serv_id = serv_obj.id if serv_obj else 1
-            else:
-                serv_id = int(serv_arg)
+            serv_arg = arguments.get("service_id", 1)
+            serv_id = int(serv_arg) if str(serv_arg).isdigit() else 1
 
-            # Auto-calcular end_time a partir da duração do serviço se não fornecido
             computed_end_time = arguments.get("end_time")
             if not computed_end_time:
-                service_obj = db.get(Service, serv_id)
-                if not service_obj:
-                    return {
-                        "isError": True,
-                        "content": [{"type": "text", "text": f"Serviço com ID {serv_id} não encontrado."}],
-                    }
-                try:
-                    duration = int(getattr(service_obj, "duration_minutes", 30))
-                except Exception:
-                    duration = 30
+                duration = 30
                 start_dt = dt_cls.fromisoformat(arguments["start_time"])
                 computed_end_dt = start_dt + timedelta(minutes=duration)
                 computed_end_time = computed_end_dt.isoformat()
@@ -1069,27 +844,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             ],
         }
 
-
-def _format_servicos(offerings, include_professional: bool = True) -> str:
-    if not offerings:
-        return "Nenhum serviço disponível."
-
-    lines = ["Serviços disponíveis:"]
-    for offering in offerings:
-        service = offering.service
-        price = f"R$ {service.price_cents / 100:.2f}".replace(".", ",")
-        if include_professional:
-            line = (
-                f"  #{service.id} {service.name} - {price} "
-                f"({service.duration_minutes}min) — {offering.professional.name}"
-            )
-        else:
-            line = (
-                f"  #{service.id} {service.name} - {price} "
-                f"({service.duration_minutes}min)"
-            )
-        lines.append(line)
-    return "\n".join(lines)
 
 
 def _format_cliente(user) -> str:

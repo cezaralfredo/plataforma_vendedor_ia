@@ -12,11 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.admin.auth_service import authenticate_admin, change_admin_password, verify_password
-from app.admin.presentation import service_option_label
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
-    AdminAvailabilityInput,
     AdminClientCreate,
     AdminClientPage,
     AdminClientSummary,
@@ -25,9 +23,6 @@ from app.admin.schemas import (
     AdminMaintenancePurgeRequest,
     AdminMaintenancePurgeResult,
     AdminPaymentsResponse,
-    AdminProfessionalOfferingUpsert,
-    AdminServiceCatalogCreate,
-    AdminServiceCatalogUpdate,
     AdminSystemStatus,
     AppointmentAction,
     PaymentAction,
@@ -37,26 +32,21 @@ from app.admin.service import AdminService
 from app.database import get_db
 from app.models.admin_account import AdminAccount
 from app.models.payment import Payment
-from app.models.service import Service
 from app.models.user import User
-from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
 from app.schemas.company_settings import CompanySettingsResponse, CompanySettingsUpdate
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
-from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
 from app.schemas.user import UserImportRequest, UserImportSummary
 from app.security import AdminContext, require_admin, require_admin_mutation, require_csrf_token
 from app.services.asaas_client import AsaasIntegrationError
-from app.services.availability_service import AvailabilityService
 from app.services.client_import_service import ClientImportService
 from app.services.company_settings_service import CompanySettingsService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
-from app.services.professional_service import ProfessionalService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 templates = Jinja2Templates(directory="app/admin/templates")
-templates.env.filters["service_option_label"] = service_option_label
+
 
 
 async def _access_form(request: Request) -> dict[str, str]:
@@ -190,7 +180,7 @@ async def password_change(
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     service = AdminService(db)
     kpis = service.get_kpis()
-    professionals = service.list_professionals()[:5]  # Top 5 para o dashboard
+    professionals: list[dict] = []
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
@@ -223,20 +213,10 @@ async def appointments_page(
         page=page,
         page_size=page_size,
     )
-    professionals = service.list_professionals()
+    professionals: list[dict] = []
     appointment_options = {
-        "professionals": [
-            {"id": professional["id"], "name": professional["name"]}
-            for professional in professionals
-            if professional["active"]
-        ],
-        "services": [
-            {"id": service.id, "name": service.name, "label": service_option_label(service)}
-            for service in db.query(Service)
-            .filter(Service.active.is_(True))
-            .order_by(Service.name)
-            .all()
-        ],
+        "professionals": [],
+        "services": [],
         "clients": [
             {"id": client.id, "name": client.name, "masked_phone":
                 client.phone[:4] + "••••" + client.phone[-3:]}
@@ -333,7 +313,7 @@ async def payments_page(
         page=page,
         page_size=page_size,
     )
-    professionals = service.list_professionals()
+    professionals: list[dict] = []
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
@@ -404,24 +384,6 @@ async def payment_action(
     return {"message": message, "changed": changed, "payment": serialized}
 
 
-@router.get("/professionals", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
-async def professionals_page(request: Request, db: Session = Depends(get_db)):
-    service = AdminService(db)
-    professionals = service.list_professionals()
-
-    return templates.TemplateResponse("professionals.html", {
-        "request": request,
-        "professionals": professionals,
-    })
-
-
-@router.get("/services", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
-async def services_page(request: Request, db: Session = Depends(get_db)):
-    dashboard = AdminService(db).get_catalog_service_dashboard()
-    return templates.TemplateResponse("services.html", {
-        "request": request,
-        "dashboard": dashboard,
-    })
 
 
 @router.get("/products", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
@@ -505,44 +467,6 @@ async def api_update_settings(payload: CompanySettingsUpdate, db: Session = Depe
     return jsonable_encoder(CompanySettingsResponse.model_validate(settings))
 
 
-@router.get(
-    "/professionals/new",
-    response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
-)
-async def new_professional_page(request: Request, db: Session = Depends(get_db)):
-    catalog = (
-        db.query(Service).filter(Service.active.is_(True)).order_by(Service.name).all()
-    )
-    return templates.TemplateResponse(
-        "professional_detail.html",
-        {
-            "request": request,
-            "management": None,
-            "catalog": catalog,
-        },
-    )
-
-
-@router.get(
-    "/professionals/{professional_id}/edit",
-    response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
-)
-async def edit_professional_page(
-    request: Request, professional_id: int, db: Session = Depends(get_db)
-):
-    management = AdminService(db).get_professional_management(professional_id)
-    if not management:
-        raise HTTPException(status_code=404, detail="Profissional não encontrado")
-    return templates.TemplateResponse(
-        "professional_detail.html",
-        {
-            "request": request,
-            "management": management,
-            "catalog": management["catalog"],
-        },
-    )
 
 
 # --- API Endpoints para HTMX partials ---
@@ -670,167 +594,6 @@ async def reactivate_admin_client(client_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
     return _client_summary(db, client)
 
-@router.get("/api/services", dependencies=[Depends(require_admin)])
-async def api_catalog_services(db: Session = Depends(get_db)):
-    return AdminService(db).list_catalog_services()
-
-
-@router.get("/api/services/dashboard", dependencies=[Depends(require_admin)])
-async def api_catalog_services_dashboard(db: Session = Depends(get_db)):
-    return AdminService(db).get_catalog_service_dashboard()
-
-
-@router.post("/api/services", status_code=201, dependencies=[Depends(require_admin_mutation)])
-async def create_catalog_service(
-    data: AdminServiceCatalogCreate, db: Session = Depends(get_db)
-):
-    return AdminService(db).create_catalog_service(data)
-
-
-@router.put("/api/services/{service_id}", dependencies=[Depends(require_admin_mutation)])
-async def update_catalog_service(
-    service_id: int, data: AdminServiceCatalogUpdate, db: Session = Depends(get_db)
-):
-    service = AdminService(db).update_catalog_service(service_id, data)
-    if not service:
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
-    return service
-
-
-@router.delete("/api/services/{service_id}", dependencies=[Depends(require_admin_mutation)])
-async def delete_catalog_service(service_id: int, db: Session = Depends(get_db)):
-    outcome = AdminService(db).archive_or_delete_catalog_service(service_id)
-    if not outcome:
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
-    return {"outcome": outcome}
-
-
-@router.post("/api/services/{service_id}/reactivate", dependencies=[Depends(require_admin_mutation)])
-async def reactivate_catalog_service(service_id: int, db: Session = Depends(get_db)):
-    service = AdminService(db).reactivate_catalog_service(service_id)
-    if not service:
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
-    return service
-
-@router.post(
-    "/api/professionals",
-    status_code=201,
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def create_admin_professional(
-    data: ProfessionalCreate, db: Session = Depends(get_db)
-):
-    return ProfessionalService(db).create(data)
-
-
-@router.put("/api/professionals/{professional_id}", dependencies=[Depends(require_admin_mutation)])
-async def update_admin_professional(
-    professional_id: int,
-    data: ProfessionalUpdate,
-    db: Session = Depends(get_db),
-):
-    professional = ProfessionalService(db).update(professional_id, data)
-    if not professional:
-        raise HTTPException(status_code=404, detail="Profissional não encontrado")
-    return professional
-
-
-@router.delete(
-    "/api/professionals/{professional_id}",
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def delete_admin_professional(
-    professional_id: int, db: Session = Depends(get_db)
-):
-    outcome = AdminService(db).archive_or_delete_professional(professional_id)
-    if not outcome:
-        raise HTTPException(status_code=404, detail="Profissional não encontrado")
-    return {"outcome": outcome}
-
-
-@router.post(
-    "/api/professionals/{professional_id}/services",
-    status_code=201,
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def save_admin_professional_offering(
-    professional_id: int,
-    data: AdminProfessionalOfferingUpsert,
-    db: Session = Depends(get_db),
-):
-    try:
-        return AdminService(db).save_professional_offering(professional_id, data)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@router.delete(
-    "/api/professionals/{professional_id}/services/{service_id}",
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def remove_admin_professional_offering(
-    professional_id: int, service_id: int, db: Session = Depends(get_db)
-):
-    outcome = AdminService(db).remove_professional_offering(professional_id, service_id)
-    if not outcome:
-        raise HTTPException(status_code=404, detail="Serviço oferecido não encontrado")
-    return {"outcome": outcome}
-
-
-@router.post(
-    "/api/professionals/{professional_id}/availability",
-    status_code=201,
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def create_admin_availability(
-    professional_id: int,
-    data: AdminAvailabilityInput,
-    db: Session = Depends(get_db),
-):
-    try:
-        return AvailabilityService(db).create(
-            AvailabilityCreate(professional_id=professional_id, **data.model_dump())
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@router.put(
-    "/api/professionals/{professional_id}/availability/{availability_id}",
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def update_admin_availability(
-    professional_id: int,
-    availability_id: int,
-    data: AdminAvailabilityInput,
-    db: Session = Depends(get_db),
-):
-    service = AvailabilityService(db)
-    availability = service.get(availability_id)
-    if not availability or availability.professional_id != professional_id:
-        raise HTTPException(status_code=404, detail="Horário não encontrado")
-    try:
-        updated = service.update(
-            availability_id, AvailabilityUpdate(**data.model_dump(exclude_unset=True))
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return updated
-
-
-@router.delete(
-    "/api/professionals/{professional_id}/availability/{availability_id}",
-    status_code=204,
-    dependencies=[Depends(require_admin_mutation)],
-)
-async def delete_admin_availability(
-    professional_id: int, availability_id: int, db: Session = Depends(get_db)
-):
-    service = AvailabilityService(db)
-    availability = service.get(availability_id)
-    if not availability or availability.professional_id != professional_id:
-        raise HTTPException(status_code=404, detail="Horário não encontrado")
-    service.delete(availability_id)
 
 @router.post(
     "/api/appointments",
@@ -968,9 +731,7 @@ async def api_professionals(
     limit: int | None = Query(None, ge=1, le=5),
     db: Session = Depends(get_db),
 ):
-    service = AdminService(db)
-    professionals = service.list_professionals()
-    return professionals[:limit] if limit is not None else professionals
+    return []
 
 
 # ----------------------------------------------------------------------

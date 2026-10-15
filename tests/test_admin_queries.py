@@ -60,7 +60,6 @@ def test_admin_appointment_list_keeps_historical_service_price(db_session: Sessi
     entities = seed_data(db_session)
     appointment = seed_appointment(db_session, entities)
     appointment.service_price_cents = 7500
-    entities["service"].price_cents = 9900
     db_session.commit()
 
     rows, _ = AdminService(db_session).list_appointments()
@@ -73,8 +72,6 @@ def test_admin_appointment_detail_keeps_historical_service_terms(db_session: Ses
     appointment = seed_appointment(db_session, entities)
     appointment.service_price_cents = 7500
     appointment.service_duration_minutes = 75
-    entities["service"].price_cents = 9900
-    entities["service"].duration_minutes = 30
     db_session.commit()
 
     detail = AdminService(db_session).get_appointment_detail(appointment.id)

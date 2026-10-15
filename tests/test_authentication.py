@@ -32,7 +32,7 @@ def test_admin_technical_key_works_without_exposing_secret(anonymous_client: Tes
 
 @pytest.mark.parametrize(
     "path",
-    ["/admin", "/admin/appointments", "/admin/payments", "/admin/professionals"],
+    ["/admin", "/admin/appointments", "/admin/payments", "/admin/products"],
 )
 def test_admin_pages_do_not_render_authentication_headers(
     anonymous_client: TestClient,

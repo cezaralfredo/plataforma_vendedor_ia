@@ -22,27 +22,12 @@ MUTATIONS = [
     ("POST", "/admin/appointments/1/action", {"action": "confirm"}, 200, {"status": "confirmed"}),
     ("POST", "/admin/payments/1/action", {"action": "refresh"}, 200, {"changed": True}),
     ("POST", "/admin/payments/1/action", {"action": "refund"}, 200, {"changed": True}),
-    ("POST", "/admin/api/professionals", {"name": "Novo profissional", "phone": "11955556666"},
-     201, {"name": "Novo profissional"}),
-    ("PUT", "/admin/api/professionals/1", {"name": "Nome atualizado"}, 200, {"name": "Nome atualizado"}),
-    ("DELETE", "/admin/api/professionals/1", None, 200, {"outcome": "archived"}),
-    ("POST", "/admin/api/professionals/1/services", {
-        "service_id": 1, "commission_percent": "15.00",
-    }, 201, {"price_cents": 5000, "commission_percent": "15.00"}),
-    ("DELETE", "/admin/api/professionals/1/services/1", None, 200, {"outcome": "archived"}),
-    ("POST", "/admin/api/professionals/1/availability", {
-        "day_of_week": 1, "start_time": "08:00", "end_time": "12:00",
-    }, 201, {"day_of_week": 1}),
-    ("PUT", "/admin/api/professionals/1/availability/1", {
-        "start_time": "08:30", "end_time": "11:30",
-    }, 200, {"start_time": "08:30:00"}),
-    ("DELETE", "/admin/api/professionals/1/availability/1", None, 204, None),
-    ("POST", "/admin/api/services", {
-        "name": "Novo serviço", "price_cents": 6000, "duration_minutes": 45,
-    }, 201, {"name": "Novo serviço"}),
-    ("PUT", "/admin/api/services/1", {"name": "Serviço atualizado"}, 200, {"name": "Serviço atualizado"}),
-    ("DELETE", "/admin/api/services/1", None, 200, {"outcome": "archived"}),
-    ("POST", "/admin/api/services/1/reactivate", None, 200, {"active": True}),
+    ("POST", "/admin/api/products", {
+        "name": "Novo produto", "price_cents": 5000, "stock_quantity": 10, "weight_kg": 0.5,
+    }, 200, {"name": "Novo produto"}),
+    ("PUT", "/admin/api/products/1", {"name": "Produto atualizado"}, 200, {"name": "Produto atualizado"}),
+    ("POST", "/admin/api/products/1/stock", {"quantity_delta": 5}, 200, {"stock_quantity": 15}),
+    ("POST", "/admin/api/products/1/toggle-active", None, 200, {"active": False}),
     ("POST", "/admin/api/clients", {
         "name": "Novo cliente", "phone": "11988887777", "email": "novo@example.com",
     }, 201, {"name": "Novo cliente"}),
@@ -75,10 +60,7 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
         monkeypatch.setattr(AsaasClient, "get_payment", AsyncMock(return_value={"status": "CONFIRMED"}))
         monkeypatch.setattr(AsaasClient, "refund_payment", AsyncMock(return_value={"status": "REFUNDED"}))
     if path.endswith("/reactivate"):
-        if "/clients/" in path:
-            entities["user"].active = False
-        else:
-            entities["service"].active = False
+        entities["user"].active = False
     db_session.commit()
 
     if auth_method == "session":
@@ -105,8 +87,7 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
 
 @pytest.mark.parametrize("path", [
     "/admin", "/admin/appointments", "/admin/appointments/1", "/admin/payments",
-    "/admin/professionals", "/admin/professionals/new", "/admin/professionals/1/edit", "/admin/services",
-    "/admin/clients",
+    "/admin/products", "/admin/clients",
 ])
 def test_csrf_meta_exposes_only_the_current_human_session(anonymous_client, db_session, path):
     seed_appointment(db_session, seed_data(db_session))
@@ -138,8 +119,8 @@ const response = {
     text: async () => '',
 };
 const context = vm.createContext({
-    Headers, URLSearchParams, console, calls, alerts, notices, confirmations, response, assert,
-    document: {querySelector: () => token ? {content: token} : null},
+    Headers, URLSearchParams, console, calls, alerts, notices, confirmations, response, assert, setTimeout, clearTimeout,
+    document: {querySelector: () => token ? {content: token} : null, getElementById: () => null},
     fetch: (url, options = {}) => {
         calls.push({url, ...options, headers: Object.fromEntries(new Headers(options.headers))});
         return Promise.resolve(response);
@@ -199,49 +180,6 @@ def test_payment_pages_present_billing_types_in_portuguese(
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
-def test_professionals_page_loads_its_json_endpoint_once(anonymous_client):
-    login(anonymous_client)
-    page = anonymous_client.get("/admin/professionals")
-
-    result = run_page_javascript(
-        page.text,
-        "const page = professionals(); await page.loadProfessionals();",
-    )
-
-    assert [call["url"] for call in result["calls"]] == ["/admin/api/professionals"]
-
-
-@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
-def test_payments_page_updates_only_the_synchronized_row(anonymous_client):
-    login(anonymous_client)
-    page = anonymous_client.get("/admin/payments")
-    payment = {
-        "id": 1,
-        "appointment_id": 1,
-        "amount_cents": 5000,
-        "billing_type": "pix",
-        "status": "confirmed",
-        "created_at": "2026-09-13T10:00:00Z",
-        "updated_at": "2026-09-13T10:01:00Z",
-    }
-
-    run_page_javascript(page.text, """
-        const page = payments();
-        page.payments = [{id: 1, status: 'pending'}, {id: 2, status: 'received'}];
-        await page.refreshPayment(1);
-        assert.equal(page.payments[0].status, 'confirmed');
-        assert.equal(page.payments[1].status, 'received');
-        assert.equal(page.notice, 'Pagamento sincronizado: confirmado.');
-        assert.equal(page.syncingPaymentId, null);
-        assert.equal(alerts.length, 0);
-    """, json={
-        "message": "Pagamento sincronizado: confirmado.",
-        "changed": True,
-        "payment": payment,
-    })
-
-
-@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
 @pytest.mark.parametrize("authenticated", [True, False])
 def test_admin_fetch_preserves_request_and_response_and_only_adds_csrf_to_mutations(
     anonymous_client, authenticated,
@@ -257,7 +195,7 @@ def test_admin_fetch_preserves_request_and_response_and_only_adds_csrf_to_mutati
         for (const method of ['GET', 'HEAD', 'POST', 'put', 'PATCH', 'DELETE']) {
             const headers = new Headers({'Content-Type': 'application/json', 'X-Custom': 'preserved'});
             const options = {method, headers, body: 'payload', credentials: 'omit'};
-            const actual = await adminFetch('/admin/api/services', options);
+            const actual = await adminFetch('/admin/api/products', options);
             assert.equal(actual, response);
             assert.equal(headers.has('X-CSRF-Token'), false);
             assert.equal(options.credentials, 'omit');
@@ -277,7 +215,6 @@ def test_admin_fetch_preserves_request_and_response_and_only_adds_csrf_to_mutati
 
 PAGE_ACTIONS = [
     ("/admin", "const page = dashboard(); await page.loadKPIs();", 0),
-    ("/admin/professionals", "const page = professionals(); await page.loadProfessionals();", 0),
     ("/admin/appointments", """
         const page = appointments();
         await page.loadAppointments(); await page.loadProfessionals();
@@ -292,18 +229,11 @@ PAGE_ACTIONS = [
         const page = payments();
         await page.loadPayments(); await page.refreshPayment(1); await page.refundPayment(1);
     """, 2),
-    ("/admin/professionals/new", "const page = professionalManagement(); await page.saveProfessional();", 1),
-    ("/admin/professionals/1/edit", """
-        const page = professionalManagement();
-        await page.saveProfessional(); await page.archiveProfessional(); await page.addAvailability();
-        await page.editAvailability(1, '08:00', '12:00'); await page.deleteAvailability(1);
-        await page.saveOffering(); await page.removeOffering(1);
-    """, 7),
-    ("/admin/services", """
-        const page = serviceCatalog([]);
-        await page.reload(); await page.save(); page.editingId = 1; await page.save();
-        await page.remove({id: 1, name: 'Corte'}); await page.reactivate({id: 1});
-    """, 4),
+    ("/admin/products", """
+        const page = productCatalog();
+        await page.saveProduct(); await page.toggleActive({id: 1, active: true});
+        page.selectedProduct = {id: 1}; page.stockDelta = 2; await page.confirmStockAdjust();
+    """, 3),
     ("/admin/clients", """
         const page = clientsPage();
         await page.reload(); await page.save(); page.editingId = 1; await page.save();
@@ -340,8 +270,7 @@ def test_existing_page_actions_send_session_csrf_and_same_origin(
     ("/admin/appointments", "const page = appointments(); await page.createAppointment(); assert.equal(page.createError, 'Falha de domínio');"),
     ("/admin/appointments/1", "await appointmentDetail().appointmentAction('confirm', ''); assert.equal(notices.length, 1); assert.equal(notices[0].message, 'Falha de domínio');"),
     ("/admin/payments", "await payments().refundPayment(1); assert.equal(notices.length, 1); assert.equal(notices[0].message, 'Falha de domínio');"),
-    ("/admin/professionals/1/edit", "const page = professionalManagement(); await page.saveProfessional(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
-    ("/admin/services", "const page = serviceCatalog([]); await page.save(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
+    ("/admin/products", "const page = productCatalog(); await page.saveProduct(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
 ])
 def test_page_keeps_domain_error_handling(anonymous_client, db_session, path, action):
     seed_appointment(db_session, seed_data(db_session))

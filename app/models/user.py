@@ -57,3 +57,5 @@ class User(Base):
     )
 
     appointments = relationship("Appointment", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
+

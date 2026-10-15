@@ -4,27 +4,22 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import String, and_, case, cast, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy.sql.expression import literal
 
 from app.admin import auth
 from app.config import Settings
 from app.models.admin_user import AdminUser
 from app.models.appointment import Appointment
-from app.models.availability import Availability
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
-from app.models.professional import Professional
-from app.models.professional_service import ProfessionalService
-from app.models.service import Service
+from app.models.product import Product
 from app.models.user import User
 from app.models.webhook_event import WebhookEvent
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.user import UserCreate
 from app.services.appointment_service import AppointmentService
-from app.services.professional_service import ProfessionalManagementService
-from app.services.professional_service_offering_service import ProfessionalOfferingService
-from app.services.service_service import ServiceCatalogService
 from app.services.user_service import UserService
 
 # dias da semana p/ agenda (0=segunda ... 6=domingo)
@@ -277,32 +272,20 @@ class AdminService:
             Appointment.status == "confirmed"
         ).scalar() or 0
 
-        # Revenue (confirmed + completed appointments with payments received)
-        revenue_today = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).join(
-            Appointment, Payment.appointment_id == Appointment.id
-        ).filter(
-            and_(
-                func.date(Appointment.start_time) == today,
-                Payment.status.in_(["received", "confirmed"])
-            )
+        # Revenue (confirmed + received payments)
+        revenue_today = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).filter(
+            func.date(Payment.created_at) == today,
+            Payment.status.in_(["received", "confirmed"])
         ).scalar() or 0
 
-        revenue_week = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).join(
-            Appointment, Payment.appointment_id == Appointment.id
-        ).filter(
-            and_(
-                func.date(Appointment.start_time) >= week_ago,
-                Payment.status.in_(["received", "confirmed"])
-            )
+        revenue_week = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).filter(
+            func.date(Payment.created_at) >= week_ago,
+            Payment.status.in_(["received", "confirmed"])
         ).scalar() or 0
 
-        revenue_month = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).join(
-            Appointment, Payment.appointment_id == Appointment.id
-        ).filter(
-            and_(
-                func.date(Appointment.start_time) >= month_ago,
-                Payment.status.in_(["received", "confirmed"])
-            )
+        revenue_month = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).filter(
+            func.date(Payment.created_at) >= month_ago,
+            Payment.status.in_(["received", "confirmed"])
         ).scalar() or 0
 
         # Total revenue received all time
@@ -324,12 +307,12 @@ class AdminService:
             Payment.status == "overdue"
         ).scalar() or 0
 
-        # Professionals
-        professionals_active = self.db.query(func.count(Professional.id)).filter(
-            Professional.active.is_(True)
+        # Products
+        products_active = self.db.query(func.count(Product.id)).filter(
+            Product.active.is_(True)
         ).scalar() or 0
 
-        professionals_total = self.db.query(func.count(Professional.id)).scalar() or 0
+        products_total = self.db.query(func.count(Product.id)).scalar() or 0
 
         # Users
         users_total = self.db.query(func.count(User.id)).scalar() or 0
@@ -345,8 +328,10 @@ class AdminService:
             "pending_total_cents": int(pending_total),
             "payments_pending": payments_pending,
             "payments_overdue": payments_overdue,
-            "professionals_active": professionals_active,
-            "professionals_total": professionals_total,
+            "professionals_active": products_active,
+            "professionals_total": products_total,
+            "products_active": products_active,
+            "products_total": products_total,
             "users_total": users_total,
         }
 
@@ -371,14 +356,12 @@ class AdminService:
             Appointment,
             User.name.label("client_name"),
             User.phone.label("client_phone"),
-            Professional.name.label("professional_name"),
-            Service.name.label("service_name"),
-            Service.price_cents.label("service_price_cents"),
+            literal("").label("professional_name"),
+            literal("").label("service_name"),
+            Appointment.service_price_cents.label("service_price_cents"),
             Payment.status.label("payment_status"),
             Payment.id.label("payment_id"),
         ).outerjoin(User, Appointment.user_id == User.id).outerjoin(
-            Professional, Appointment.professional_id == Professional.id
-        ).outerjoin(Service, Appointment.service_id == Service.id).outerjoin(
             Payment, Payment.id == latest_payment_id
         )
 
@@ -404,8 +387,6 @@ class AdminService:
                 or_(
                     User.name.ilike(search_term),
                     User.phone.ilike(search_term),
-                    Professional.name.ilike(search_term),
-                    Service.name.ilike(search_term),
                 )
             )
 
@@ -456,18 +437,18 @@ class AdminService:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[dict], int, dict]:
+        user_apt = aliased(User)
         query = self.db.query(
             Payment,
-            User.name.label("client_name"),
-            User.phone.label("client_phone"),
-            Professional.name.label("professional_name"),
-            Service.name.label("service_name"),
+            func.coalesce(User.name, user_apt.name).label("client_name"),
+            func.coalesce(User.phone, user_apt.phone).label("client_phone"),
+            literal("").label("professional_name"),
+            func.coalesce(Product.name, Payment.description, "").label("service_name"),
             Appointment.start_time.label("appointment_start"),
-        ).join(Appointment, Payment.appointment_id == Appointment.id).outerjoin(
-            User, Appointment.user_id == User.id
-        ).outerjoin(Professional, Appointment.professional_id == Professional.id).outerjoin(
-            Service, Appointment.service_id == Service.id
-        )
+        ).outerjoin(User, Payment.user_id == User.id
+        ).outerjoin(Product, Payment.product_id == Product.id
+        ).outerjoin(Appointment, Payment.appointment_id == Appointment.id
+        ).outerjoin(user_apt, Appointment.user_id == user_apt.id)
 
         if date_from:
             if date_type == "appointment":
@@ -500,13 +481,13 @@ class AdminService:
                     User.name.ilike(search_term),
                     User.phone.ilike(search_term),
                     User.email.ilike(search_term),
-                    User.cpf_cnpj.ilike(search_term),
-                    Professional.name.ilike(search_term),
-                    Service.name.ilike(search_term),
+                    user_apt.name.ilike(search_term),
+                    user_apt.phone.ilike(search_term),
+                    Product.name.ilike(search_term),
+                    Payment.description.ilike(search_term),
                     Payment.asaas_payment_id.ilike(search_term),
                     Payment.billing_type.ilike(search_term),
                     cast(Payment.id, String).ilike(search_term),
-                    cast(Appointment.id, String).ilike(search_term),
                 )
             )
 
@@ -570,17 +551,18 @@ class AdminService:
         return payments, total, summary
 
     def get_payment(self, payment_id: int) -> dict | None:
+        user_apt = aliased(User)
         row = self.db.query(
             Payment,
-            User.name.label("client_name"),
-            User.phone.label("client_phone"),
-            Professional.name.label("professional_name"),
-            Service.name.label("service_name"),
+            func.coalesce(User.name, user_apt.name).label("client_name"),
+            func.coalesce(User.phone, user_apt.phone).label("client_phone"),
+            literal("").label("professional_name"),
+            func.coalesce(Product.name, Payment.description, "").label("service_name"),
             Appointment.start_time.label("appointment_start"),
-        ).join(Appointment, Payment.appointment_id == Appointment.id).outerjoin(
-            User, Appointment.user_id == User.id
-        ).outerjoin(Professional, Appointment.professional_id == Professional.id).outerjoin(
-            Service, Appointment.service_id == Service.id
+        ).outerjoin(User, Payment.user_id == User.id
+        ).outerjoin(Product, Payment.product_id == Product.id
+        ).outerjoin(Appointment, Payment.appointment_id == Appointment.id
+        ).outerjoin(user_apt, Appointment.user_id == user_apt.id
         ).filter(Payment.id == payment_id).first()
         return self._serialize_payment_row(row) if row else None
 
@@ -590,6 +572,9 @@ class AdminService:
         return {
             "id": pay.id,
             "appointment_id": pay.appointment_id,
+            "user_id": pay.user_id,
+            "product_id": pay.product_id,
+            "description": pay.description,
             "asaas_payment_id": pay.asaas_payment_id,
             "amount_cents": pay.amount_cents,
             "billing_type": pay.billing_type,
@@ -605,258 +590,6 @@ class AdminService:
             "appointment_start": apt_start,
         }
 
-    def list_professionals(self) -> list[dict]:
-        today = date.today()
-        week_ago = today - timedelta(days=7)
-        month_ago = today - timedelta(days=30)
-
-        professionals = self.db.query(Professional).all()
-
-        result = []
-        for prof in professionals:
-            services_count = self.db.query(func.count(ProfessionalService.id)).filter(
-                ProfessionalService.professional_id == prof.id,
-                ProfessionalService.active.is_(True),
-            ).scalar() or 0
-
-            appointments_today = self.db.query(func.count(Appointment.id)).filter(
-                and_(
-                    Appointment.professional_id == prof.id,
-                    func.date(Appointment.start_time) == today
-                )
-            ).scalar() or 0
-
-            appointments_week = self.db.query(func.count(Appointment.id)).filter(
-                and_(
-                    Appointment.professional_id == prof.id,
-                    func.date(Appointment.start_time) >= week_ago
-                )
-            ).scalar() or 0
-
-            revenue_month = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).join(
-                Appointment, Payment.appointment_id == Appointment.id
-            ).filter(
-                and_(
-                    Appointment.professional_id == prof.id,
-                    func.date(Appointment.start_time) >= month_ago,
-                    Payment.status.in_(["received", "confirmed"])
-                )
-            ).scalar() or 0
-
-            result.append({
-                "id": prof.id,
-                "name": prof.name,
-                "phone": prof.phone,
-                "email": prof.email,
-                "bio": prof.bio,
-                "photo_url": prof.photo_url,
-                "active": prof.active,
-                "services_count": services_count,
-                "appointments_today": appointments_today,
-                "appointments_week": appointments_week,
-                "revenue_month_cents": int(revenue_month),
-            })
-
-        return result
-
-    def _catalog_service_response(self, service: Service) -> dict:
-        active_offerings_count = (
-            self.db.query(func.count(ProfessionalService.id))
-            .join(ProfessionalService.professional)
-            .filter(
-                ProfessionalService.service_id == service.id,
-                ProfessionalService.active.is_(True),
-                Professional.active.is_(True),
-            )
-            .scalar()
-            or 0
-        )
-        return {
-            "id": service.id,
-            "name": service.name,
-            "description": service.description,
-            "category": service.category,
-            "price_cents": service.price_cents,
-            "duration_minutes": service.duration_minutes,
-            "active": service.active,
-            "active_offerings_count": active_offerings_count,
-        }
-
-    def list_catalog_services(self) -> list[dict]:
-        services = self.db.query(Service).order_by(Service.active.desc(), Service.name).all()
-        return [self._catalog_service_response(service) for service in services]
-
-    def get_catalog_service_dashboard(self) -> dict:
-        """Return operational health information for the shared service catalog."""
-        active_services = (
-            self.db.query(Service)
-            .filter(Service.active.is_(True))
-            .order_by(Service.id)
-            .all()
-        )
-        active_offerings = (
-            self.db.query(ProfessionalService)
-            .join(ProfessionalService.service)
-            .join(ProfessionalService.professional)
-            .filter(
-                ProfessionalService.active.is_(True),
-                Service.active.is_(True),
-                Professional.active.is_(True),
-            )
-            .all()
-        )
-        offering_service_ids = {offering.service_id for offering in active_offerings}
-        normalized_names: dict[str, list[Service]] = {}
-        unnamed_ids: list[int] = []
-
-        for service in active_services:
-            name = " ".join(service.name.split())
-            if not name:
-                unnamed_ids.append(service.id)
-                continue
-            normalized_names.setdefault(name.casefold(), []).append(service)
-
-        issues = []
-        if unnamed_ids:
-            issues.append(
-                {
-                    "kind": "unnamed",
-                    "label": "Serviço sem denominação",
-                    "service_ids": unnamed_ids,
-                }
-            )
-        for _normalized_name, services in sorted(normalized_names.items()):
-            if len(services) < 2:
-                continue
-            label = " ".join(services[0].name.split())
-            commercial_groups: dict[tuple[str, int, int], list[int]] = {}
-            for service in services:
-                identity = (
-                    " ".join((service.category or "").split()).casefold(),
-                    service.price_cents,
-                    service.duration_minutes,
-                )
-                commercial_groups.setdefault(identity, []).append(service.id)
-
-            for service_ids in commercial_groups.values():
-                if len(service_ids) < 2:
-                    continue
-                issues.append(
-                    {
-                        "kind": "duplicate",
-                        "label": label,
-                        "service_ids": service_ids,
-                    }
-                )
-            if len(commercial_groups) > 1:
-                issues.append(
-                    {
-                        "kind": "similar_name",
-                        "label": label,
-                        "service_ids": [service.id for service in services],
-                    }
-                )
-
-        return {
-            "metrics": {
-                "active_services": len(active_services),
-                "active_offerings": len(active_offerings),
-                "professionals_with_offerings": len(
-                    {offering.professional_id for offering in active_offerings}
-                ),
-                "services_without_professionals": sum(
-                    service.id not in offering_service_ids for service in active_services
-                ),
-                "inconsistencies": len(issues),
-            },
-            "issues": issues,
-            "services": self.list_catalog_services(),
-        }
-
-    def create_catalog_service(self, data) -> dict:
-        service = ServiceCatalogService(self.db).create(
-            name=data.name,
-            description=data.description,
-            category=data.category,
-            price_cents=data.price_cents,
-            duration_minutes=data.duration_minutes,
-        )
-        return self._catalog_service_response(service)
-
-    def update_catalog_service(self, service_id: int, data) -> dict | None:
-        values = data.model_dump(exclude_unset=True)
-        service = ServiceCatalogService(self.db).update(service_id, **values)
-        return self._catalog_service_response(service) if service else None
-
-    def archive_or_delete_catalog_service(self, service_id: int) -> str | None:
-        return ServiceCatalogService(self.db).archive_or_delete(service_id)
-
-    def reactivate_catalog_service(self, service_id: int) -> dict | None:
-        service = ServiceCatalogService(self.db).reactivate(service_id)
-        return self._catalog_service_response(service) if service else None
-
-    @staticmethod
-    def _offering_response(offering: ProfessionalService) -> dict:
-        return {
-            "id": offering.id,
-            "professional_id": offering.professional_id,
-            "service_id": offering.service_id,
-            "price_cents": offering.service.price_cents,
-            "duration_minutes": offering.service.duration_minutes,
-            "commission_percent": f"{offering.commission_percent:.2f}",
-            "active": offering.active,
-            "service_name": offering.service.name if offering.service else None,
-            "service_description": (
-                offering.service.description if offering.service else None
-            ),
-        }
-
-    def get_professional_management(self, professional_id: int) -> dict | None:
-        professional = self.db.get(Professional, professional_id)
-        if not professional:
-            return None
-        offerings = (
-            self.db.query(ProfessionalService)
-            .filter(ProfessionalService.professional_id == professional_id)
-            .order_by(ProfessionalService.id)
-            .all()
-        )
-        availability = (
-            self.db.query(Availability)
-            .filter(Availability.professional_id == professional_id)
-            .order_by(Availability.day_of_week, Availability.start_time)
-            .all()
-        )
-        catalog = (
-            self.db.query(Service)
-            .filter(Service.active.is_(True))
-            .order_by(Service.name)
-            .all()
-        )
-        return {
-            "professional": professional,
-            "offerings": [self._offering_response(offering) for offering in offerings],
-            "availability": availability,
-            "catalog": catalog,
-        }
-
-    def save_professional_offering(self, professional_id: int, data) -> dict:
-        offering = ProfessionalOfferingService(self.db).create_or_update(
-            professional_id=professional_id,
-            service_id=data.service_id,
-            commission_percent=data.commission_percent,
-        )
-        return self._offering_response(offering)
-
-    def remove_professional_offering(
-        self, professional_id: int, service_id: int
-    ) -> str | None:
-        return ProfessionalOfferingService(self.db).archive_or_delete(
-            professional_id, service_id
-        )
-
-    def archive_or_delete_professional(self, professional_id: int) -> str | None:
-        return ProfessionalManagementService(self.db).archive_or_delete(professional_id)
 
     def _appointment_response(self, appointment: Appointment) -> dict:
         client = self.db.get(User, appointment.user_id)
@@ -970,11 +703,11 @@ class AdminService:
             User.name.label("client_name"),
             User.phone.label("client_phone"),
             User.email.label("client_email"),
-            Professional.name.label("professional_name"),
-            Professional.phone.label("professional_phone"),
-            Service.name.label("service_name"),
-            Service.duration_minutes.label("service_duration"),
-            Service.price_cents.label("service_price_cents"),
+            literal("").label("professional_name"),
+            literal("").label("professional_phone"),
+            literal("").label("service_name"),
+            Appointment.service_duration_minutes.label("service_duration"),
+            Appointment.service_price_cents.label("service_price_cents"),
             Payment.id.label("payment_id"),
             Payment.asaas_payment_id.label("payment_asaas_id"),
             Payment.amount_cents.label("payment_amount"),
@@ -982,8 +715,6 @@ class AdminService:
             Payment.status.label("payment_status"),
             Payment.invoice_url.label("payment_invoice_url"),
         ).outerjoin(User, Appointment.user_id == User.id).outerjoin(
-            Professional, Appointment.professional_id == Professional.id
-        ).outerjoin(Service, Appointment.service_id == Service.id).outerjoin(
             Payment, Payment.id == latest_payment_id
         ).filter(Appointment.id == appointment_id).first()
 
@@ -1079,116 +810,6 @@ class AdminService:
             self.db.rollback()
             return False
 
-    # ------------------------------------------------------------------
-    # CRUD: Profissionais (Professional)
-    # ------------------------------------------------------------------
-    def list_professionals_raw(self, search=None):
-        q = self.db.query(Professional)
-        if search:
-            s = f"%{search}%"
-            q = q.filter(or_(Professional.name.ilike(s), Professional.phone.ilike(s)))
-        return q.order_by(Professional.name).all()
-
-    def get_professional(self, pid):
-        return self.db.query(Professional).filter(Professional.id == pid).first()
-
-    def create_professional(self, name, phone=None, email=None, bio=None, active=True):
-        p = Professional(name=name, phone=phone, email=email, bio=bio, active=active)
-        self.db.add(p)
-        self.db.commit()
-        self.db.refresh(p)
-        return p
-
-    def update_professional(self, p, **fields):
-        for k, v in fields.items():
-            if hasattr(p, k):
-                setattr(p, k, v)
-        self.db.commit()
-        self.db.refresh(p)
-        return p
-
-    def delete_professional(self, p):
-        try:
-            self.db.delete(p)
-            self.db.commit()
-            return True
-        except Exception:
-            self.db.rollback()
-            return False
-
-    # ------------------------------------------------------------------
-    # CRUD: Servicos (Service) e valores
-    # ------------------------------------------------------------------
-    def list_services_raw(self, professional_id=None):
-        q = self.db.query(Service)
-        if professional_id:
-            q = q.filter(Service.professional_id == professional_id)
-        return q.order_by(Service.professional_id, Service.name).all()
-
-    def get_service(self, sid):
-        return self.db.query(Service).filter(Service.id == sid).first()
-
-    def create_service(self, professional_id, name, duration_minutes, price_cents, description=None, category=None):
-        s = Service(professional_id=professional_id, name=name, duration_minutes=duration_minutes,
-                    price_cents=price_cents, description=description, category=category)
-        self.db.add(s)
-        self.db.commit()
-        self.db.refresh(s)
-        return s
-
-    def update_service(self, s, **fields):
-        for k, v in fields.items():
-            if hasattr(s, k):
-                setattr(s, k, v)
-        self.db.commit()
-        self.db.refresh(s)
-        return s
-
-    def delete_service(self, s):
-        try:
-            self.db.delete(s)
-            self.db.commit()
-            return True
-        except Exception:
-            self.db.rollback()
-            return False
-
-    # ------------------------------------------------------------------
-    # CRUD: Horarios / Disponibilidade (Availability)
-    # ------------------------------------------------------------------
-    def list_availability_raw(self, professional_id=None):
-        q = self.db.query(Availability)
-        if professional_id:
-            q = q.filter(Availability.professional_id == professional_id)
-        return q.order_by(Availability.professional_id, Availability.day_of_week, Availability.start_time).all()
-
-    def get_availability(self, aid):
-        return self.db.query(Availability).filter(Availability.id == aid).first()
-
-    def create_availability(self, professional_id, start_time, end_time, day_of_week=None, specific_date=None):
-        a = Availability(professional_id=professional_id, start_time=start_time, end_time=end_time,
-                         day_of_week=day_of_week, specific_date=specific_date)
-        self.db.add(a)
-        self.db.commit()
-        self.db.refresh(a)
-        return a
-
-    def update_availability(self, a, **fields):
-        for k, v in fields.items():
-            if hasattr(a, k):
-                setattr(a, k, v)
-        self.db.commit()
-        self.db.refresh(a)
-        return a
-
-    def delete_availability(self, a):
-        try:
-            self.db.delete(a)
-            self.db.commit()
-            return True
-        except Exception:
-            self.db.rollback()
-            return False
 
     # ------------------------------------------------------------------
     # Limpeza e Retenção de Dados (Data Retention & Maintenance)
@@ -1317,8 +938,8 @@ class AdminService:
                 User.name.label("client_name"),
                 User.phone.label("client_phone"),
                 User.email.label("client_email"),
-                Professional.name.label("professional_name"),
-                Service.name.label("service_name"),
+                literal("").label("professional_name"),
+                literal("").label("service_name"),
                 Payment.id.label("payment_id"),
                 Payment.status.label("payment_status"),
                 Payment.asaas_payment_id.label("asaas_id"),
@@ -1326,8 +947,6 @@ class AdminService:
                 Payment.received_at.label("payment_received_at"),
             )
             .outerjoin(User, Appointment.user_id == User.id)
-            .outerjoin(Professional, Appointment.professional_id == Professional.id)
-            .outerjoin(Service, Appointment.service_id == Service.id)
             .outerjoin(Payment, Payment.id == latest_payment_id)
             .filter(Appointment.id.in_(target_ids))
             .order_by(Appointment.start_time.asc())

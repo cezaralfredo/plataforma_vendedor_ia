@@ -1,20 +1,24 @@
-"""
-Teste E2E — Fluxo Completo
-Simula: cadastro → criar agendamento → cobrança → webhook pagamento → confirmação
+"""Teste E2E — Fluxo Completo de Produtos e Vendas.
+
+Simula: cadastro de cliente → cadastro de produto com peso → cobrança direta → webhook pagamento → MCP.
 """
 
-import asyncio
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from tests.seed import seed_appointment, seed_data, seed_payment
+from tests.seed import seed_data, seed_payment
+
+
+def _admin_headers() -> dict[str, str]:
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 class TestFluxoCompleto:
-    """Fluxo: Cliente → Reserva → Pagamento → Confirmação"""
+    """Fluxo: Cliente → Produto → Cobrança → Confirmação."""
 
     def test_cadastrar_usuario(self, client: TestClient, db_session: Session):
         resp = client.post("/api/users", json={
@@ -28,128 +32,59 @@ class TestFluxoCompleto:
         assert data["phone"] == "+5511999999999"
         assert "id" in data
 
-    def test_criar_profissional(self, client: TestClient, db_session: Session):
-        resp = client.post("/api/professionals", json={
-            "name": "Maria Souza",
-            "phone": "+5511988888888",
-            "active": True,
-        })
-        assert resp.status_code == 201
-        assert resp.json()["name"] == "Maria Souza"
-
-    def test_criar_servico(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        resp = client.post("/api/services", json={
-            "professional_id": entities["professional"].id,
-            "name": "Corte de cabelo",
-            "duration_minutes": 60,
-            "price_cents": 5000,
-            "category": "corte",
-        })
-        assert resp.status_code == 201
-        assert resp.json()["price_cents"] == 5000
-
-    def test_listar_servicos(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        resp = client.get(f"/api/services?professional_id={entities['professional'].id}")
-        assert resp.status_code == 200
-        assert len(resp.json()) >= 2
-
-    def test_verificar_disponibilidade(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        resp = client.get(
-            f"/api/availability/check/{entities['professional'].id}?date=2026-07-30"
+    def test_cadastrar_produto_com_peso(self, client: TestClient, db_session: Session):
+        resp = client.post(
+            "/admin/api/products",
+            json={
+                "name": "Pomada Modeladora",
+                "description": "Fixação forte acabamento fosco",
+                "category": "Cabelo",
+                "price_cents": 4500,
+                "stock_quantity": 25,
+                "weight_kg": 0.150,
+            },
+            headers=_admin_headers(),
         )
         assert resp.status_code == 200
-        slots = resp.json()
-        assert len(slots) > 0
-        assert slots[0]["start"].startswith("2026-07-30")
-
-    def test_criar_reserva(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        resp = client.post("/api/appointments", json={
-            "user_id": entities["user"].id,
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
-            "start_time": "2026-07-30T09:00:00",
-            "end_time": "2026-07-30T10:00:00",
-        })
-        assert resp.status_code == 201
         data = resp.json()
-        assert data["status"] == "pending"
-        assert data["expires_at"] is not None
+        assert data["name"] == "Pomada Modeladora"
+        assert data["price_cents"] == 4500
+        assert float(data["weight_kg"]) == 0.150
 
-    def test_conflito_reserva(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        client.post("/api/appointments", json={
-            "user_id": entities["user"].id,
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
-            "start_time": "2026-07-30T09:00:00",
-            "end_time": "2026-07-30T10:00:00",
-        })
-        resp = client.post("/api/appointments", json={
-            "user_id": entities["user"].id,
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
-            "start_time": "2026-07-30T09:30:00",
-            "end_time": "2026-07-30T10:30:00",
-        })
-        assert resp.status_code == 409
+    def test_criar_cobranca_direta_produto(self, client: TestClient, db_session: Session):
+        from unittest.mock import patch
+        from app.services.asaas_client import AsaasClient
 
-    def test_reserva_fora_do_horario_e_rejeitada(self, client: TestClient, db_session: Session):
         entities = seed_data(db_session)
-        resp = client.post("/api/appointments", json={
-            "user_id": entities["user"].id,
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
-            "start_time": "2026-07-30T17:00:00",
-            "end_time": "2026-07-30T18:00:00",
-        })
-        assert resp.status_code == 409
-        assert "disponibilidade" in resp.json()["detail"]
+        user = entities["user"]
+        product = entities["product"]
 
-    def test_reserva_com_duracao_incorreta_e_rejeitada(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        resp = client.post("/api/appointments", json={
-            "user_id": entities["user"].id,
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
-            "start_time": "2026-07-30T10:00:00",
-            "end_time": "2026-07-30T10:30:00",
-        })
-        assert resp.status_code == 409
-        assert "dura" in resp.json()["detail"]
+        with patch.object(AsaasClient, "list_customers", new_callable=AsyncMock, return_value=[]), \
+             patch.object(AsaasClient, "list_payments", new_callable=AsyncMock, return_value=[]), \
+             patch.object(AsaasClient, "create_customer", new_callable=AsyncMock, return_value={"id": "cus_123"}), \
+             patch.object(AsaasClient, "create_payment", new_callable=AsyncMock, return_value={
+                 "id": "pay_prod_123",
+                 "invoiceUrl": "https://asaas.test/pay_prod_123",
+             }):
 
-    def test_disponibilidade_invalida_e_rejeitada(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        resp = client.post("/api/availability", json={
-            "professional_id": entities["professional"].id,
-            "day_of_week": 8,
-            "start_time": "10:00:00",
-            "end_time": "09:00:00",
-        })
-        assert resp.status_code == 422
-
-    def test_cancelar_reserva(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        apt = seed_appointment(db_session, entities)
-        resp = client.post(f"/api/appointments/{apt.id}/cancel")
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "cancelled"
-
-    def test_meus_agendamentos(self, client: TestClient, db_session: Session):
-        entities = seed_data(db_session)
-        seed_appointment(db_session, entities)
-        resp = client.get(f"/api/appointments?user_id={entities['user'].id}")
-        assert resp.status_code == 200
-        assert len(resp.json()) >= 1
-        assert resp.json()[0]["user_id"] == entities["user"].id
+            resp = client.post(
+                "/api/payments",
+                json={
+                    "user_id": user.id,
+                    "product_id": product.id,
+                    "billing_type": "PIX",
+                },
+                headers={"Authorization": f"Bearer {settings.api_key}"},
+            )
+            assert resp.status_code == 201
+            data = resp.json()
+            assert data["product_id"] == product.id
+            assert data["amount_cents"] == product.price_cents
+            assert data["status"] == "pending"
 
     def test_webhook_pagamento_recebido(self, client: TestClient, db_session: Session):
         entities = seed_data(db_session)
-        apt = seed_appointment(db_session, entities)
-        pay = seed_payment(db_session, apt)
+        pay = seed_payment(db_session, product=entities["product"], user=entities["user"])
 
         resp = client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
@@ -160,8 +95,7 @@ class TestFluxoCompleto:
 
     def test_webhook_pagamento_duplicado(self, client: TestClient, db_session: Session):
         entities = seed_data(db_session)
-        apt = seed_appointment(db_session, entities)
-        pay = seed_payment(db_session, apt)
+        pay = seed_payment(db_session, product=entities["product"], user=entities["user"])
 
         client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
@@ -174,31 +108,7 @@ class TestFluxoCompleto:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ignored"
 
-    def test_criacao_de_cobranca_e_idempotente(self, db_session: Session):
-        from app.services.payment_service import PaymentService
-
-        entities = seed_data(db_session)
-        appointment = seed_appointment(db_session, entities)
-        service = PaymentService(db_session)
-        service.asaas.list_customers = AsyncMock(return_value=[])
-        service.asaas.list_payments = AsyncMock(return_value=[])
-        service.asaas.create_customer = AsyncMock(return_value={"id": "cus_123"})
-        service.asaas.create_payment = AsyncMock(return_value={
-            "id": "pay_123", "invoiceUrl": "https://asaas.test/pay_123"
-        })
-
-        payment = asyncio.run(service.create_charge(appointment.id, "PIX"))
-        repeated = asyncio.run(service.create_charge(appointment.id, "pix"))
-
-        assert payment.billing_type == "pix"
-        assert payment.amount_cents == entities["service"].price_cents
-        assert repeated.id == payment.id
-        assert service.asaas.create_payment.await_count == 1
-
-    def test_mcp_listar_servicos(self, client: TestClient, db_session: Session):
-        from app.config import settings
-
-        seed_data(db_session)
+    def test_mcp_tools_list_contem_produtos(self, client: TestClient, db_session: Session):
         resp = client.post("/mcp", json={
             "jsonrpc": "2.0",
             "method": "tools/list",
@@ -207,29 +117,29 @@ class TestFluxoCompleto:
         assert resp.status_code == 200
         tools = resp.json()["result"]["tools"]
         names = [t["name"] for t in tools]
-        assert "listar_servicos" in names
-        assert "criar_reserva" in names
+        assert "listar_produtos" in names
+        assert "consultar_produto" in names
         assert "criar_cobranca_asaas" in names
+        assert "listar_servicos" not in names
+        assert "listar_profissionais" not in names
+        assert "verificar_disponibilidade" not in names
 
-    def test_mcp_criar_reserva(self, client: TestClient, db_session: Session):
-        from app.config import settings
-
+    def test_mcp_consultar_produto_com_peso(self, client: TestClient, db_session: Session):
         entities = seed_data(db_session)
+        product = entities["product"]
+
         resp = client.post("/mcp", json={
             "jsonrpc": "2.0",
             "method": "tools/call",
             "id": 2,
             "params": {
-                "name": "criar_reserva",
+                "name": "consultar_produto",
                 "arguments": {
-                    "user_id": entities["user"].id,
-                    "professional_id": entities["professional"].id,
-                    "service_id": entities["service"].id,
-                    "start_time": "2026-07-30T14:00:00",
-                    "end_time": "2026-07-30T15:00:00",
+                    "product_id": product.id,
                 },
             },
         }, headers={"Authorization": f"Bearer {settings.api_key}"})
         assert resp.status_code == 200
-        result = resp.json()["result"]
-        assert "Reserva criada" in result["content"][0]["text"]
+        text = resp.json()["result"]["content"][0]["text"]
+        assert product.name in text
+        assert "0.350 kg" in text

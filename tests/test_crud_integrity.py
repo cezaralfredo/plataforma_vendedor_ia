@@ -1,8 +1,13 @@
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.user import User
 from tests.seed import seed_appointment, seed_data
+
+
+def _admin_headers() -> dict[str, str]:
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 def test_user_can_clear_optional_email(client: TestClient, db_session: Session):
@@ -27,42 +32,31 @@ def test_duplicate_phone_update_returns_409(client: TestClient, db_session: Sess
     assert response.status_code == 409
 
 
-def test_company_service_creation_does_not_depend_on_professional(client: TestClient):
+def test_product_crud_and_weight(client: TestClient, db_session: Session):
+    # Criar produto com peso
     response = client.post(
-        "/api/services",
+        "/admin/api/products",
         json={
-            "professional_id": 999999,
-            "name": "Corte",
-            "duration_minutes": 30,
-            "price_cents": 1000,
+            "name": "Condicionador Teste",
+            "price_cents": 3200,
+            "weight_kg": 0.450,
+            "stock_quantity": 8,
         },
+        headers=_admin_headers(),
     )
-    assert response.status_code == 201
-    assert "professional_id" not in response.json()
+    assert response.status_code == 200
+    data = response.json()
+    product_id = data["id"]
+    assert float(data["weight_kg"]) == 0.450
 
-
-def test_availability_update_validates_merged_interval(
-    client: TestClient,
-    db_session: Session,
-):
-    entities = seed_data(db_session)
-    availability = entities["availability"]
-    response = client.put(
-        f"/api/availability/{availability.id}",
-        json={"end_time": "07:00:00"},
+    # Atualizar peso do produto
+    update_resp = client.put(
+        f"/admin/api/products/{product_id}",
+        json={"weight_kg": 0.500},
+        headers=_admin_headers(),
     )
-    assert response.status_code == 422
-
-
-def test_professional_with_history_cannot_be_deleted(
-    client: TestClient,
-    db_session: Session,
-):
-    entities = seed_data(db_session)
-    seed_appointment(db_session, entities)
-    response = client.delete(f"/api/professionals/{entities['professional'].id}")
-    assert response.status_code == 409
-    assert "desative" in response.json()["detail"].lower()
+    assert update_resp.status_code == 200
+    assert float(update_resp.json()["weight_kg"]) == 0.500
 
 
 def test_user_with_appointment_cannot_be_deleted(

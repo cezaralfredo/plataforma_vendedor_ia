@@ -7,8 +7,8 @@ from app.business_time import as_business_time
 
 class AppointmentCreate(BaseModel):
     user_id: int
-    professional_id: int
-    service_id: int
+    professional_id: int | None = None
+    service_id: int | None = None
     start_time: datetime
     end_time: datetime
     notes: str | None = None
@@ -37,8 +37,8 @@ class AppointmentRead(BaseModel):
 
     id: int
     user_id: int
-    professional_id: int
-    service_id: int
+    professional_id: int | None = None
+    service_id: int | None = None
     start_time: datetime
     end_time: datetime
     status: str

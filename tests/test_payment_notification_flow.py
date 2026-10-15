@@ -22,39 +22,40 @@ from tests.seed import seed_appointment, seed_data, seed_payment
 
 def test_format_payment_confirmation_message(db_session: Session):
     entities = seed_data(db_session)
-    appointment = seed_appointment(db_session, entities)
-    payment = seed_payment(db_session, appointment)
+    product = entities["product"]
+    payment = seed_payment(db_session, None)
+    payment.product = product
+    payment.user = entities["user"]
     payment.amount_cents = 15000
     payment.billing_type = "pix"
 
-    msg = format_payment_confirmation_message(appointment, payment)
+    msg = format_payment_confirmation_message(None, payment)
 
     assert "R$ 150.00 (PIX)" in msg
     assert "confirmado com sucesso" in msg
-    assert appointment.service.name in msg
-    assert appointment.professional.name in msg
-    assert f"#{appointment.id}" in msg
+    assert product.name in msg
+    assert f"#{payment.id}" in msg
 
 
 def test_build_payment_notification_payload(db_session: Session):
     entities = seed_data(db_session)
-    appointment = seed_appointment(db_session, entities)
-    payment = seed_payment(db_session, appointment)
+    product = entities["product"]
+    payment = seed_payment(db_session, None)
+    payment.product = product
+    payment.user = entities["user"]
     payment.status = "confirmed"
     payment.amount_cents = 8000
     payment.billing_type = "pix"
     payment.asaas_payment_id = "pay_test_123"
 
-    payload = build_payment_notification_payload(appointment, payment)
+    payload = build_payment_notification_payload(None, payment)
 
     assert payload["event"] == "payment.confirmed"
-    assert payload["appointment_id"] == appointment.id
     assert payload["payment_id"] == payment.id
     assert payload["asaas_payment_id"] == "pay_test_123"
     assert payload["amount_cents"] == 8000
-    assert payload["client"]["name"] == appointment.user.name
-    assert payload["service"]["name"] == appointment.service.name
-    assert payload["professional"]["name"] == appointment.professional.name
+    assert payload["client"]["name"] == entities["user"].name
+    assert payload["product"]["name"] == product.name
     assert "formatted_message" in payload
 
 
@@ -180,7 +181,6 @@ def test_mcp_tool_verificar_status_pagamento_confirmed(db_session: Session):
     assert "Pagamento CONFIRMADO com sucesso" in text
     assert f"#{appointment.id}" in text
     assert "R$ 120.00 (PIX)" in text
-    assert appointment.service.name in text
 
     db_session.refresh(appointment)
     assert appointment.notified_at is None
@@ -333,8 +333,6 @@ def test_mcp_tool_meus_agendamentos_rich_format(db_session: Session):
     text = result["content"][0]["text"]
 
     assert f"#{appointment.id}" in text
-    assert appointment.service.name in text
-    assert appointment.professional.name in text
     assert "Pagamento: Confirmado" in text
 
     # Test via phone
@@ -379,8 +377,6 @@ def test_mcp_brazilian_phone_ninth_digit_and_cpf_and_tokenized_name(db_session: 
 
     appt = Appointment(
         user_id=user.id,
-        professional_id=entities["professional"].id,
-        service_id=entities["service"].id,
         start_time=datetime(2026, 9, 22, 12, 0),
         end_time=datetime(2026, 9, 22, 12, 45),
         status="confirmed",

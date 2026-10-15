@@ -1,13 +1,11 @@
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
-from app.models.availability import Availability
 from app.models.payment import Payment
-from app.models.professional import Professional
-from app.models.professional_service import ProfessionalService
-from app.models.service import Service
+from app.models.product import Product
 from app.models.user import User
 
 
@@ -21,89 +19,44 @@ def seed_data(db: Session) -> dict:
     db.add(user)
     db.flush()
 
-    professional = Professional(
-        name="Maria Souza",
-        phone="+5511988888888",
-        email="maria@email.com",
-        bio="Cabeleireira profissional",
+    product = Product(
+        name="Shampoo Hidratante",
+        description="Shampoo nutritivo profissional",
+        category="cabelo",
+        price_cents=5000,
+        stock_quantity=10,
+        weight_kg=Decimal("0.350"),
         active=True,
     )
-    db.add(professional)
+    db.add(product)
     db.flush()
 
-    service = Service(
-        name="Corte de cabelo",
-        description="Corte masculino e feminino",
-        duration_minutes=60,
-        price_cents=5000,
-        category="corte",
-    )
-    db.add(service)
-    db.flush()
-
-    service2 = Service(
-        name="Escova",
-        description="Escova modeladora",
-        duration_minutes=45,
+    product2 = Product(
+        name="Condicionador Reconstrutor",
+        description="Condicionador para reparação",
+        category="cabelo",
         price_cents=3500,
-        category="escova",
+        stock_quantity=15,
+        weight_kg=Decimal("0.400"),
+        active=True,
     )
-    db.add(service2)
+    db.add(product2)
     db.flush()
-
-    db.add_all(
-        [
-            ProfessionalService(
-                professional_id=professional.id,
-                service_id=service.id,
-            ),
-            ProfessionalService(
-                professional_id=professional.id,
-                service_id=service2.id,
-            ),
-        ]
-    )
-
-    availability = Availability(
-        professional_id=professional.id,
-        day_of_week=2,
-        start_time=time(8, 0),
-        end_time=time(12, 0),
-    )
-    db.add(availability)
-
-    availability2 = Availability(
-        professional_id=professional.id,
-        day_of_week=2,
-        start_time=time(13, 0),
-        end_time=time(18, 0),
-    )
-    db.add(availability2)
-
-    availability3 = Availability(
-        professional_id=professional.id,
-        specific_date=date(2026, 7, 30),
-        start_time=time(9, 0),
-        end_time=time(17, 0),
-    )
-    db.add(availability3)
 
     db.commit()
 
     return {
         "user": user,
-        "professional": professional,
-        "service": service,
-        "service2": service2,
-        "availability": availability,
+        "product": product,
+        "product2": product2,
     }
 
 
 def seed_appointment(db: Session, entities: dict) -> Appointment:
     apt = Appointment(
         user_id=entities["user"].id,
-        professional_id=entities["professional"].id,
-        service_id=entities["service"].id,
+        professional_id=1,
+        service_id=1,
         start_time=datetime(2026, 7, 30, 9, 0, 0),
         end_time=datetime(2026, 7, 30, 10, 0, 0),
         status="awaiting_payment",
@@ -116,13 +69,21 @@ def seed_appointment(db: Session, entities: dict) -> Appointment:
     return apt
 
 
-def seed_payment(db: Session, appointment: Appointment) -> Payment:
+def seed_payment(
+    db: Session,
+    appointment: Appointment | None = None,
+    product: Product | None = None,
+    user: User | None = None,
+) -> Payment:
     now = datetime.now()
 
     pay = Payment(
-        appointment_id=appointment.id,
+        appointment_id=appointment.id if appointment else None,
+        user_id=user.id if user else (appointment.user_id if appointment else None),
+        product_id=product.id if product else None,
+        description=f"Venda {product.name}" if product else "Pagamento teste",
         asaas_payment_id="pay_abc123",
-        amount_cents=5000,
+        amount_cents=product.price_cents if product else 5000,
         billing_type="pix",
         status="pending",
         invoice_url="https://asaas.com/pay/abc123",

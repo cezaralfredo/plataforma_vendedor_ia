@@ -7,9 +7,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.professional import Professional
-from app.models.professional_service import ProfessionalService
-from app.models.service import Service
 from app.repositories import UserRepository
 from tests.seed import seed_data
 
@@ -24,64 +21,6 @@ def _mcp_call(client: TestClient, name: str, arguments: dict):
 
 
 class TestMCPClientes:
-
-    def test_listar_servicos_sem_filtro_identifica_ofertas_iguais_por_profissional(
-        self, client: TestClient, db_session: Session
-    ):
-        entities = seed_data(db_session)
-        outro_profissional = Professional(name="Ana Costa", active=True)
-        db_session.add(outro_profissional)
-        db_session.flush()
-        db_session.add(
-            ProfessionalService(
-                professional_id=outro_profissional.id,
-                service_id=entities["service"].id,
-            )
-        )
-        db_session.commit()
-
-        response = _mcp_call(client, "listar_servicos", {})
-
-        text = response.json()["result"]["content"][0]["text"]
-        assert text.count("Corte de cabelo") == 2
-        assert "Maria Souza" in text
-        assert "Ana Costa" in text
-
-    def test_listar_servicos_sem_filtro_nao_repete_duplicata_do_mesmo_profissional(
-        self, client: TestClient, db_session: Session
-    ):
-        entities = seed_data(db_session)
-        db_session.add(
-            Service(
-                name="Corte de cabelo",
-                description=entities["service"].description,
-                duration_minutes=60,
-                price_cents=5000,
-                category="corte",
-            )
-        )
-        db_session.commit()
-
-        response = _mcp_call(client, "listar_servicos", {})
-
-        text = response.json()["result"]["content"][0]["text"]
-        assert text.count("Corte de cabelo") == 1
-
-    def test_listar_servicos_por_profissional_mantem_ofertas_sem_repetir_nome(
-        self, client: TestClient, db_session: Session
-    ):
-        entities = seed_data(db_session)
-
-        response = _mcp_call(
-            client,
-            "listar_servicos",
-            {"professional_id": entities["professional"].id},
-        )
-
-        text = response.json()["result"]["content"][0]["text"]
-        assert "Corte de cabelo" in text
-        assert "Escova" in text
-        assert "Maria Souza" not in text
 
     def test_tools_list_inclui_ferramentas_de_cliente(self, client: TestClient, db_session: Session):
         resp = client.post("/mcp", json={

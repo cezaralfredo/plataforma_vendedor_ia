@@ -31,8 +31,6 @@ def test_admin_can_create_client_and_appointment(
                 "phone": "+5511977777777",
                 "email": "cliente@example.com",
             },
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
             "start_time": "2026-07-30T09:00:00-03:00",
             "end_time": "2026-07-30T10:00:00-03:00",
         },
@@ -86,8 +84,6 @@ def test_admin_cannot_create_appointment_for_archived_client(
         headers=_admin_headers(),
         json={
             "user_id": entities["user"].id,
-            "professional_id": entities["professional"].id,
-            "service_id": entities["service"].id,
             "start_time": "2026-07-30T09:00:00-03:00",
             "end_time": "2026-07-30T10:00:00-03:00",
         },

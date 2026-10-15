@@ -88,7 +88,10 @@ class AdminPayment(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    appointment_id: int
+    appointment_id: int | None = None
+    user_id: int | None = None
+    product_id: int | None = None
+    description: str | None = None
     asaas_payment_id: str | None = None
     amount_cents: int
     billing_type: str
@@ -280,8 +283,8 @@ class AdminClientPage(BaseModel):
 class AdminAppointmentCreate(BaseModel):
     user_id: int | None = None
     new_client: AdminClientCreate | None = None
-    professional_id: int
-    service_id: int
+    professional_id: int | None = None
+    service_id: int | None = None
     start_time: datetime
     end_time: datetime
     notes: str | None = None
@@ -302,32 +305,6 @@ class AdminAppointmentUpdate(BaseModel):
     notes: str | None = None
 
 
-class AdminProfessionalOfferingUpsert(BaseModel):
-    service_id: int
-    commission_percent: Decimal = Decimal("10.00")
-
-
-class AdminAvailabilityInput(BaseModel):
-    day_of_week: int | None = None
-    start_time: time | None = None
-    end_time: time | None = None
-    specific_date: date | None = None
-
-
-class AdminServiceCatalogCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-    description: str | None = None
-    category: str | None = Field(default=None, max_length=100)
-    price_cents: int = Field(ge=0)
-    duration_minutes: int = Field(gt=0)
-
-
-class AdminServiceCatalogUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=255)
-    description: str | None = None
-    category: str | None = Field(default=None, max_length=100)
-    price_cents: int | None = Field(default=None, ge=0)
-    duration_minutes: int | None = Field(default=None, gt=0)
 
 
 class AppointmentAction(BaseModel):
