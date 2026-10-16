@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.chat_message import ChatMessage
 from app.models.company_settings import CompanySettings
 from app.models.payment import Payment
 from app.models.product import Product
@@ -17,9 +16,8 @@ from app.services.ai.providers.base import (
     LLMMessage,
     LLMResponse,
     ToolCall,
-    ToolDefinition,
 )
-from app.services.ai.providers.factory import DEFAULT_MODELS, get_llm_client
+from app.services.ai.providers.factory import get_llm_client
 from app.services.ai.providers.openai_client import OpenAICompatibleClient
 from app.services.ai.subagents.catalog_subagent import CatalogSubagent
 from app.services.ai.subagents.checkout_subagent import CheckoutSubagent
@@ -165,7 +163,7 @@ async def test_checkout_subagent(db_session: Session):
 
     with patch.object(agent.payment_service.asaas, "create_payment", new_callable=AsyncMock) as mock_asaas, \
          patch.object(agent.payment_service.asaas, "list_customers", new_callable=AsyncMock) as mock_cust, \
-         patch.object(agent.payment_service.asaas, "create_customer", new_callable=AsyncMock) as mock_create_cust:
+         patch.object(agent.payment_service.asaas, "create_customer", new_callable=AsyncMock) as _mock_create_cust:
 
         mock_cust.return_value = [{"id": "cus_999", "mobilePhone": user.phone}]
         mock_asaas.return_value = {
@@ -262,7 +260,7 @@ async def test_sales_orchestrator_full_tool_loop(db_session: Session):
 
     with patch.object(orchestrator.checkout_subagent.payment_service.asaas, "create_payment", new_callable=AsyncMock) as mock_asaas, \
          patch.object(orchestrator.checkout_subagent.payment_service.asaas, "list_customers", new_callable=AsyncMock) as mock_cust, \
-         patch.object(orchestrator.checkout_subagent.payment_service.asaas, "create_customer", new_callable=AsyncMock) as mock_create_cust:
+         patch.object(orchestrator.checkout_subagent.payment_service.asaas, "create_customer", new_callable=AsyncMock) as _mock_create_cust:
 
         mock_cust.return_value = [{"id": "cus_roberto"}]
         mock_asaas.return_value = {

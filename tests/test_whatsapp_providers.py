@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.company_settings import CompanySettings
-from app.services.whatsapp.base import InboundMessage, SendMessageResult
 from app.services.whatsapp.evolution import EvolutionWhatsAppProvider
 from app.services.whatsapp.gateway import WhatsAppGatewayService
 from app.services.whatsapp.meta import MetaWhatsAppProvider

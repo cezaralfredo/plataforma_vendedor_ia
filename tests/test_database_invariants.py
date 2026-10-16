@@ -1,5 +1,5 @@
-from datetime import datetime
 from decimal import Decimal
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session

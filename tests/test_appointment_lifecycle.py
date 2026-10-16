@@ -10,6 +10,7 @@ def test_awaiting_payment_expires_and_cancels(
     db_session: Session,
 ):
     from datetime import UTC
+
     from app.services.appointment_service import AppointmentService
 
     entities = seed_data(db_session)

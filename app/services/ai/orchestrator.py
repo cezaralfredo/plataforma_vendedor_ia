@@ -11,7 +11,6 @@ from app.models.user import User
 from app.services.ai.providers.base import (
     BaseLLMClient,
     LLMMessage,
-    LLMResponse,
     ToolCall,
     ToolDefinition,
 )
@@ -122,7 +121,7 @@ class SalesOrchestrator:
             return await subagent.execute_tool(tool_call.name, tool_call.arguments)
         except Exception as exc:
             logger.error("Falha ao executar ferramenta '%s': %s", tool_call.name, exc)
-            return json.dumps({"erro": f"Erro interno ao executar {tool_call.name}: {str(exc)}"}, ensure_ascii=False)
+            return json.dumps({"erro": f"Erro interno ao executar {tool_call.name}: {exc!s}"}, ensure_ascii=False)
 
     async def _run_llm_orchestration(
         self,
@@ -144,7 +143,7 @@ class SalesOrchestrator:
 
         # Loop de Tool Calling (máximo de 3 iterações para segurança)
         max_iterations = 3
-        for iteration in range(max_iterations):
+        for _iteration in range(max_iterations):
             response = await self.llm_client.generate_response(
                 messages=messages,
                 tools=self._all_tools,

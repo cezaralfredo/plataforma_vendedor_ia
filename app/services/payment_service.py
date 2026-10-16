@@ -171,7 +171,7 @@ class PaymentService:
                 if not branch_id and seller.branch_id:
                     branch_id = seller.branch_id
                 rate = float(seller.commission_rate or 0.0)
-                commission_amount_cents = int(round(amount_cents * (rate / 100.0)))
+                commission_amount_cents = round(amount_cents * (rate / 100.0))
 
         # Verifica o gateway bancário ativo configurado pelo cliente
         from app.services.company_settings_service import CompanySettingsService

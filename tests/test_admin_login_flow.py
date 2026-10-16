@@ -8,9 +8,9 @@ from itsdangerous import TimestampSigner
 from app.models.admin_account import AdminAccount
 
 USERNAME = "admin-fixture"
-PASSWORD = "fixture-password-only-123"  # noqa: S105
+PASSWORD = "fixture-password-only-123"
 RECOVERY_KEY = "fixture-recovery-secret-1234567890"
-NEW_PASSWORD = "nova-senha-segura-123"  # noqa: S105
+NEW_PASSWORD = "nova-senha-segura-123"
 
 
 def login(client, **overrides):
@@ -78,7 +78,7 @@ def test_login_creates_fresh_session_and_opens_dashboard(anonymous_client):
 
 
 def test_invalid_login_is_generic_and_never_reflects_credentials(anonymous_client):
-    wrong_password = login(anonymous_client, password="wrong-password-secret")  # noqa: S106
+    wrong_password = login(anonymous_client, password="wrong-password-secret")
     wrong_user = login(anonymous_client, username="unknown-user-secret")
     missing = anonymous_client.post("/admin/login", data={}, follow_redirects=False)
     assert wrong_password.status_code == wrong_user.status_code == missing.status_code == 400
@@ -91,7 +91,7 @@ def test_invalid_login_is_generic_and_never_reflects_credentials(anonymous_clien
 
 
 def test_five_failed_logins_block_even_correct_password(anonymous_client, db_session):
-    failures = [login(anonymous_client, password="wrong") for _ in range(5)]  # noqa: S106
+    failures = [login(anonymous_client, password="wrong") for _ in range(5)]
     blocked = login(anonymous_client)
     assert all(response.status_code == 400 for response in failures)
     assert blocked.status_code == 400
@@ -154,9 +154,9 @@ def test_recovery_changes_password_revokes_other_sessions_and_clears_current(ano
 
 def test_recovery_accepts_anonymous_user_and_twelve_character_password(anonymous_client):
     anonymous_client.app.state.settings.admin_recovery_key = RECOVERY_KEY
-    response = recover(anonymous_client, new_password="1234567890ab", confirm_password="1234567890ab")  # noqa: S106
+    response = recover(anonymous_client, new_password="1234567890ab", confirm_password="1234567890ab")
     assert response.status_code == 303
-    assert login(anonymous_client, password="1234567890ab").status_code == 303  # noqa: S106
+    assert login(anonymous_client, password="1234567890ab").status_code == 303
 
 
 @pytest.mark.parametrize("overrides", [

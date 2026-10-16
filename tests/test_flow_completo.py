@@ -3,7 +3,6 @@
 Simula: cadastro de cliente → cadastro de produto com peso → cobrança direta → webhook pagamento → MCP.
 """
 
-from decimal import Decimal
 from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
@@ -53,6 +52,7 @@ class TestFluxoCompleto:
 
     def test_criar_cobranca_direta_produto(self, client: TestClient, db_session: Session):
         from unittest.mock import patch
+
         from app.services.asaas_client import AsaasClient
 
         entities = seed_data(db_session)

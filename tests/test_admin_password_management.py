@@ -8,8 +8,8 @@ from itsdangerous import TimestampSigner
 
 from app.models.admin_account import AdminAccount
 
-PASSWORD = "fixture-password-only-123"  # noqa: S105
-NEW_PASSWORD = "nova-senha-segura-123"  # noqa: S105
+PASSWORD = "fixture-password-only-123"
+NEW_PASSWORD = "nova-senha-segura-123"
 
 
 def login(client, password=PASSWORD):
@@ -146,7 +146,7 @@ def test_password_change_renews_session_and_revokes_all_old_cookies(anonymous_cl
 
 def test_password_change_accepts_exactly_twelve_characters(anonymous_client):
     login(anonymous_client)
-    response = change_password(anonymous_client, new_password="1234567890ab", confirm_password="1234567890ab")  # noqa: S106
+    response = change_password(anonymous_client, new_password="1234567890ab", confirm_password="1234567890ab")
     assert response.status_code == 303
     assert login(anonymous_client, "1234567890ab").status_code == 303
 

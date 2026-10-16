@@ -20,7 +20,7 @@ def _admin_headers() -> dict[str, str]:
 def test_admin_can_create_client_and_appointment(
     anonymous_client: TestClient, db_session: Session
 ):
-    entities = seed_data(db_session)
+    seed_data(db_session)
 
     response = anonymous_client.post(
         "/admin/api/appointments",

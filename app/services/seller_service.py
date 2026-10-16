@@ -1,7 +1,6 @@
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.admin.auth import hash_password, verify_password
@@ -92,21 +91,21 @@ class SellerService:
 
         fields = data.model_dump(exclude_unset=True)
 
-        if "email" in fields and fields["email"]:
+        if fields.get("email"):
             new_email = fields["email"].lower().strip()
             if new_email != seller.email:
                 if self.db.query(Seller).filter(Seller.email == new_email, Seller.id != seller.id).first():
                     raise ValueError(f"O e-mail '{new_email}' já está em uso.")
                 fields["email"] = new_email
 
-        if "code" in fields and fields["code"]:
+        if fields.get("code"):
             new_code = fields["code"].strip().upper()
             if new_code != seller.code:
                 if self.db.query(Seller).filter(Seller.code == new_code, Seller.id != seller.id).first():
                     raise ValueError(f"O código '{new_code}' já está em uso.")
                 fields["code"] = new_code
 
-        if "password" in fields and fields["password"]:
+        if fields.get("password"):
             seller.password_hash = hash_password(fields.pop("password"))
 
         for key, val in fields.items():

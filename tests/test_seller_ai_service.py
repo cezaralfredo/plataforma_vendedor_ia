@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.models.chat_message import ChatMessage
 from app.models.company_settings import CompanySettings
 from app.models.product import Product
-from app.models.user import User
 from app.services.seller_ai_service import SellerAIService
 from app.services.whatsapp.base import InboundMessage
 

@@ -1,6 +1,4 @@
-import io
 import logging
-from typing import Any
 
 import httpx
 from sqlalchemy.orm import Session

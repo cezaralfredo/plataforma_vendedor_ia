@@ -55,7 +55,7 @@ def test_admin_migration_upgrade_restart_and_downgrade_on_sqlite(tmp_path, monke
         factory = sessionmaker(bind=engine)
         initial = Settings(
             admin_username="migration-admin",
-            admin_bootstrap_password="migration-password-123",  # noqa: S106
+            admin_bootstrap_password="migration-password-123",
         )
         with TestClient(create_app(initial, session_factory=factory)):
             pass

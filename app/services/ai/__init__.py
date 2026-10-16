@@ -18,18 +18,18 @@ from app.services.ai.subagents import (
 )
 
 __all__ = [
-    "SalesOrchestrator",
-    "BaseLLMClient",
-    "OpenAICompatibleClient",
     "AnthropicClient",
-    "get_llm_client",
-    "ToolDefinition",
-    "ToolCall",
-    "LLMMessage",
-    "LLMResponse",
+    "BaseLLMClient",
     "BaseSubagent",
     "CatalogSubagent",
     "CheckoutSubagent",
+    "LLMMessage",
+    "LLMResponse",
+    "OpenAICompatibleClient",
     "OrderStatusSubagent",
+    "SalesOrchestrator",
     "SupportSubagent",
+    "ToolCall",
+    "ToolDefinition",
+    "get_llm_client",
 ]

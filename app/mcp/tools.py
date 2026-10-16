@@ -3,10 +3,8 @@ from datetime import datetime as dt_cls
 from datetime import timedelta
 
 import httpx
-from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.business_time import as_business_time
 from app.config import settings
 from app.models.appointment import Appointment
 from app.schemas.appointment import AppointmentCreate

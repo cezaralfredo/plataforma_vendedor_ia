@@ -81,7 +81,7 @@ def test_charge_uses_stable_external_reference(db_session: Session):
 
 
 def test_charge_uses_price_snapshot_instead_of_later_catalog_price(db_session: Session):
-    service, appointment, entities = _service_with_appointment(db_session)
+    service, appointment, _ = _service_with_appointment(db_session)
     appointment.service_price_cents = 7500
     db_session.commit()
     service.asaas.list_payments = AsyncMock(return_value=[])

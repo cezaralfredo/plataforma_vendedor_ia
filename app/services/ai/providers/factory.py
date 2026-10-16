@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from app.config import settings
 from app.models.company_settings import CompanySettings

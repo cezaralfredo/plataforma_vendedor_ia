@@ -24,12 +24,12 @@ from app.models.admin_account import AdminAccount
 def admin_settings() -> Settings:
     return Settings(
         admin_username="admin-fixture",
-        admin_bootstrap_password="fixture-password-only-123",  # noqa: S106
+        admin_bootstrap_password="fixture-password-only-123",
     )
 
 
 def test_hash_does_not_expose_password_and_verifies_only_the_original_value():
-    password = "fixture-password-only-123"  # noqa: S105
+    password = "fixture-password-only-123"
 
     encoded_hash = hash_password(password)
 
@@ -127,7 +127,7 @@ def test_successful_authentication_clears_failures_and_password_change_revokes_s
 
 
 def test_production_settings_error_does_not_render_the_rejected_secret():
-    rejected_secret = "fixture-short-secret"  # noqa: S105
+    rejected_secret = "fixture-short-secret"
 
     with pytest.raises(ValidationError) as failure:
         Settings(
@@ -307,7 +307,7 @@ def test_bootstrap_recovers_from_a_competing_insert_without_overwriting_it(
                     worker,
                     Settings(
                         admin_username="winning-admin",
-                        admin_bootstrap_password="winning-password-123",  # noqa: S106
+                        admin_bootstrap_password="winning-password-123",
                     ),
                 )
         return result

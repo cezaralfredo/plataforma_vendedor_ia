@@ -74,6 +74,7 @@ class SellerAIService:
 
     def _extract_seller_code(self, text: str) -> str | None:
         import re
+
         from app.models.seller import Seller
 
         patterns = [
@@ -161,7 +162,7 @@ class SellerAIService:
                         logger.info("IA pausada para o telefone %s até %s (atendente humano em atendimento).", phone, paused_until)
                         return ""
                 except Exception:
-                    pass
+                    logger.debug("Falha ao analisar data de pausa de IA para %s", phone)
 
         history = self._get_recent_history(phone)
 

@@ -1,4 +1,5 @@
 import logging
+
 from sqlalchemy.orm import Session
 
 from app.models.branch import Branch
@@ -53,7 +54,7 @@ class BranchService:
             return None
 
         fields = data.model_dump(exclude_unset=True)
-        if "code" in fields and fields["code"]:
+        if fields.get("code"):
             new_code = fields["code"].strip().upper()
             if new_code != branch.code:
                 collision = self.db.query(Branch).filter(Branch.code == new_code, Branch.id != branch.id).first()

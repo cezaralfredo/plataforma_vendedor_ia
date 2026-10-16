@@ -33,7 +33,7 @@ def test_upsert_admin_account_creates_and_updates(db_session: Session):
     """Valida se criar ou atualizar o login administrativo preserva o singleton e zera bloqueios."""
     # Criação do primeiro acesso com usuário Anauê
     account = upsert_admin_account(
-        db_session, username="admin_anaue", password="SenhaSegura@2026!Store"  # noqa: S106
+        db_session, username="admin_anaue", password="SenhaSegura@2026!Store"
     )
     assert account.id == 1
     assert account.username == "admin_anaue"
@@ -43,7 +43,7 @@ def test_upsert_admin_account_creates_and_updates(db_session: Session):
     # Simula se já existir uma conta e for solicitada nova credencial de acesso
     v1 = account.auth_version
     updated_account = upsert_admin_account(
-        db_session, username="anaue_master", password="NovaSenhaSegura#2026!Vendedor"  # noqa: S106
+        db_session, username="anaue_master", password="NovaSenhaSegura#2026!Vendedor"
     )
     assert updated_account.id == 1
     assert updated_account.username == "anaue_master"
@@ -53,10 +53,10 @@ def test_upsert_admin_account_creates_and_updates(db_session: Session):
 def test_upsert_admin_account_validates_strength(db_session: Session):
     """Impede senhas fracas ou nomes de usuário vazios."""
     with pytest.raises(ValueError, match="pelo menos 12 caracteres"):
-        upsert_admin_account(db_session, username="admin", password="curta")  # noqa: S106
+        upsert_admin_account(db_session, username="admin", password="curta")
 
     with pytest.raises(ValueError, match="não pode estar em branco"):
-        upsert_admin_account(db_session, username="  ", password="SenhaValida12345!")  # noqa: S106
+        upsert_admin_account(db_session, username="  ", password="SenhaValida12345!")
 
 
 def test_cli_create_or_reset_script(tmp_path):

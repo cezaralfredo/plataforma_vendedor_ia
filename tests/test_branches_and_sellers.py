@@ -2,9 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.branch import Branch
-from app.models.payment import Payment
-from app.models.seller import Seller
 from app.models.user import User
 from app.schemas.branch import BranchCreate, BranchUpdate
 from app.schemas.seller import SellerCreate, SellerUpdate
@@ -12,7 +9,6 @@ from app.services.branch_service import BranchService
 from app.services.payment_service import PaymentService
 from app.services.seller_service import SellerService
 from tests.test_admin_login_flow import login, session_data
-
 
 # -----------------------------------------------------------------------------
 # 1. BranchService Tests

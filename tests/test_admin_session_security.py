@@ -156,7 +156,7 @@ def test_production_cookie_is_secure_and_uses_application_settings(db_session):
         asaas_webhook_token="c" * 32,
         admin_session_secret="d" * 32,
         admin_recovery_key="e" * 32,
-        admin_bootstrap_password="production-fixture-only-123",  # noqa: S106
+        admin_bootstrap_password="production-fixture-only-123",
     )
     app = create_app(production_settings, session_factory=TestingSessionLocal)
     app.dependency_overrides[get_db] = lambda: db_session

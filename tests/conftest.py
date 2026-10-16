@@ -47,7 +47,7 @@ def _test_client(db_session: Session) -> Generator[TestClient, None, None]:
     test_app = create_app(
         Settings(
             admin_username="admin-fixture",
-            admin_bootstrap_password="fixture-password-only-123",  # noqa: S106
+            admin_bootstrap_password="fixture-password-only-123",
             admin_session_secret="fixture-session-secret-" + "s" * 32,
         ),
         session_factory=TestingSessionLocal,

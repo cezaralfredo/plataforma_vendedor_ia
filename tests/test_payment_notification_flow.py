@@ -363,7 +363,7 @@ def test_mcp_tool_meus_agendamentos_rich_format(db_session: Session):
 
 
 def test_mcp_brazilian_phone_ninth_digit_and_cpf_and_tokenized_name(db_session: Session):
-    entities = seed_data(db_session)
+    seed_data(db_session)
     # Cadastra usuário exatamente como no caso real do Rafael:
     # Telefone com 12 dígitos (55 85 8643-8493, sem o nono dígito 9), nome "Rafael", CPF "01516443306"
     user = User(
