@@ -43,11 +43,11 @@ ADMIN_USERNAME=admin_anaue
 ADMIN_BOOTSTRAP_PASSWORD=DefinaSuaSenhaSegura123!
 ADMIN_SESSION_SECRET=gere-com-openssl-rand-hex-32-64-caracteres
 ADMIN_RECOVERY_KEY=gere-com-openssl-rand-hex-32-64-caracteres
-APP_NAME=Anauê Design - Vendedor Online
+APP_NAME=Anauê Design - Vendedor IA
 APP_TIMEZONE=America/Sao_Paulo
 REGISTRY=ghcr.io
-GITHUB_REPOSITORY=cezaralfredo/plataforma_vendedor_online
-NPM_NETWORK=nginx-proxy_default
+GITHUB_REPOSITORY=cezaralfredo/plataforma_vendedor_ia
+NPM_NETWORK=nginx-proxy_default # (ou 'npm', 'npm_default', conforme o nome da rede do seu NPM)
 
 # Gateway Financeiro (Asaas ou Manual/Balcão)
 ASAAS_API_KEY=sua-chave-asaas-producao

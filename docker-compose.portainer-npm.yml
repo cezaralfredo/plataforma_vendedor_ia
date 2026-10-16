@@ -1,9 +1,9 @@
-# Stack para Portainer Community Edition com Nginx Proxy Manager já existente.
-# Não publique portas: no NPM, crie um Proxy Host para agenda-api:8000.
+# Stack para Portainer Community Edition com Nginx Proxy Manager (NPM) já existente.
+# Não publique portas públicas: no NPM, crie um Proxy Host para vendedor-api:8000.
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
   mcp-gateway:
-    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_online}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_ia}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       API_BASE_URL: http://api:8000
@@ -43,7 +43,7 @@ services:
       - agenda_internal
 
   api:
-    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_online}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_ia}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
@@ -54,7 +54,7 @@ services:
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD?Defina ADMIN_BOOTSTRAP_PASSWORD no Portainer (vazio apos criar a conta)}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET no Portainer}
       ADMIN_RECOVERY_KEY: ${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY no Portainer}
-      APP_NAME: ${APP_NAME:-Anauê Design - Vendedor Online}
+      APP_NAME: ${APP_NAME:-Anauê Design - Vendedor IA}
       DEBUG: "false"
       ASAAS_API_KEY: ${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/v3}
@@ -65,6 +65,10 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       TRIAGE_ENABLED: ${TRIAGE_ENABLED:-true}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-typesafe/jev-1.13}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
       SEED_DATA: "false"
     depends_on:
       postgres:
@@ -75,10 +79,11 @@ services:
       agenda_internal:
       npm:
         aliases:
-          - agenda-api
           - vendedor-api
+          - agenda-api
           - loja-api
           - loja-anauedesign
+          - vendedor-anauedesign
       mcp_internal:
 
 volumes:
