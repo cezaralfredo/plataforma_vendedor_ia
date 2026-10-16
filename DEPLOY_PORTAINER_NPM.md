@@ -15,7 +15,7 @@
          │ (HTTP rede interna 'npm')
          ├─────────────────────────────────────────┐
          ▼                                         ▼
-[ vendedor-api : 8000 ]                   [ n8n : 5678 ]
+[ vendedor-ia : 8000 ]                    [ n8n : 5678 ]
 (FastAPI - Loja & Painel Admin)     (Orquestrador Omnichannel IA)
          │                                         │
          ▼                                         ▼
@@ -24,14 +24,14 @@
 
 * **Nenhuma porta 80/443 exposta na aplicação:** As portas públicas pertencem exclusivamente ao NPM.
 * **Rede externa compartilhada:** `npm` (ou `nginx-proxy_default`).
-* **Aliases internos da API:** `vendedor-api`, `agenda-api`, `loja-anauedesign`.
+* **Aliases internos da API:** `vendedor-ia`, `vendedor-api`.
 
 ---
 
 ## 2. Implantação da Stack no Portainer
 
 1. Acesse o **Portainer → Stacks → Add stack**.
-2. Nome: `vendedor-online` (ou `anauedesign`).
+2. Nome: `vendedor-ia`.
 3. Cole o conteúdo de [`docker-compose.portainer-npm.yml`](docker-compose.portainer-npm.yml).
 4. No campo **Environment variables**, defina:
 
@@ -70,11 +70,11 @@ Após subir a stack no Portainer, acesse o painel do seu NPM (`http://seu-ip:81`
 
 ### Proxy Host 1: Loja e Painel Administrativo
 
-1. Vá em **Hosts → Proxy Hosts → Add Proxy Host**.
+1. Vá em **Hosts → Proxy Hosts → Add Proxy Host** (ou edite o existente).
 2. **Details:**
-   - **Domain Names:** `vendedor.anauedesign.com.br` (e opcionalmente `loja.anauedesign.com.br`)
+   - **Domain Names:** `vendedor.anauedesign.com.br`
    - **Scheme:** `http`
-   - **Forward Hostname / IP:** `vendedor-api` *(ou `agenda-api`)*
+   - **Forward Hostname / IP:** `vendedor-ia`
    - **Forward Port:** `8000`
    - Marque:
      - [x] **Cache Assets**

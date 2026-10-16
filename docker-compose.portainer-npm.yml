@@ -1,5 +1,5 @@
 # Stack para Portainer Community Edition com Nginx Proxy Manager (NPM) já existente.
-# Não publique portas públicas: no NPM, crie um Proxy Host para vendedor-api:8000.
+# Não publique portas públicas: no NPM, crie um Proxy Host para vendedor-ia:8000.
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
   mcp-gateway:
@@ -79,6 +79,7 @@ services:
       agenda_internal:
       npm:
         aliases:
+          - vendedor-ia
           - vendedor-api
           - agenda-api
           - loja-api
