@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.payment import Payment
 from app.models.seller import Seller
@@ -68,7 +69,7 @@ async def seller_login_action(
         value=cookie_value,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=not settings.debug,
         max_age=60 * 60 * 24 * 7,
     )
     return redirect

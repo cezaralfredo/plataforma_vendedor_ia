@@ -1,3 +1,4 @@
+import hmac
 import logging
 from typing import Any
 
@@ -29,7 +30,7 @@ async def verify_meta_webhook(
     expected_token = settings.meta_verify_token
 
     if hub_mode == "subscribe":
-        if expected_token and hub_verify_token != expected_token:
+        if not expected_token or not hmac.compare_digest(hub_verify_token or "", expected_token):
             logger.warning("Falha na verificação da Meta: verify_token inválido.")
             raise HTTPException(status_code=403, detail="Verification token mismatch")
         logger.info("Webhook da Meta verificado com sucesso.")
