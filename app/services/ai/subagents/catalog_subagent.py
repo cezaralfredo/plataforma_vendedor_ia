@@ -134,6 +134,15 @@ class CatalogSubagent(BaseSubagent):
             if not p.image_url:
                 return json.dumps({
                     "status": "sem_foto",
+                    "produto_id": p.id,
+                    "produto_nome": p.name,
+                    "preco_formatado": f"R$ {p.price_cents / 100:.2f}",
+                    "descricao": p.description or "",
+                    "categoria": p.category or "",
+                    "instrucoes": (
+                        f"O produto '{p.name}' não possui imagem cadastrada no catálogo. "
+                        "Explique gentilmente ao cliente as características, qualidade e valor do item."
+                    ),
                     "mensagem": f"O produto '{p.name}' não possui imagem cadastrada no momento.",
                 }, ensure_ascii=False)
 

@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.delivery import Delivery
@@ -60,16 +61,23 @@ class OrderStatusSubagent(BaseSubagent):
             return json.dumps({"erro": f"Ferramenta desconhecida: {tool_name}"}, ensure_ascii=False)
 
         codigo_arg = (arguments.get("codigo_pedido") or "").strip().upper()
+        digits = "".join(filter(str.isdigit, codigo_arg))
 
         # 1. Busca entregas do cliente
         query_del = self.db.query(Delivery).filter(Delivery.user_id == self.user.id)
         if codigo_arg:
-            query_del = query_del.filter(Delivery.order_code == codigo_arg)
+            del_filters = [Delivery.order_code == codigo_arg]
+            if digits:
+                del_filters.append(Delivery.order_code == f"ENT-{int(digits):04d}")
+                del_filters.append(Delivery.id == int(digits))
+            query_del = query_del.filter(or_(*del_filters))
 
         deliveries = query_del.order_by(Delivery.created_at.desc()).limit(3).all()
 
         # 2. Busca pagamentos do cliente
         query_pay = self.db.query(Payment).filter(Payment.user_id == self.user.id)
+        if digits:
+            query_pay = query_pay.filter(Payment.id == int(digits))
         payments = query_pay.order_by(Payment.created_at.desc()).limit(3).all()
 
         if not deliveries and not payments:

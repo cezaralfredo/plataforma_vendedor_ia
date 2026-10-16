@@ -81,13 +81,29 @@ class SupportSubagent(BaseSubagent):
             clean_client_phone = "55" + clean_client_phone
 
         seller_phone = seller.whatsapp_number if seller else None
-        seller_name = seller.name if seller else "Equipe de Atendimento"
+        seller_name = seller.name if seller else None
+
+        # Fallback para número da filial caso não haja vendedor com telefone
+        if not seller_phone and self.user and self.db:
+            custom_fields = self.user.custom_fields or {}
+            branch_id = custom_fields.get("branch_id")
+            if branch_id:
+                from app.models.branch import Branch
+                branch = self.db.query(Branch).filter(Branch.id == branch_id).first()
+                if branch and branch.whatsapp_number:
+                    seller_phone = branch.whatsapp_number
+                    seller_name = f"Equipe {branch.name}"
+
+        seller_name = seller_name or "Equipe de Atendimento"
+        client_name = getattr(self.user, "name", "Cliente")
+        addr_str = f"\n📍 *Endereço:* {self.user.full_address}" if (self.user and getattr(self.user, "full_address", None)) else ""
 
         if self.gateway and seller_phone:
             alert_text = (
                 f"🔔 *Atendimento Humano Solicitado!*\n\n"
-                f"Olá, *{seller_name}*! O cliente *{getattr(self.user, 'name', 'Cliente')}* solicitou atendimento humano no WhatsApp.\n\n"
-                f"📱 *Telefone do Cliente:* {client_phone}\n"
+                f"Olá, *{seller_name}*! O cliente *{client_name}* solicitou atendimento humano no WhatsApp.\n\n"
+                f"📱 *Telefone do Cliente:* {client_phone}"
+                f"{addr_str}\n"
                 f"💬 *Motivo:* {motivo}\n\n"
                 f"👉 [Clique aqui para abrir a conversa](https://wa.me/{clean_client_phone})\n"
                 f"A IA foi pausada temporariamente para você atender com exclusividade! 🤝"

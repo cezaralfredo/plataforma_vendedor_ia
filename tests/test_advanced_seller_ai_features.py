@@ -226,3 +226,137 @@ async def test_sales_recovery_service_finds_and_contacts_pending_leads(
     # Verifica se marcou last_followup_at
     db_session.refresh(sample_user)
     assert "last_followup_at" in (sample_user.custom_fields or {})
+
+
+@pytest.mark.asyncio
+async def test_checkout_subagent_persists_preferred_bank_and_instructions(
+    db_session: Session, sample_user: User, sample_product: Product
+):
+    checkout = CheckoutSubagent(db_session, sample_user)
+    res_str = await checkout.execute_tool(
+        "criar_pedido_entrega",
+        {
+            "produto_id": sample_product.id,
+            "quantidade": 1,
+            "momento_pagamento": "na_entrega",
+            "forma_pagamento": "dinheiro",
+            "banco_preferido": "Nubank",
+            "instrucoes_entrega": "Deixar na portaria com o porteiro Silva",
+        },
+    )
+    res = json.loads(res_str)
+    assert res["status"] == "sucesso"
+
+    db_session.refresh(sample_user)
+    assert sample_user.preferred_bank == "Nubank"
+    assert sample_user.delivery_instructions == "Deixar na portaria com o porteiro Silva"
+
+
+@pytest.mark.asyncio
+async def test_order_status_subagent_resolves_numeric_id_and_code(
+    db_session: Session, sample_user: User
+):
+    delivery = Delivery(
+        order_code="ENT-0042",
+        user_id=sample_user.id,
+        items_description="1x Luminária Artística",
+        total_amount_cents=12000,
+        payment_method="pix",
+        payment_timing="antecipado",
+        payment_status="pago",
+        delivery_status="a_caminho",
+        delivery_address=sample_user.full_address,
+        delivery_driver_name="Marcos Entregador",
+    )
+    db_session.add(delivery)
+    db_session.commit()
+    db_session.refresh(delivery)
+
+    subagent = OrderStatusSubagent(db_session, sample_user)
+
+    # 1. Busca por código exato
+    res1 = json.loads(await subagent.execute_tool("consultar_status_pedido", {"codigo_pedido": "ENT-0042"}))
+    assert res1["status"] == "sucesso"
+    assert res1["pedidos"][0]["codigo"] == "ENT-0042"
+
+    # 2. Busca por dígitos (ex: 42)
+    res2 = json.loads(await subagent.execute_tool("consultar_status_pedido", {"codigo_pedido": "42"}))
+    assert res2["status"] == "sucesso"
+    assert res2["pedidos"][0]["codigo"] == "ENT-0042"
+
+
+@pytest.mark.asyncio
+async def test_catalog_subagent_rich_fallback_on_product_without_image(
+    db_session: Session, sample_user: User
+):
+    prod_no_img = Product(
+        name="Quadro Abstrato Tons Pastéis",
+        price_cents=15000,
+        description="Pintura acrílica sobre tela 80x60cm",
+        category="Decoração",
+        stock_quantity=3,
+        image_url=None,
+        active=True,
+    )
+    db_session.add(prod_no_img)
+    db_session.commit()
+
+    catalog = CatalogSubagent(db_session, user=sample_user)
+    res = json.loads(await catalog.execute_tool("enviar_foto_produto", {"produto_id": prod_no_img.id}))
+
+    assert res["status"] == "sem_foto"
+    assert res["produto_nome"] == "Quadro Abstrato Tons Pastéis"
+    assert "R$ 150.00" in res["preco_formatado"]
+    assert "Pintura acrílica" in res["descricao"]
+
+
+@pytest.mark.asyncio
+async def test_support_subagent_falls_back_to_branch_whatsapp(
+    db_session: Session, sample_user: User
+):
+    branch = Branch(
+        name="Filial Aldeota",
+        code="ALD01",
+        whatsapp_number="5585988112233",
+        active=True,
+    )
+    db_session.add(branch)
+    db_session.commit()
+    db_session.refresh(branch)
+
+    # Associa o cliente à filial sem vendedor individual
+    sample_user.custom_fields = {"branch_id": branch.id}
+    db_session.commit()
+
+    mock_gateway = AsyncMock()
+    mock_gateway.send_text.return_value = AsyncMock(success=True)
+
+    settings = CompanySettings()
+    support = SupportSubagent(settings, db=db_session, user=sample_user, gateway=mock_gateway)
+    res = json.loads(await support.execute_tool("acionar_atendente_humano", {"motivo": "Orçamento para empresa"}))
+
+    assert res["status"] == "sucesso"
+    assert "Filial Aldeota" in res["vendedor_nome"]
+    assert branch.whatsapp_number in res["link_suporte"]
+
+    # Gateway foi chamado com o WhatsApp da filial
+    mock_gateway.send_text.assert_called_once()
+    assert mock_gateway.send_text.call_args[0][0] == branch.whatsapp_number
+
+
+@pytest.mark.asyncio
+async def test_delivery_and_recovery_uses_dynamic_company_name(
+    db_session: Session, sample_user: User
+):
+    from app.services.delivery_service import DeliveryService
+
+    settings = CompanySettings(company_name="Decor & Arte Brasil")
+    db_session.add(settings)
+    db_session.commit()
+
+    delivery_service = DeliveryService(db_session)
+    assert delivery_service._get_company_name() == "Decor & Arte Brasil"
+
+    recovery_service = SalesRecoveryService(db_session)
+    assert recovery_service._get_company_name() == "Decor & Arte Brasil"
+

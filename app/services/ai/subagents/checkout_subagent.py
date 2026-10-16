@@ -69,6 +69,14 @@ class CheckoutSubagent(BaseSubagent):
                             "type": "string",
                             "description": "Endereço completo de entrega fornecido pelo cliente (rua, número, bairro, cidade).",
                         },
+                        "banco_preferido": {
+                            "type": "string",
+                            "description": "Banco ou instituição financeira de preferência informada pelo cliente (ex: Nubank, Inter, Itaú, Bradesco, etc.).",
+                        },
+                        "instrucoes_entrega": {
+                            "type": "string",
+                            "description": "Instruções específicas de entrega (ex: deixar na portaria, interfone 201, casa dos fundos).",
+                        },
                         "observacao": {
                             "type": "string",
                             "description": "Instruções adicionais ou ponto de referência informado pelo cliente.",
@@ -90,6 +98,10 @@ class CheckoutSubagent(BaseSubagent):
                         "quantidade": {
                             "type": "integer",
                             "description": "Quantidade de unidades do produto (padrão: 1).",
+                        },
+                        "banco_preferido": {
+                            "type": "string",
+                            "description": "Banco ou instituição financeira de preferência informada pelo cliente (ex: Nubank, Inter, etc.).",
                         },
                         "observacao": {
                             "type": "string",
@@ -124,10 +136,24 @@ class CheckoutSubagent(BaseSubagent):
         forma = arguments.get("forma_pagamento") or "pix"
         observacao = arguments.get("observacao") or ""
 
-        # Atualiza endereço do cliente se fornecido na conversa
+        # Atualiza dados cadastrais do cliente se fornecidos na conversa
+        changed = False
         address_arg = arguments.get("endereco_entrega")
         if address_arg and address_arg.strip():
             self.user.address = address_arg.strip()
+            changed = True
+
+        banco_arg = arguments.get("banco_preferido")
+        if banco_arg and banco_arg.strip():
+            self.user.preferred_bank = banco_arg.strip()
+            changed = True
+
+        instrucoes_arg = arguments.get("instrucoes_entrega")
+        if instrucoes_arg and instrucoes_arg.strip():
+            self.user.delivery_instructions = instrucoes_arg.strip()
+            changed = True
+
+        if changed:
             self.db.commit()
 
         final_address = self.user.full_address or self.user.address or address_arg or "Endereço a confirmar com o cliente"

@@ -18,10 +18,26 @@ class DeliveryService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _get_company_name(self) -> str:
+        """Obtém o nome da empresa configurado ou retorna padrão elegante."""
+        try:
+            from app.models.company_settings import CompanySettings
+            settings = self.db.query(CompanySettings).first()
+            if settings and settings.company_name and settings.company_name.strip():
+                return settings.company_name.strip()
+        except Exception as exc:
+            logger.debug("Falha ao recuperar company_name em DeliveryService: %s", exc)
+        return "Anauê Design"
+
     def _generate_order_code(self) -> str:
-        """Gera código único legível para o pedido de entrega, ex: ENT-1001."""
-        count = self.db.query(func.count(Delivery.id)).scalar() or 0
-        return f"ENT-{(count + 1):04d}"
+        """Gera código único legível para o pedido de entrega (ex: ENT-1001) garantindo unicidade."""
+        max_id = self.db.query(func.max(Delivery.id)).scalar() or 0
+        code = f"ENT-{(max_id + 1):04d}"
+        suffix = 1
+        while self.db.query(Delivery.id).filter(Delivery.order_code == code).first():
+            code = f"ENT-{(max_id + 1 + suffix):04d}"
+            suffix += 1
+        return code
 
     def list_deliveries(
         self,
@@ -216,12 +232,13 @@ class DeliveryService:
 
         driver_info = f"\n🛵 *Entregador:* {delivery.delivery_driver_name}" if delivery.delivery_driver_name else ""
 
+        company_name = self._get_company_name()
         if custom_message and custom_message.strip():
             message_text = custom_message.strip()
         else:
             message_text = (
                 f"🚚 *Seu pedido está a caminho!*\n\n"
-                f"Olá, *{client.name}*! Temos uma ótima notícia da *Anauê Design*:\n"
+                f"Olá, *{client.name}*! Temos uma ótima notícia da *{company_name}*:\n"
                 f"O seu pedido (*{delivery.order_code}*) já foi separado e o entregador está a caminho do seu endereço!\n\n"
                 f"📦 *Itens do Pedido:*\n{delivery.items_description}\n\n"
                 f"📍 *Endereço de Entrega:*\n{delivery.delivery_address}\n\n"
@@ -328,7 +345,8 @@ class DeliveryService:
         seller_name = d.seller.name if d.seller else None
 
         phone_to_use = user_whatsapp or user_phone
-        quick_msg = f"Olá, {user_name}! Seu pedido {d.order_code} da Anauê Design está a caminho!"
+        company_name = self._get_company_name()
+        quick_msg = f"Olá, {user_name}! Seu pedido {d.order_code} da {company_name} está a caminho!"
         wa_link = self._build_wa_link(phone_to_use, quick_msg) if phone_to_use else None
 
         return {
