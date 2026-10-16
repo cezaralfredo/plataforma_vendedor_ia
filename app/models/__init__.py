@@ -3,6 +3,7 @@ from app.models.appointment import Appointment
 from app.models.branch import Branch
 from app.models.chat_message import ChatMessage
 from app.models.company_settings import CompanySettings
+from app.models.delivery import Delivery
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
@@ -17,6 +18,7 @@ __all__ = [
     "Branch",
     "ChatMessage",
     "CompanySettings",
+    "Delivery",
     "NotificationDelivery",
     "NotificationLog",
     "Payment",
@@ -25,4 +27,3 @@ __all__ = [
     "User",
     "WebhookEvent",
 ]
-

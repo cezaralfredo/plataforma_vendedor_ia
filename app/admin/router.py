@@ -35,6 +35,12 @@ from app.models.payment import Payment
 from app.models.user import User
 from app.schemas.branch import BranchCreate, BranchResponse, BranchUpdate
 from app.schemas.company_settings import CompanySettingsResponse, CompanySettingsUpdate
+from app.schemas.delivery import (
+    DeliveryCreate,
+    DeliveryNotifyRequest,
+    DeliveryStatusUpdate,
+    DeliveryUpdate,
+)
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
 from app.schemas.seller import SellerCreate, SellerResponse, SellerUpdate
 from app.schemas.user import UserImportRequest, UserImportSummary
@@ -43,6 +49,7 @@ from app.services.asaas_client import AsaasIntegrationError
 from app.services.branch_service import BranchService
 from app.services.client_import_service import ClientImportService
 from app.services.company_settings_service import CompanySettingsService
+from app.services.delivery_service import DeliveryService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
 from app.services.seller_service import SellerService
@@ -267,6 +274,11 @@ async def stores_page(request: Request):
 @router.get("/sellers", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def sellers_page(request: Request):
     return templates.TemplateResponse(request=request, name="sellers.html")
+
+
+@router.get("/logistics", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def logistics_page(request: Request):
+    return templates.TemplateResponse(request=request, name="logistics.html")
 
 
 @router.get("/appointments/{appointment_id}", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
@@ -579,6 +591,103 @@ async def api_seller_metrics(seller_id: int, db: Session = Depends(get_db)):
         return jsonable_encoder(service.get_metrics(seller_id))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ==========================================================
+# Gestão de Logística & Entregas (Deliveries & Dispatch)
+# ==========================================================
+
+@router.get("/api/deliveries", dependencies=[Depends(require_admin)])
+async def api_list_deliveries(
+    delivery_status: str | None = None,
+    payment_timing: str | None = None,
+    payment_status: str | None = None,
+    branch_id: int | None = None,
+    seller_id: int | None = None,
+    search: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    service = DeliveryService(db)
+    deliveries = service.list_deliveries(
+        delivery_status=delivery_status,
+        payment_timing=payment_timing,
+        payment_status=payment_status,
+        branch_id=branch_id,
+        seller_id=seller_id,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return jsonable_encoder(deliveries)
+
+
+@router.get("/api/deliveries/kpis", dependencies=[Depends(require_admin)])
+async def api_delivery_kpis(db: Session = Depends(get_db)):
+    service = DeliveryService(db)
+    return jsonable_encoder(service.get_kpis())
+
+
+@router.post("/api/deliveries", dependencies=[Depends(require_admin_mutation)])
+async def api_create_delivery(payload: DeliveryCreate, db: Session = Depends(get_db)):
+    service = DeliveryService(db)
+    try:
+        created = service.create_delivery(payload)
+        return jsonable_encoder(created)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/api/deliveries/{delivery_id}", dependencies=[Depends(require_admin)])
+async def api_get_delivery(delivery_id: int, db: Session = Depends(get_db)):
+    service = DeliveryService(db)
+    delivery = service.get_delivery(delivery_id)
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Entrega não encontrada")
+    return jsonable_encoder(delivery)
+
+
+@router.put("/api/deliveries/{delivery_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_update_delivery(
+    delivery_id: int, payload: DeliveryUpdate, db: Session = Depends(get_db)
+):
+    service = DeliveryService(db)
+    updated = service.update_delivery(delivery_id, payload)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Entrega não encontrada")
+    return jsonable_encoder(updated)
+
+
+@router.patch("/api/deliveries/{delivery_id}/status", dependencies=[Depends(require_admin_mutation)])
+async def api_update_delivery_status(
+    delivery_id: int, payload: DeliveryStatusUpdate, db: Session = Depends(get_db)
+):
+    service = DeliveryService(db)
+    updated = service.update_status(
+        delivery_id=delivery_id,
+        delivery_status=payload.delivery_status,
+        payment_status=payload.payment_status,
+        delivery_driver_name=payload.delivery_driver_name,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Entrega não encontrada")
+    return jsonable_encoder(updated)
+
+
+@router.post("/api/deliveries/{delivery_id}/notify", dependencies=[Depends(require_admin_mutation)])
+async def api_notify_delivery_dispatch(
+    delivery_id: int, payload: DeliveryNotifyRequest | None = None, db: Session = Depends(get_db)
+):
+    service = DeliveryService(db)
+    try:
+        custom_msg = payload.custom_message if payload else None
+        res = await service.notify_dispatch_via_whatsapp(delivery_id, custom_message=custom_msg)
+        return jsonable_encoder(res)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao processar notificação WhatsApp: {e}")
 
 
 @router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_admin)])

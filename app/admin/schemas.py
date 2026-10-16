@@ -172,6 +172,7 @@ class AdminClientCreate(BaseModel):
     city: str | None = None
     state: str | None = None
     delivery_instructions: str | None = None
+    preferred_bank: str | None = None
     tags: list[str] = Field(default_factory=list)
     notes: str | None = None
 
@@ -250,6 +251,7 @@ class AdminClientUpdate(BaseModel):
     city: str | None = None
     state: str | None = None
     delivery_instructions: str | None = None
+    preferred_bank: str | None = None
     tags: list[str] | str | None = None
     notes: str | None = None
 
@@ -317,6 +319,7 @@ class AdminClientSummary(BaseModel):
     city: str | None = None
     state: str | None = None
     delivery_instructions: str | None = None
+    preferred_bank: str | None = None
     full_address: str | None = None
     tags: list[str] = Field(default_factory=list)
     notes: str | None = None

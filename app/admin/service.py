@@ -199,6 +199,7 @@ class AdminService:
                 "city": user.city,
                 "state": user.state,
                 "delivery_instructions": user.delivery_instructions,
+                "preferred_bank": user.preferred_bank,
                 "full_address": user.full_address,
                 "tags": user.tags if isinstance(user.tags, list) else [],
                 "notes": user.notes,
@@ -229,6 +230,7 @@ class AdminService:
             city=data.city.strip() if getattr(data, "city", None) else None,
             state=data.state.strip().upper()[:2] if getattr(data, "state", None) else None,
             delivery_instructions=data.delivery_instructions.strip() if getattr(data, "delivery_instructions", None) else None,
+            preferred_bank=data.preferred_bank.strip() if getattr(data, "preferred_bank", None) else None,
             tags=data.tags if isinstance(getattr(data, "tags", None), list) else [],
             notes=data.notes.strip() if getattr(data, "notes", None) else None,
         )

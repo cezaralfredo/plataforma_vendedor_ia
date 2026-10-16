@@ -1,0 +1,790 @@
+{% extends "base.html" %}
+
+{% block title %}Logística & Entregas - Anauê Design{% endblock %}
+{% block page_title %}Logística & Despacho de Pedidos{% endblock %}
+
+{% block content %}
+<div x-data="logisticsPage()" x-init="init()" class="space-y-6">
+
+    <!-- Top Header & Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">Controle de Logística & Entregas</h1>
+            <p class="text-xs text-slate-500 mt-1">Gerencie despachos, acompanhe entregas em trânsito e notifique clientes no WhatsApp com 1 clique.</p>
+        </div>
+        <div class="flex items-center gap-2.5">
+            <button @click="loadData()" class="rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition-all flex items-center gap-2">
+                <i class="fas fa-sync-alt text-slate-400" :class="{ 'fa-spin': loading }"></i> Atualizar
+            </button>
+            <button @click="openCreateModal()" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition-all flex items-center gap-2">
+                <i class="fas fa-plus"></i> Novo Despacho
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs de Logística -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total de Entregas</span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <i class="fas fa-boxes text-xs"></i>
+                </span>
+            </div>
+            <p class="mt-2 text-2xl font-bold tracking-tight text-slate-900" x-text="kpis.total_deliveries">0</p>
+        </div>
+
+        <div class="rounded-2xl border border-amber-200/80 bg-amber-50/40 p-4 shadow-xs">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Em Preparação</span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <i class="fas fa-box-open text-xs"></i>
+                </span>
+            </div>
+            <p class="mt-2 text-2xl font-bold tracking-tight text-amber-900" x-text="kpis.preparing_count">0</p>
+        </div>
+
+        <div class="rounded-2xl border border-indigo-200/80 bg-indigo-50/40 p-4 shadow-xs">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-indigo-700">A Caminho</span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+                    <i class="fas fa-truck-fast text-xs"></i>
+                </span>
+            </div>
+            <p class="mt-2 text-2xl font-bold tracking-tight text-indigo-900" x-text="kpis.in_transit_count">0</p>
+        </div>
+
+        <div class="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 shadow-xs">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Entregues Hoje</span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <i class="fas fa-check-circle text-xs"></i>
+                </span>
+            </div>
+            <p class="mt-2 text-2xl font-bold tracking-tight text-emerald-900" x-text="kpis.delivered_today_count">0</p>
+        </div>
+
+        <div class="col-span-2 lg:col-span-1 rounded-2xl border border-slate-200/80 bg-gradient-to-tr from-amber-500/10 to-yellow-500/5 p-4 shadow-xs border-amber-300/60">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-800">A Cobrar na Entrega</span>
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500 text-white">
+                    <i class="fas fa-hand-holding-usd text-xs"></i>
+                </span>
+            </div>
+            <p class="mt-2 text-2xl font-bold tracking-tight text-amber-950" x-text="formatCurrency(kpis.to_collect_cents)">R$ 0,00</p>
+        </div>
+    </div>
+
+    <!-- Filters & Search Toolbar -->
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs space-y-3">
+        <div class="flex flex-col md:flex-row gap-3">
+            <div class="relative flex-1">
+                <i class="fas fa-search absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" x-model="filters.search" @input.debounce.300ms="loadData()"
+                       placeholder="Buscar por cliente, pedido, endereço ou entregador..."
+                       class="w-full rounded-xl border border-slate-300 pl-9 pr-3.5 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all">
+            </div>
+
+            <!-- Filtro Status Entrega -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                <button type="button" @click="filters.delivery_status = ''; loadData()"
+                        :class="filters.delivery_status === '' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap">
+                    Todos
+                </button>
+                <button type="button" @click="filters.delivery_status = 'preparando'; loadData()"
+                        :class="filters.delivery_status === 'preparando' ? 'bg-amber-600 text-white font-semibold' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap">
+                    Em Preparação
+                </button>
+                <button type="button" @click="filters.delivery_status = 'a_caminho'; loadData()"
+                        :class="filters.delivery_status === 'a_caminho' ? 'bg-indigo-600 text-white font-semibold' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap flex items-center gap-1.5">
+                    <i class="fas fa-truck-fast text-[10px]"></i> A Caminho
+                </button>
+                <button type="button" @click="filters.delivery_status = 'entregue'; loadData()"
+                        :class="filters.delivery_status === 'entregue' ? 'bg-emerald-600 text-white font-semibold' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap">
+                    Entregues
+                </button>
+            </div>
+
+            <!-- Filtro Pagamento -->
+            <select x-model="filters.payment_timing" @change="loadData()"
+                    class="rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10">
+                <option value="">Todas as Formas de Pagamento</option>
+                <option value="antecipado">Pago Antecipado</option>
+                <option value="na_entrega">Pagar no Local da Entrega</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Deliveries Table / Cards -->
+    <div class="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-200/80 bg-slate-50/75 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <th class="py-3.5 px-4">Pedido / Data</th>
+                        <th class="py-3.5 px-4">Cliente & Contato</th>
+                        <th class="py-3.5 px-4">Endereço de Entrega</th>
+                        <th class="py-3.5 px-4">Itens</th>
+                        <th class="py-3.5 px-4">Pagamento</th>
+                        <th class="py-3.5 px-4">Status da Entrega</th>
+                        <th class="py-3.5 px-4 text-right">Ação WhatsApp & Gestão</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs">
+                    <template x-if="loading">
+                        <tr>
+                            <td colspan="7" class="py-12 text-center text-slate-400">
+                                <i class="fas fa-spinner fa-spin text-xl text-blue-600"></i>
+                                <p class="mt-2 text-xs">Carregando pedidos de entrega...</p>
+                            </td>
+                        </tr>
+                    </template>
+
+                    <template x-if="!loading && deliveries.length === 0">
+                        <tr>
+                            <td colspan="7" class="py-12 text-center text-slate-500">
+                                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-2">
+                                    <i class="fas fa-truck text-lg"></i>
+                                </div>
+                                <p class="text-sm font-semibold text-slate-700">Nenhum pedido de entrega encontrado</p>
+                                <p class="text-xs text-slate-400 mt-0.5">Cadastre um novo despacho clicando no botão "+ Novo Despacho" acima.</p>
+                            </td>
+                        </tr>
+                    </template>
+
+                    <template x-for="item in deliveries" :key="item.id">
+                        <tr class="hover:bg-slate-50/70 transition-colors">
+                            <!-- Pedido / Data -->
+                            <td class="py-3.5 px-4 align-top">
+                                <span class="font-bold font-mono text-slate-900" x-text="item.order_code"></span>
+                                <p class="text-[11px] text-slate-400 mt-0.5" x-text="formatDate(item.created_at)"></p>
+                                <template x-if="item.branch_name">
+                                    <span class="inline-block mt-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60" x-text="item.branch_name"></span>
+                                </template>
+                            </td>
+
+                            <!-- Cliente & Contato -->
+                            <td class="py-3.5 px-4 align-top">
+                                <p class="font-semibold text-slate-900" x-text="item.user_name"></p>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    <a :href="'https://wa.me/' + cleanPhone(item.user_whatsapp || item.user_phone)" target="_blank"
+                                       class="text-[11px] text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
+                                        <i class="fab fa-whatsapp"></i> <span x-text="item.user_whatsapp || item.user_phone"></span>
+                                    </a>
+                                </div>
+                                <template x-if="item.seller_name">
+                                    <p class="text-[10px] text-slate-400 mt-1">Vendedor: <span class="text-slate-600 font-medium" x-text="item.seller_name"></span></p>
+                                </template>
+                            </td>
+
+                            <!-- Endereço de Entrega -->
+                            <td class="py-3.5 px-4 align-top max-w-xs">
+                                <div class="flex items-start gap-1.5">
+                                    <i class="fas fa-map-marker-alt text-rose-500 mt-0.5 shrink-0 text-[11px]"></i>
+                                    <div>
+                                        <p class="text-slate-800 font-medium text-[11px] leading-snug" x-text="item.delivery_address"></p>
+                                        <template x-if="item.delivery_driver_name">
+                                            <p class="text-[10px] text-slate-500 mt-1">Entregador: <span class="font-semibold text-slate-700" x-text="item.delivery_driver_name"></span></p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <!-- Itens -->
+                            <td class="py-3.5 px-4 align-top max-w-xs">
+                                <p class="text-slate-700 text-xs font-medium whitespace-pre-line" x-text="item.items_description"></p>
+                                <p class="text-[11px] font-bold text-slate-900 mt-1" x-text="formatCurrency(item.total_amount_cents)"></p>
+                            </td>
+
+                            <!-- Pagamento -->
+                            <td class="py-3.5 px-4 align-top whitespace-nowrap">
+                                <template x-if="item.payment_timing === 'antecipado' || item.payment_status === 'pago'">
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                                        <i class="fas fa-check text-[10px]"></i> Pago Antecipado
+                                    </span>
+                                </template>
+                                <template x-if="item.payment_timing === 'na_entrega' && item.payment_status !== 'pago'">
+                                    <div class="space-y-1">
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 border border-amber-300">
+                                            <i class="fas fa-hand-holding-usd text-[10px]"></i> Cobrar na Entrega
+                                        </span>
+                                        <p class="text-xs font-bold text-amber-900" x-text="formatCurrency(item.total_amount_cents)"></p>
+                                        <p class="text-[10px] text-slate-500 uppercase tracking-wider" x-text="item.payment_method"></p>
+                                    </div>
+                                </template>
+                            </td>
+
+                            <!-- Status da Entrega -->
+                            <td class="py-3.5 px-4 align-top whitespace-nowrap">
+                                <div class="space-y-1">
+                                    <template x-if="item.delivery_status === 'preparando'">
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 border border-amber-200">
+                                            <i class="fas fa-box-open text-[10px]"></i> Em Preparação
+                                        </span>
+                                    </template>
+                                    <template x-if="item.delivery_status === 'a_caminho'">
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 border border-indigo-200 animate-pulse">
+                                            <i class="fas fa-truck-fast text-[10px]"></i> A Caminho
+                                        </span>
+                                    </template>
+                                    <template x-if="item.delivery_status === 'entregue'">
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                                            <i class="fas fa-check-circle text-[10px]"></i> Entregue
+                                        </span>
+                                    </template>
+                                    <template x-if="item.delivery_status === 'cancelado'">
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                                            Cancelado
+                                        </span>
+                                    </template>
+
+                                    <!-- Indicador se o cliente já foi avisado via WhatsApp -->
+                                    <template x-if="item.customer_notified_at">
+                                        <p class="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                                            <i class="fas fa-check-double text-[9px]"></i> Avisado às <span x-text="formatTime(item.customer_notified_at)"></span>
+                                        </p>
+                                    </template>
+                                </div>
+                            </td>
+
+                            <!-- Ação WhatsApp & Gestão -->
+                            <td class="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                                <div class="flex flex-col items-end gap-1.5">
+                                    <!-- BOTÃO DE DESTAQUE: Avisar no WhatsApp que o produto está a caminho -->
+                                    <button type="button" @click="openNotifyModal(item)"
+                                            :class="item.delivery_status === 'a_caminho' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'"
+                                            class="rounded-xl px-3 py-1.5 text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5">
+                                        <i class="fab fa-whatsapp text-sm"></i>
+                                        <span x-text="item.customer_notified_at ? 'Reenviar Aviso a Caminho' : 'Avisar: Produto a Caminho'"></span>
+                                    </button>
+
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <template x-if="item.delivery_status !== 'entregue' && item.delivery_status !== 'cancelado'">
+                                            <button type="button" @click="markAsDelivered(item)" title="Marcar como Entregue"
+                                                    class="text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg border border-emerald-200 transition-colors">
+                                                <i class="fas fa-check mr-1"></i> Entregue
+                                            </button>
+                                        </template>
+
+                                        <button type="button" @click="openEditModal(item)" title="Editar"
+                                                class="text-xs font-medium text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MODAL: Avisar Cliente no WhatsApp (Produto a Caminho) -->
+    <div x-show="showNotifyModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+         @click.self="showNotifyModal = false">
+        <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 text-lg">
+                        <i class="fab fa-whatsapp"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Avisar Cliente: Produto a Caminho</h3>
+                        <p class="text-xs text-slate-500" x-text="'Pedido ' + (selectedDelivery?.order_code || '') + ' - ' + (selectedDelivery?.user_name || '')"></p>
+                    </div>
+                </div>
+                <button type="button" @click="showNotifyModal = false" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+            </div>
+
+            <div class="space-y-3">
+                <div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-700 space-y-1">
+                    <p><strong>Destinatário:</strong> <span x-text="selectedDelivery?.user_name + ' (' + (selectedDelivery?.user_whatsapp || selectedDelivery?.user_phone) + ')'"></span></p>
+                    <p><strong>Endereço:</strong> <span x-text="selectedDelivery?.delivery_address"></span></p>
+                    <p><strong>Pagamento:</strong> 
+                        <span x-text="selectedDelivery?.payment_timing === 'antecipado' ? '✅ Já Pago Antecipadamente' : '💵 Pagar na Entrega: ' + formatCurrency(selectedDelivery?.total_amount_cents)"></span>
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1.5">Mensagem a ser enviada no WhatsApp:</label>
+                    <textarea rows="6" x-model="notifyMessagePreview"
+                              class="w-full rounded-xl border border-slate-300 p-3 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 font-mono"></textarea>
+                    <p class="text-[11px] text-slate-400 mt-1">Você pode personalizar a mensagem antes do disparo se desejar.</p>
+                </div>
+
+                <!-- Opcional: Nome do Entregador -->
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome do Entregador (Opcional):</label>
+                    <input type="text" x-model="selectedDeliveryDriver" placeholder="Ex: Carlos (Motoshow) ou Transportadora Rápida"
+                           class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                <!-- Fallback: Abrir direto no WhatsApp Web se preferir envio manual -->
+                <a :href="'https://wa.me/' + cleanPhone(selectedDelivery?.user_whatsapp || selectedDelivery?.user_phone) + '?text=' + encodeURIComponent(notifyMessagePreview)" target="_blank"
+                   class="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5">
+                    <i class="fas fa-external-link-alt text-[10px]"></i> Abrir no WhatsApp Web
+                </a>
+
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="showNotifyModal = false"
+                            class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+                        Cancelar
+                    </button>
+                    <button type="button" @click="sendDispatchNotification()" :disabled="sendingNotification"
+                            class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm transition-all flex items-center gap-2">
+                        <i class="fas fa-paper-plane" :class="{ 'fa-spin': sendingNotification }"></i>
+                        <span x-text="sendingNotification ? 'Enviando...' : 'Enviar pelo Sistema'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Novo Despacho / Entrega -->
+    <div x-show="showCreateModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+         @click.self="showCreateModal = false">
+        <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 text-lg">
+                        <i class="fas fa-truck-ramp-box"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900" x-text="isEditing ? 'Editar Pedido de Entrega' : 'Cadastrar Novo Despacho / Entrega'"></h3>
+                        <p class="text-xs text-slate-500">Preencha os dados do cliente, itens e forma de pagamento.</p>
+                    </div>
+                </div>
+                <button type="button" @click="showCreateModal = false" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+            </div>
+
+            <form @submit.prevent="saveDelivery()" class="space-y-4">
+                <!-- Seleção do Cliente -->
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Cliente *</label>
+                    <select x-model="form.user_id" @change="onClientSelect()" required
+                            class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                        <option value="">Selecione um cliente...</option>
+                        <template x-for="c in clientsList" :key="c.id">
+                            <option :value="c.id" x-text="c.name + ' - ' + (c.whatsapp_number || c.phone)"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Loja e Vendedor -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">Loja de Origem</label>
+                        <select x-model="form.branch_id"
+                                class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                            <option value="">Selecione a loja (opcional)...</option>
+                            <template x-for="b in branchesList" :key="b.id">
+                                <option :value="b.id" x-text="b.name + ' (' + b.code + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">Vendedor Responsável</label>
+                        <select x-model="form.seller_id"
+                                class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                            <option value="">Selecione o vendedor (opcional)...</option>
+                            <template x-for="s in sellersList" :key="s.id">
+                                <option :value="s.id" x-text="s.name + ' (' + (s.branch_name || 'Sem loja') + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Itens e Descrição -->
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Itens / Descrição do Pedido *</label>
+                    <textarea rows="2" x-model="form.items_description" required placeholder="Ex: 1x Mesa de Madeira Maciça, 4x Cadeiras Estofadas..."
+                              class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500"></textarea>
+                </div>
+
+                <!-- Endereço Completo de Entrega -->
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Endereço Completo de Entrega *</label>
+                    <input type="text" x-model="form.delivery_address" required placeholder="Rua, Número, Bairro, Cidade - UF, CEP"
+                           class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+
+                <!-- Regras de Pagamento & Valor -->
+                <div class="rounded-xl bg-slate-50 border border-slate-200/80 p-4 space-y-3">
+                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Forma & Momento do Pagamento</h4>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-medium text-slate-700 text-xs mb-1">Valor Total (R$) *</label>
+                            <input type="number" step="0.01" min="0" x-model="form.total_amount_reais" required placeholder="0.00"
+                                   class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-semibold" />
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 text-xs mb-1">Meio de Pagamento</label>
+                            <select x-model="form.payment_method"
+                                    class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                                <option value="pix">PIX</option>
+                                <option value="dinheiro">Dinheiro</option>
+                                <option value="cartao_credito">Cartão de Crédito</option>
+                                <option value="cartao_debito">Cartão de Débito</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Momento: Antecipado vs No Local -->
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <label class="flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer transition-all"
+                               :class="form.payment_timing === 'na_entrega' ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/20' : 'border-slate-200 bg-white'">
+                            <input type="radio" value="na_entrega" x-model="form.payment_timing" class="text-amber-600" />
+                            <div>
+                                <p class="text-xs font-bold text-slate-900">Pagar na Entrega</p>
+                                <p class="text-[10px] text-slate-500">O cliente paga no local (Dinheiro, PIX ou Maquininha).</p>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer transition-all"
+                               :class="form.payment_timing === 'antecipado' ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20' : 'border-slate-200 bg-white'">
+                            <input type="radio" value="antecipado" x-model="form.payment_timing" class="text-emerald-600" />
+                            <div>
+                                <p class="text-xs font-bold text-slate-900">Pago Antecipado</p>
+                                <p class="text-[10px] text-slate-500">O cliente já efetuou o pagamento antes do despacho.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Entregador e Observações -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">Entregador / Motorista (Opcional)</label>
+                        <input type="text" x-model="form.delivery_driver_name" placeholder="Ex: Roberto (Moto) ou Transportadora"
+                               class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">Status Inicial da Entrega</label>
+                        <select x-model="form.delivery_status"
+                                class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                            <option value="preparando">Em Separação / Preparando</option>
+                            <option value="a_caminho">A Caminho (Saiu para entrega)</option>
+                            <option value="entregue">Já Entregue</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Observações Internas (Opcional)</label>
+                    <input type="text" x-model="form.notes" placeholder="Ex: Deixar com a portaria se não houver ninguém em casa"
+                           class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" @click="showCreateModal = false"
+                            class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+                        Cancelar
+                    </button>
+                    <button type="submit" :disabled="saving"
+                            class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm transition-all flex items-center gap-2">
+                        <i class="fas fa-save" :class="{ 'fa-spin': saving }"></i>
+                        <span x-text="saving ? 'Salvando...' : 'Salvar Despacho'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function logisticsPage() {
+    return {
+        deliveries: [],
+        clientsList: [],
+        branchesList: [],
+        sellersList: [],
+        kpis: {
+            total_deliveries: 0,
+            preparing_count: 0,
+            in_transit_count: 0,
+            delivered_today_count: 0,
+            to_collect_cents: 0
+        },
+        filters: {
+            search: '',
+            delivery_status: '',
+            payment_timing: ''
+        },
+        loading: false,
+        saving: false,
+        sendingNotification: false,
+        showCreateModal: false,
+        showNotifyModal: false,
+        isEditing: false,
+        selectedDelivery: null,
+        selectedDeliveryDriver: '',
+        notifyMessagePreview: '',
+        form: {
+            id: null,
+            user_id: '',
+            branch_id: '',
+            seller_id: '',
+            items_description: '',
+            total_amount_reais: '',
+            payment_method: 'pix',
+            payment_timing: 'na_entrega',
+            payment_status: 'pendente',
+            delivery_status: 'preparando',
+            delivery_address: '',
+            delivery_driver_name: '',
+            notes: ''
+        },
+
+        async init() {
+            await Promise.all([
+                this.loadData(),
+                this.loadAuxData()
+            ]);
+        },
+
+        async loadData() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                if (this.filters.search) params.append('search', this.filters.search);
+                if (this.filters.delivery_status) params.append('delivery_status', this.filters.delivery_status);
+                if (this.filters.payment_timing) params.append('payment_timing', this.filters.payment_timing);
+
+                const [resDeliveries, resKpis] = await Promise.all([
+                    fetch('/admin/api/deliveries?' + params.toString()),
+                    fetch('/admin/api/deliveries/kpis')
+                ]);
+
+                if (resDeliveries.ok) this.deliveries = await resDeliveries.json();
+                if (resKpis.ok) this.kpis = await resKpis.json();
+            } catch (e) {
+                console.error("Erro ao carregar dados de logística:", e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadAuxData() {
+            try {
+                const [rClients, rBranches, rSellers] = await Promise.all([
+                    fetch('/admin/api/clients?per_page=100'),
+                    fetch('/admin/api/branches'),
+                    fetch('/admin/api/sellers')
+                ]);
+                if (rClients.ok) {
+                    const data = await rClients.json();
+                    this.clientsList = data.items || [];
+                }
+                if (rBranches.ok) this.branchesList = await rBranches.json();
+                if (rSellers.ok) this.sellersList = await rSellers.json();
+            } catch (e) {
+                console.error("Erro ao carregar listas auxiliares:", e);
+            }
+        },
+
+        onClientSelect() {
+            const client = this.clientsList.find(c => String(c.id) === String(this.form.user_id));
+            if (client) {
+                // Monta endereço completo automaticamente
+                const parts = [];
+                if (client.address) {
+                    let addr = client.address;
+                    if (client.address_number) addr += ', ' + client.address_number;
+                    if (client.address_complement) addr += ' (' + client.address_complement + ')';
+                    parts.push(addr);
+                }
+                if (client.neighborhood) parts.push(client.neighborhood);
+                const cityState = [client.city, client.state].filter(Boolean).join(' - ');
+                if (cityState) parts.push(cityState);
+                if (client.postal_code) parts.push('CEP: ' + client.postal_code);
+
+                this.form.delivery_address = parts.join(', ');
+            }
+        },
+
+        openCreateModal() {
+            this.isEditing = false;
+            this.form = {
+                id: null,
+                user_id: '',
+                branch_id: '',
+                seller_id: '',
+                items_description: '',
+                total_amount_reais: '',
+                payment_method: 'pix',
+                payment_timing: 'na_entrega',
+                payment_status: 'pendente',
+                delivery_status: 'preparando',
+                delivery_address: '',
+                delivery_driver_name: '',
+                notes: ''
+            };
+            this.showCreateModal = true;
+        },
+
+        openEditModal(item) {
+            this.isEditing = true;
+            this.form = {
+                id: item.id,
+                user_id: item.user_id,
+                branch_id: item.branch_id || '',
+                seller_id: item.seller_id || '',
+                items_description: item.items_description,
+                total_amount_reais: (item.total_amount_cents / 100).toFixed(2),
+                payment_method: item.payment_method || 'pix',
+                payment_timing: item.payment_timing || 'na_entrega',
+                payment_status: item.payment_status || 'pendente',
+                delivery_status: item.delivery_status || 'preparando',
+                delivery_address: item.delivery_address,
+                delivery_driver_name: item.delivery_driver_name || '',
+                notes: item.notes || ''
+            };
+            this.showCreateModal = true;
+        },
+
+        async saveDelivery() {
+            this.saving = true;
+            try {
+                const totalCents = Math.round(parseFloat(this.form.total_amount_reais || '0') * 100);
+                const payload = {
+                    user_id: parseInt(this.form.user_id),
+                    branch_id: this.form.branch_id ? parseInt(this.form.branch_id) : null,
+                    seller_id: this.form.seller_id ? parseInt(this.form.seller_id) : null,
+                    items_description: this.form.items_description,
+                    total_amount_cents: totalCents,
+                    payment_method: this.form.payment_method,
+                    payment_timing: this.form.payment_timing,
+                    payment_status: this.form.payment_timing === 'antecipado' ? 'pago' : this.form.payment_status,
+                    delivery_status: this.form.delivery_status,
+                    delivery_address: this.form.delivery_address,
+                    delivery_driver_name: this.form.delivery_driver_name || null,
+                    notes: this.form.notes || null
+                };
+
+                const url = this.isEditing ? `/admin/api/deliveries/${this.form.id}` : '/admin/api/deliveries';
+                const method = this.isEditing ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Falha ao salvar entrega.');
+                }
+
+                this.showCreateModal = false;
+                await this.loadData();
+                Alpine.store('adminUi').setNotice({ message: 'Pedido de entrega registrado com sucesso!', type: 'success' });
+            } catch (e) {
+                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        openNotifyModal(item) {
+            this.selectedDelivery = item;
+            this.selectedDeliveryDriver = item.delivery_driver_name || '';
+
+            const totalFormatted = this.formatCurrency(item.total_amount_cents);
+            let paymentText = item.payment_timing === 'antecipado' || item.payment_status === 'pago'
+                ? '✅ *Pagamento Antecipado (Já Liquidado)*'
+                : `💵 *Pagar na Entrega: ${totalFormatted}* (${item.payment_method.toUpperCase()})`;
+
+            const driverLine = this.selectedDeliveryDriver ? `\n🛵 *Entregador:* ${this.selectedDeliveryDriver}` : '';
+
+            this.notifyMessagePreview = 
+                `🚚 *Seu pedido está a caminho!*\n\n` +
+                `Olá, *${item.user_name}*! Temos uma ótima notícia da *Anauê Design*:\n` +
+                `O seu pedido (*${item.order_code}*) já foi separado e o entregador está a caminho do seu endereço!\n\n` +
+                `📦 *Itens do Pedido:*\n${item.items_description}\n\n` +
+                `📍 *Endereço de Entrega:*\n${item.delivery_address}\n\n` +
+                `💰 *Forma de Pagamento:*\n${paymentText}` +
+                `${driverLine}\n\n` +
+                `Por favor, certifique-se de que haverá alguém para receber. Qualquer dúvida, é só nos responder aqui! 🤝`;
+
+            this.showNotifyModal = true;
+        },
+
+        async sendDispatchNotification() {
+            this.sendingNotification = true;
+            try {
+                const res = await fetch(`/admin/api/deliveries/${this.selectedDelivery.id}/notify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ custom_message: this.notifyMessagePreview })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Falha ao enviar notificação WhatsApp.');
+
+                this.showNotifyModal = false;
+                await this.loadData();
+
+                if (data.gateway_sent) {
+                    Alpine.store('adminUi').setNotice({ message: 'Mensagem de WhatsApp enviada com sucesso ao cliente!', type: 'success' });
+                } else {
+                    Alpine.store('adminUi').setNotice({ message: 'Status atualizado para "A Caminho". Utilize o link direto para disparar no WhatsApp.', type: 'info' });
+                    if (data.whatsapp_direct_url) {
+                        window.open(data.whatsapp_direct_url, '_blank');
+                    }
+                }
+            } catch (e) {
+                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+            } finally {
+                this.sendingNotification = false;
+            }
+        },
+
+        async markAsDelivered(item) {
+            try {
+                const res = await fetch(`/admin/api/deliveries/${item.id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ delivery_status: 'entregue', payment_status: 'pago' })
+                });
+                if (!res.ok) throw new Error('Falha ao atualizar status.');
+                await this.loadData();
+                Alpine.store('adminUi').setNotice({ message: `Pedido ${item.order_code} marcado como Entregue!`, type: 'success' });
+            } catch (e) {
+                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+            }
+        },
+
+        cleanPhone(p) {
+            return (p || '').replace(/\D/g, '');
+        },
+
+        formatCurrency(cents) {
+            return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        },
+
+        formatDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        },
+
+        formatTime(iso) {
+            if (!iso) return '';
+            return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+    };
+}
+</script>
+{% endblock %}

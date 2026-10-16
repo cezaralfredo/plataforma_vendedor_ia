@@ -58,6 +58,7 @@ class User(Base):
     address_complement: Mapped[str | None] = mapped_column(String(100), nullable=True)
     neighborhood: Mapped[str | None] = mapped_column(String(100), nullable=True)
     delivery_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preferred_bank: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Consentimento
     opt_in_whatsapp: Mapped[bool] = mapped_column(

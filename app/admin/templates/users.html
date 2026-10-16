@@ -291,6 +291,11 @@
             <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Instruções para Entrega / Ponto de Referência</label>
             <textarea x-model.trim="form.delivery_instructions" rows="2" placeholder="Ex: Deixar na portaria com Sr. José, portão preto em frente à praça..." class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
           </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Banco de Preferência do Cliente (Opcional)</label>
+            <input x-model.trim="form.preferred_bank" placeholder="Ex: Nubank, Itaú, Bradesco, Banco do Brasil, Inter, Santander, Caixa..." class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          </div>
         </div>
 
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -467,7 +472,7 @@ function clientsPage(){return{
   form:{
     name:'',phone:'',whatsapp_number:'',email:'',
     postal_code:'',address:'',address_number:'',address_complement:'',neighborhood:'',city:'',state:'',
-    delivery_instructions:'',tags:'',notes:''
+    delivery_instructions:'',preferred_bank:'',tags:'',notes:''
   },
   importModalOpen:false,importing:false,importFile:null,importSource:'import_csv',importStrategy:'update',importSummary:null,
   maskPhone(value){const digits=String(value||'').replace(/\D/g,'');return digits.length<6?'Não informado':`${digits.slice(0,4)}••••${digits.slice(-3)}`},
@@ -480,7 +485,7 @@ function clientsPage(){return{
     this.form={
       name:'',phone:'',whatsapp_number:'',email:'',
       postal_code:'',address:'',address_number:'',address_complement:'',neighborhood:'',city:'',state:'',
-      delivery_instructions:'',tags:'',notes:''
+      delivery_instructions:'',preferred_bank:'',tags:'',notes:''
     };
     this.formOpen=true;
   },
@@ -499,6 +504,7 @@ function clientsPage(){return{
       city:client.city||'',
       state:client.state||'',
       delivery_instructions:client.delivery_instructions||'',
+      preferred_bank:client.preferred_bank||'',
       tags:Array.isArray(client.tags)?client.tags.join(', '):(client.tags||''),
       notes:client.notes||''
     };
@@ -520,6 +526,7 @@ function clientsPage(){return{
         city:this.form.city || null,
         state:this.form.state || null,
         delivery_instructions:this.form.delivery_instructions || null,
+        preferred_bank:this.form.preferred_bank || null,
         tags:this.form.tags || [],
         notes:this.form.notes || null
       };

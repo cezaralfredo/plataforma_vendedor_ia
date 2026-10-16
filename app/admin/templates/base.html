@@ -50,10 +50,10 @@
                         <i class="fas fa-tachometer-alt mr-3 w-5 text-center text-slate-500 {% if request.url.path == '/admin' %}text-blue-600{% endif %}"></i>
                         Dashboard
                     </a>
-                    <a href="/admin/appointments"
-                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/appointments') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
-                        <i class="fas fa-calendar-check mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/appointments') %}text-blue-600{% endif %}"></i>
-                        Agendamentos
+                    <a href="/admin/logistics"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/logistics') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-truck-fast mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/logistics') %}text-blue-600{% endif %}"></i>
+                        Logística & Entregas
                     </a>
                     <a href="/admin/payments"
                        class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/payments') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
