@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     triage_model: str = "typesafe/jev-1.13"
     triage_timeout_seconds: float = 10.0
 
+    # Chaves de fallback opcionais para Provedores de IA (OpenAI, Anthropic, Gemini, Groq)
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+    gemini_api_key: str = ""
+    groq_api_key: str = ""
+
     @model_validator(mode="after")
     def validate_production_secrets(self):
         if self.debug:

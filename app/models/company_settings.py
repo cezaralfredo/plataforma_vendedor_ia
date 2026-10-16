@@ -43,9 +43,27 @@ class CompanySettings(Base):
     whatsapp_provider: Mapped[str] = mapped_column(
         String(20), nullable=False, default="evolution"
     )
+    # Evolution API
+    evolution_base_url: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
     evolution_instance: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
+    evolution_api_key: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    # WAHA (WhatsApp HTTP API)
+    waha_base_url: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    waha_session: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, default="default"
+    )
+    waha_api_key: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    # Meta Cloud API Oficial
     meta_phone_number_id: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
@@ -53,6 +71,9 @@ class CompanySettings(Base):
         Text, nullable=True
     )
     meta_waba_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    meta_verify_token: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
 
@@ -67,6 +88,25 @@ class CompanySettings(Base):
         Boolean, nullable=False, default=False
     )
     welcome_message: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    # Provedor LLM configurável pelo cliente
+    ai_provider: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="openai"
+    )
+    ai_model: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="gpt-4o-mini"
+    )
+    ai_api_key: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    ai_base_url: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    ai_temperature: Mapped[float] = mapped_column(
+        Numeric(3, 2), nullable=False, default=0.3
+    )
+    ai_system_prompt: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )
 

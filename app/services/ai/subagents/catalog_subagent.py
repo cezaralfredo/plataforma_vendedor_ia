@@ -1,0 +1,96 @@
+import json
+import logging
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.models.product import Product
+from app.services.ai.providers.base import ToolDefinition
+from app.services.ai.subagents.base import BaseSubagent
+from app.services.product_service import ProductService
+
+logger = logging.getLogger(__name__)
+
+
+class CatalogSubagent(BaseSubagent):
+    """
+    Subagente especialista em catálogo, estoque e especificações de produtos.
+    Fornece aos modelos informações precisas sobre preços, estoque e peso (weight_kg).
+    """
+
+    def __init__(self, db: Session, product_service: ProductService | None = None):
+        self.db = db
+        self.product_service = product_service or ProductService(db)
+
+    def get_tools(self) -> list[ToolDefinition]:
+        return [
+            ToolDefinition(
+                name="consultar_catalogo",
+                description="Consulta os produtos disponíveis na loja para venda, permitindo filtrar por busca de texto ou categoria.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "termo_busca": {
+                            "type": "string",
+                            "description": "Termo de busca ou nome parcial do produto desejado pelo cliente.",
+                        },
+                    },
+                },
+            ),
+            ToolDefinition(
+                name="obter_detalhes_produto",
+                description="Obtém detalhes completos de um produto específico através do seu ID.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "produto_id": {
+                            "type": "integer",
+                            "description": "ID numérico do produto.",
+                        },
+                    },
+                    "required": ["produto_id"],
+                },
+            ),
+        ]
+
+    def _format_product(self, p: Product) -> dict[str, Any]:
+        peso = float(p.weight_kg) if p.weight_kg is not None else None
+        return {
+            "id": p.id,
+            "nome": p.name,
+            "preco_reais": f"R$ {p.price_cents / 100:.2f}",
+            "preco_centavos": p.price_cents,
+            "peso_kg": round(peso, 3) if peso is not None else None,
+            "estoque": p.stock_quantity,
+            "descricao": p.description or "",
+        }
+
+    async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
+        if tool_name == "consultar_catalogo":
+            termo = (arguments.get("termo_busca") or "").strip().lower()
+            products = self.product_service.list_products(active_only=True, in_stock_only=True)
+
+            if termo:
+                products = [
+                    p for p in products
+                    if termo in p.name.lower() or (p.description and termo in p.description.lower())
+                ]
+
+            if not products:
+                return json.dumps({"status": "vazio", "mensagem": "Nenhum produto encontrado com os critérios informados."}, ensure_ascii=False)
+
+            formatted = [self._format_product(p) for p in products]
+            return json.dumps({"status": "sucesso", "total": len(formatted), "produtos": formatted}, ensure_ascii=False)
+
+        elif tool_name == "obter_detalhes_produto":
+            prod_id = arguments.get("produto_id")
+            if not prod_id:
+                return json.dumps({"erro": "produto_id é obrigatório"}, ensure_ascii=False)
+
+            p = self.product_service.get_product(int(prod_id))
+            if not p or not p.active:
+                return json.dumps({"erro": f"Produto #{prod_id} não encontrado ou inativo"}, ensure_ascii=False)
+
+            return json.dumps({"status": "sucesso", "produto": self._format_product(p)}, ensure_ascii=False)
+
+        return json.dumps({"erro": f"Ferramenta desconhecida no CatalogSubagent: {tool_name}"}, ensure_ascii=False)

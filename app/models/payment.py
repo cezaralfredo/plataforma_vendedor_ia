@@ -30,6 +30,15 @@ class Payment(Base):
     product_id: Mapped[int | None] = mapped_column(
         ForeignKey("products.id"), nullable=True, index=True
     )
+    branch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("branches.id"), nullable=True, index=True
+    )
+    seller_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sellers.id"), nullable=True, index=True
+    )
+    commission_amount_cents: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=0
+    )
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     asaas_payment_id: Mapped[str] = mapped_column(String(50), nullable=True, unique=True, index=True)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -51,4 +60,6 @@ class Payment(Base):
     appointment = relationship("Appointment", back_populates="payments")
     user = relationship("User", back_populates="payments")
     product = relationship("Product", back_populates="payments")
+    branch = relationship("Branch", back_populates="payments")
+    seller = relationship("Seller", back_populates="payments")
 

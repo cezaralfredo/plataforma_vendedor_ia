@@ -55,70 +55,315 @@
                 </label>
             </div>
 
-            <div>
-                <label class="block font-medium text-slate-700 text-xs mb-1">Gateway Padrão Ativo</label>
-                <select x-model="form.default_gateway" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
-                    <option value="asaas">Asaas (Cobranças PIX, Boleto e Cartão)</option>
-                    <option value="mercadopago">Mercado Pago (Em Breve)</option>
-                    <option value="manual">Manual / Pagamento no Balcão</option>
-                    <option value="none">Nenhum (Sem cobrança)</option>
-                </select>
+            <!-- Seleção de Banco / Gateway de Pagamento com Cards -->
+            <div class="sm:col-span-2">
+                <label class="block font-medium text-slate-700 text-xs mb-2">Instituição Financeira / Gateway Bancário Ativo</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <!-- Asaas -->
+                    <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.default_gateway === 'asaas' ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-money-check-alt text-blue-600"></i> Asaas
+                            </span>
+                            <input type="radio" value="asaas" x-model="form.default_gateway" class="text-blue-600" />
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-tight">PIX, Boleto e Cartão com split de comissões automático.</p>
+                    </label>
+
+                    <!-- Mercado Pago -->
+                    <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.default_gateway === 'mercadopago' ? 'border-sky-500 bg-sky-50/40 ring-2 ring-sky-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-hand-holding-usd text-sky-600"></i> Mercado Pago
+                            </span>
+                            <input type="radio" value="mercadopago" x-model="form.default_gateway" class="text-sky-600" />
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-tight">PIX instantâneo com QR Code dinâmico e link de pagamento.</p>
+                    </label>
+
+                    <!-- EFI Pay (Gerencianet) -->
+                    <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.default_gateway === 'efipay' ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-university text-orange-600"></i> EFI Pay (Gerencianet)
+                            </span>
+                            <input type="radio" value="efipay" x-model="form.default_gateway" class="text-orange-600" />
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-tight">API PIX oficial do Banco Central com emissão imediata.</p>
+                    </label>
+
+                    <!-- PIX Direto (Qualquer Banco - 0% Taxas) -->
+                    <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.default_gateway === 'pix_direct' ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-qrcode text-emerald-600"></i> PIX Direto (Qualquer Banco)
+                            </span>
+                            <input type="radio" value="pix_direct" x-model="form.default_gateway" class="text-emerald-600" />
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-tight"><strong>0% de Taxas:</strong> Receba direto no Nubank, Inter, Itaú, BB, etc.</p>
+                    </label>
+
+                    <!-- Manual / Balcão -->
+                    <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.default_gateway === 'manual' ? 'border-slate-500 bg-slate-50/40 ring-2 ring-slate-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                <i class="fas fa-store text-slate-600"></i> Balcão / No Local
+                            </span>
+                            <input type="radio" value="manual" x-model="form.default_gateway" class="text-slate-600" />
+                        </div>
+                        <p class="text-[11px] text-slate-500 leading-tight">Pagamento direto no estabelecimento físico (dinheiro/maquininha).</p>
+                    </label>
+                </div>
             </div>
 
-            <div>
-                <label class="block font-medium text-slate-700 text-xs mb-1">Métodos de Pagamento Permitidos</label>
-                <div class="flex items-center gap-4 mt-2">
-                    <label class="inline-flex items-center text-xs text-slate-700">
-                        <input type="checkbox" value="pix" x-model="form.accepted_payment_methods" class="rounded border-slate-300 text-blue-600 mr-2" /> PIX
-                    </label>
-                    <label class="inline-flex items-center text-xs text-slate-700">
-                        <input type="checkbox" value="credit_card" x-model="form.accepted_payment_methods" class="rounded border-slate-300 text-blue-600 mr-2" /> Cartão
-                    </label>
-                    <label class="inline-flex items-center text-xs text-slate-700">
-                        <input type="checkbox" value="in_person" x-model="form.accepted_payment_methods" class="rounded border-slate-300 text-blue-600 mr-2" /> No Local
-                    </label>
+            <!-- Campos Específicos para Asaas -->
+            <div x-show="form.default_gateway === 'asaas'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">API Key do Asaas ($aact_...)</label>
+                    <div class="relative">
+                        <input :type="showGatewayKey ? 'text' : 'password'" x-model="form.gateway_credentials.api_key" placeholder="Insira a chave de API da conta Asaas" class="w-full rounded-xl border border-slate-300 pr-10 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                        <button type="button" @click="showGatewayKey = !showGatewayKey" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600">
+                            <i :class="showGatewayKey ? 'fas fa-eye-slash text-xs' : 'fas fa-eye text-xs'"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mt-1">Deixe em branco para usar a chave global padrão do servidor.</p>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Ambiente / URL Base</label>
+                    <select x-model="form.gateway_credentials.base_url" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                        <option value="https://api-sandbox.asaas.com/v3">Ambiente Sandbox / Testes</option>
+                        <option value="https://api.asaas.com/v3">Produção Oficial</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Campos Específicos para Mercado Pago -->
+            <div x-show="form.default_gateway === 'mercadopago'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Access Token do Mercado Pago (APP_USR-... ou TEST-...) *</label>
+                    <div class="relative">
+                        <input :type="showGatewayKey ? 'text' : 'password'" x-model="form.gateway_credentials.access_token" placeholder="Insira seu Access Token do portal de desenvolvedores MP" class="w-full rounded-xl border border-slate-300 pr-10 px-3.5 py-2 text-xs focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500" />
+                        <button type="button" @click="showGatewayKey = !showGatewayKey" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600">
+                            <i :class="showGatewayKey ? 'fas fa-eye-slash text-xs' : 'fas fa-eye text-xs'"></i>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Public Key (Opcional)</label>
+                    <input type="text" x-model="form.gateway_credentials.public_key" placeholder="Ex: APP_USR-..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500" />
+                </div>
+            </div>
+
+            <!-- Campos Específicos para EFI Pay (Gerencianet) -->
+            <div x-show="form.default_gateway === 'efipay'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Client ID da Aplicação EFI *</label>
+                    <input type="text" x-model="form.gateway_credentials.client_id" placeholder="Client_Id_..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Client Secret da Aplicação EFI *</label>
+                    <div class="relative">
+                        <input :type="showGatewayKey ? 'text' : 'password'" x-model="form.gateway_credentials.client_secret" placeholder="Client_Secret_..." class="w-full rounded-xl border border-slate-300 pr-10 px-3.5 py-2 text-xs focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500" />
+                        <button type="button" @click="showGatewayKey = !showGatewayKey" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600">
+                            <i :class="showGatewayKey ? 'fas fa-eye-slash text-xs' : 'fas fa-eye text-xs'"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Chave PIX cadastrada na conta EFI *</label>
+                    <input type="text" x-model="form.gateway_credentials.pix_key" placeholder="Ex: CNPJ, Telefone, E-mail ou Chave Aleatória" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500" />
+                </div>
+            </div>
+
+            <!-- Campos Específicos para PIX Direto (Qualquer Banco Brasileiro) -->
+            <div x-show="form.default_gateway === 'pix_direct'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+                <div class="sm:col-span-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+                    ✨ <strong>Como funciona o PIX Direto:</strong> O sistema gera o código oficial <strong>BRCode padrão Banco Central do Brasil</strong> diretamente para a sua chave PIX com o valor exato do pedido. O cliente paga no app de qualquer banco e você recebe o valor integral na sua conta bancária sem intermediários e sem taxas por transação.
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Sua Chave PIX da Conta Bancária *</label>
+                    <input type="text" x-model="form.gateway_credentials.pix_key" placeholder="Ex: 12.345.678/0001-90 ou financeiro@sualoja.com.br" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome do Titular da Conta (Máx 25 letras) *</label>
+                    <input type="text" x-model="form.gateway_credentials.merchant_name" placeholder="Ex: Minha Loja LTDA" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Cidade do Titular da Conta *</label>
+                    <input type="text" x-model="form.gateway_credentials.merchant_city" placeholder="Ex: Fortaleza, Sao Paulo, etc." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 2. Módulo de Atendimento & IA -->
+    <!-- 2. Módulo de Atendimento & Inteligência Artificial (Orquestrador & Subagentes) -->
     <div x-show="activeTab === 'ai'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6">
         <div>
-            <h3 class="text-sm font-semibold text-slate-900">Personalidade e Conduta da IA</h3>
-            <p class="text-xs text-slate-500 mt-0.5">Defina a forma como a IA se apresenta e atende os clientes no WhatsApp.</p>
+            <h3 class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <i class="fas fa-brain text-purple-600"></i> Provedor de Inteligência Artificial & Modelo LLM
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">Selecione o cérebro que comandará o Orquestrador e os Subagentes (Catálogo, Checkout PIX, Status de Pedidos e Suporte).</p>
         </div>
 
-        <div class="grid gap-6 sm:grid-cols-2">
-            <div>
-                <label class="block font-medium text-slate-700 text-xs mb-1">Nome Fantasia da Empresa *</label>
-                <input type="text" x-model="form.company_name" required placeholder="Ex: Barbearia Elegance" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
-            </div>
+        <!-- Seletor de Provedor LLM com Cards Modernos -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <!-- OpenAI -->
+            <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.ai_provider === 'openai' ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fas fa-bolt text-emerald-600"></i> OpenAI
+                    </span>
+                    <input type="radio" value="openai" x-model="form.ai_provider" @change="onProviderChange()" class="text-emerald-600" />
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">GPT-4o Mini, GPT-4o. Alta precisão e velocidade.</p>
+            </label>
 
-            <div>
-                <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Persona Virtual *</label>
-                <input type="text" x-model="form.assistant_name" required placeholder="Ex: Sofia, Clara, Alex" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
-            </div>
+            <!-- Anthropic Claude -->
+            <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.ai_provider === 'anthropic' ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fas fa-feather-alt text-amber-600"></i> Anthropic Claude
+                    </span>
+                    <input type="radio" value="anthropic" x-model="form.ai_provider" @change="onProviderChange()" class="text-amber-600" />
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">Claude 3.5 Sonnet / Haiku. Excelente interpretação e tom humano.</p>
+            </label>
 
-            <div>
-                <label class="block font-medium text-slate-700 text-xs mb-1">Tom de Linguagem</label>
-                <select x-model="form.tone" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
-                    <option value="casual">Casual / Descontraído (Ideal para salões, barbearias, petshops)</option>
-                    <option value="formal">Formal / Clínico (Ideal para consultórios, médicos, advogados)</option>
-                    <option value="executive">Executivo / Direto (Ideal para consultorias e empresas B2B)</option>
-                </select>
-            </div>
+            <!-- Google Gemini -->
+            <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.ai_provider === 'gemini' ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fab fa-google text-blue-600"></i> Google Gemini
+                    </span>
+                    <input type="radio" value="gemini" x-model="form.ai_provider" @change="onProviderChange()" class="text-blue-600" />
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">Gemini 1.5 & 2.0 Flash. Custo ultrabaixo e janela gigante.</p>
+            </label>
 
-            <div class="flex items-center gap-3 pt-5">
-                <input type="checkbox" id="require_cpf" x-model="form.require_cpf" class="rounded border-slate-300 text-blue-600" />
-                <label for="require_cpf" class="text-xs font-medium text-slate-700 cursor-pointer">
-                    Exigir CPF no primeiro cadastro do cliente
+            <!-- Groq Cloud -->
+            <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.ai_provider === 'groq' ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fas fa-tachometer-alt text-orange-600"></i> Groq Cloud
+                    </span>
+                    <input type="radio" value="groq" x-model="form.ai_provider" @change="onProviderChange()" class="text-orange-600" />
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">Llama 3.3 70B em LPUs. Respostas quase instantâneas.</p>
+            </label>
+
+            <!-- OpenRouter -->
+            <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.ai_provider === 'openrouter' ? 'border-purple-500 bg-purple-50/40 ring-2 ring-purple-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fas fa-network-wired text-purple-600"></i> OpenRouter
+                    </span>
+                    <input type="radio" value="openrouter" x-model="form.ai_provider" @change="onProviderChange()" class="text-purple-600" />
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">Acesso a centenas de modelos globais com uma única chave.</p>
+            </label>
+
+            <!-- Custom / Local (Ollama) -->
+            <label class="flex flex-col p-3.5 rounded-xl border cursor-pointer transition-all relative" :class="form.ai_provider === 'custom' ? 'border-cyan-500 bg-cyan-50/40 ring-2 ring-cyan-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <i class="fas fa-server text-cyan-600"></i> Local / Ollama
+                    </span>
+                    <input type="radio" value="custom" x-model="form.ai_provider" @change="onProviderChange()" class="text-cyan-600" />
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">Ollama, vLLM ou servidor local compatível com OpenAI.</p>
+            </label>
+        </div>
+
+        <!-- Parâmetros de Conexão do Provedor de IA -->
+        <div class="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">
+                    Chave de API (API Key) do Provedor *
                 </label>
+                <div class="relative">
+                    <input :type="showAiKey ? 'text' : 'password'" x-model="form.ai_api_key" placeholder="Insira sua chave de API (sk-..., AIzaSy..., etc.)" class="w-full rounded-xl border border-slate-300 pr-10 px-3.5 py-2 text-xs focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500" />
+                    <button type="button" @click="showAiKey = !showAiKey" class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600">
+                        <i :class="showAiKey ? 'fas fa-eye-slash text-xs' : 'fas fa-eye text-xs'"></i>
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Armazenada com segurança. Se vazia, o sistema opera em fallback determinístico com catálogo e checkout PIX.</p>
             </div>
 
-            <div class="sm:col-span-2">
-                <label class="block font-medium text-slate-700 text-xs mb-1">Mensagem de Boas-Vindas Customizada</label>
-                <textarea x-model="form.welcome_message" rows="2" placeholder="Ex: Olá! Seja bem-vindo à Barbearia Elegance. Em que posso te ajudar hoje?" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500"></textarea>
+            <div>
+                <label class="block font-medium text-slate-700 text-xs mb-1">
+                    Modelo de Linguagem (Model Name) *
+                </label>
+                <input type="text" x-model="form.ai_model" placeholder="Ex: gpt-4o-mini, claude-3-5-haiku-20241022, gemini-1.5-flash" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500" />
+                <p class="text-[11px] text-slate-500 mt-1">Sugerido automaticamente com base no provedor selecionado.</p>
+            </div>
+
+            <div x-show="form.ai_provider === 'custom' || form.ai_base_url">
+                <label class="block font-medium text-slate-700 text-xs mb-1">
+                    URL Base Customizada (Base URL)
+                </label>
+                <input type="text" x-model="form.ai_base_url" placeholder="Ex: http://localhost:11434/v1 para Ollama ou proxy privado" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500" />
+                <p class="text-[11px] text-slate-500 mt-1">Obrigatório para Ollama ou servidores locais. Deixe em branco para usar o endpoint oficial do provedor.</p>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block font-medium text-slate-700 text-xs">
+                        Temperatura / Criatividade
+                    </label>
+                    <span class="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200" x-text="Number(form.ai_temperature).toFixed(2)"></span>
+                </div>
+                <input type="range" min="0.0" max="1.0" step="0.05" x-model.number="form.ai_temperature" class="w-full accent-purple-600 cursor-pointer" />
+                <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>0.0 (Mais preciso para vendas/preços)</span>
+                    <span>1.0 (Mais conversacional)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Identidade e Personalidade da Persona -->
+        <div class="pt-4 border-t border-slate-100">
+            <h4 class="text-xs font-semibold text-slate-900 mb-3 flex items-center gap-1.5">
+                <i class="fas fa-id-card text-slate-500"></i> Identidade e Persona de Vendas
+            </h4>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome Fantasia da Empresa *</label>
+                    <input type="text" x-model="form.company_name" required placeholder="Ex: Barbearia Elegance" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Persona Virtual *</label>
+                    <input type="text" x-model="form.assistant_name" required placeholder="Ex: Sofia, Clara, Alex" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Tom de Linguagem</label>
+                    <select x-model="form.tone" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
+                        <option value="casual">Casual / Descontraído (Ideal para varejo, salões, petshops)</option>
+                        <option value="formal">Formal / Clínico (Ideal para consultórios, médicos, advogados)</option>
+                        <option value="executive">Executivo / Comercial (Direto ao ponto e focado em conversão)</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-3 pt-5">
+                    <input type="checkbox" id="require_cpf" x-model="form.require_cpf" class="rounded border-slate-300 text-blue-600" />
+                    <label for="require_cpf" class="text-xs font-medium text-slate-700 cursor-pointer">
+                        Exigir CPF no primeiro cadastro do cliente
+                    </label>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Mensagem de Boas-Vindas Padrão (Opcional)</label>
+                    <textarea x-model="form.welcome_message" rows="2" placeholder="Ex: Olá! Seja muito bem-vindo à nossa loja. Como posso te ajudar hoje?" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500"></textarea>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">
+                        Instruções Customizadas para o Negócio (Prompt do Sistema)
+                    </label>
+                    <textarea x-model="form.ai_system_prompt" rows="3" placeholder="Ex: Informe aos clientes que pedidos com entrega expressa saem até as 17h. Se perguntarem sobre frete, informe que entregamos em toda a região com taxa fixa de R$ 15,00." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500"></textarea>
+                    <p class="text-[11px] text-slate-500 mt-1">Essas instruções são injetadas diretamente na memória do Orquestrador e aplicadas junto aos subagentes de vendas.</p>
+                </div>
             </div>
         </div>
     </div>
@@ -127,51 +372,95 @@
     <div x-show="activeTab === 'whatsapp'" class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-6">
         <div>
             <h3 class="text-sm font-semibold text-slate-900">Provedor e Conexão WhatsApp</h3>
-            <p class="text-xs text-slate-500 mt-0.5">Selecione entre a Evolution API (QR Code) ou a Meta Cloud API Oficial.</p>
+            <p class="text-xs text-slate-500 mt-0.5">Selecione o provedor de WhatsApp que será utilizado pelo Vendedor IA para atender clientes e enviar notificações.</p>
         </div>
 
         <div class="grid gap-6 sm:grid-cols-2">
             <div class="sm:col-span-2">
                 <label class="block font-medium text-slate-700 text-xs mb-1">Provedor de Conexão Ativo</label>
-                <div class="grid grid-cols-2 gap-4 mt-2">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+                    <label class="flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all" :class="form.whatsapp_provider === 'waha' ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <input type="radio" value="waha" x-model="form.whatsapp_provider" class="text-emerald-600" />
+                        <div>
+                            <p class="font-semibold text-xs text-slate-900">WAHA (DevLikeAPro)</p>
+                            <p class="text-[11px] text-slate-500">Ultraleve por QR Code (HTTP API).</p>
+                        </div>
+                    </label>
                     <label class="flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all" :class="form.whatsapp_provider === 'evolution' ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
                         <input type="radio" value="evolution" x-model="form.whatsapp_provider" class="text-blue-600" />
                         <div>
-                            <p class="font-semibold text-xs text-slate-900">Evolution API (QR Code)</p>
-                            <p class="text-[11px] text-slate-500">Conexão rápida por QR Code via celular.</p>
+                            <p class="font-semibold text-xs text-slate-900">Evolution API v2</p>
+                            <p class="text-[11px] text-slate-500">Conexão por QR Code via instâncias.</p>
                         </div>
                     </label>
-                    <label class="flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all" :class="form.whatsapp_provider === 'meta' ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
-                        <input type="radio" value="meta" x-model="form.whatsapp_provider" class="text-blue-600" />
+                    <label class="flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-all" :class="form.whatsapp_provider === 'meta' ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <input type="radio" value="meta" x-model="form.whatsapp_provider" class="text-indigo-600" />
                         <div>
                             <p class="font-semibold text-xs text-slate-900">Meta Cloud API Oficial</p>
-                            <p class="text-[11px] text-slate-500">Alta estabilidade empresarial direta com a Meta.</p>
+                            <p class="text-[11px] text-slate-500">API Oficial empresarial direta com a Meta.</p>
                         </div>
                     </label>
                 </div>
             </div>
 
-            <!-- Evolution Fields -->
-            <div x-show="form.whatsapp_provider === 'evolution'" class="sm:col-span-2 space-y-4">
+            <!-- WAHA Fields -->
+            <div x-show="form.whatsapp_provider === 'waha'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+                    💡 <strong>Configuração do Webhook no WAHA:</strong> No painel ou config do WAHA, aponte o webhook para: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-300">http://agenda-api:8000/api/webhooks/whatsapp/waha</code> com evento <code class="font-mono">message</code>.
+                </div>
                 <div>
-                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Instância na Evolution API</label>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">URL Base do Servidor WAHA</label>
+                    <input type="text" x-model="form.waha_base_url" placeholder="Ex: http://waha:3000" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Sessão no WAHA</label>
+                    <input type="text" x-model="form.waha_session" placeholder="Ex: default" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">API Key do WAHA (Opcional se configurado)</label>
+                    <input type="password" x-model="form.waha_api_key" placeholder="Sua chave secreta de autenticação do WAHA" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                </div>
+            </div>
+
+            <!-- Evolution Fields -->
+            <div x-show="form.whatsapp_provider === 'evolution'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+                    💡 <strong>Configuração do Webhook na Evolution:</strong> Na sua instância da Evolution API, configure o webhook para: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-300">http://agenda-api:8000/api/webhooks/whatsapp/evolution</code> com evento <code class="font-mono">MESSAGES_UPSERT</code>.
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">URL Base da Evolution API</label>
+                    <input type="text" x-model="form.evolution_base_url" placeholder="Ex: http://evolution:8080" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Instância</label>
                     <input type="text" x-model="form.evolution_instance" placeholder="Ex: empresa_principal" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">API Key Global da Evolution</label>
+                    <input type="password" x-model="form.evolution_api_key" placeholder="Chave de autenticação apikey da Evolution" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
                 </div>
             </div>
 
             <!-- Meta Fields -->
             <div x-show="form.whatsapp_provider === 'meta'" class="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2 rounded-xl bg-indigo-50 border border-indigo-200 p-3 text-xs text-indigo-800">
+                    💡 <strong>Configuração do Webhook na Meta for Developers:</strong> Configure a URL de retorno para <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-300">https://seu-dominio.com/api/webhooks/whatsapp/meta</code> e preencha o token de verificação abaixo.
+                </div>
                 <div>
                     <label class="block font-medium text-slate-700 text-xs mb-1">Phone Number ID da Meta</label>
-                    <input type="text" x-model="form.meta_phone_number_id" placeholder="Ex: 102938475612345" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                    <input type="text" x-model="form.meta_phone_number_id" placeholder="Ex: 102938475612345" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500" />
                 </div>
                 <div>
                     <label class="block font-medium text-slate-700 text-xs mb-1">WABA ID (Conta WhatsApp Business)</label>
-                    <input type="text" x-model="form.meta_waba_id" placeholder="Ex: 987654321098765" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                    <input type="text" x-model="form.meta_waba_id" placeholder="Ex: 987654321098765" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500" />
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">Token de Verificação do Webhook</label>
+                    <input type="text" x-model="form.meta_verify_token" placeholder="Token definido no portal da Meta" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500" />
                 </div>
                 <div class="sm:col-span-2">
                     <label class="block font-medium text-slate-700 text-xs mb-1">Token de Acesso Permanente (System User Token)</label>
-                    <input type="password" x-model="form.meta_access_token" placeholder="EAAB..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                    <input type="password" x-model="form.meta_access_token" placeholder="EAAB..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500" />
                 </div>
             </div>
         </div>
@@ -225,23 +514,52 @@ function companySettingsManager() {
         activeTab: 'financial',
         message: '',
         messageError: false,
+        showAiKey: false,
+        showGatewayKey: false,
         form: {
             company_name: settings.company_name || 'Minha Empresa',
             assistant_name: settings.assistant_name || 'Assistente',
             tone: settings.tone || 'casual',
             require_cpf: !!settings.require_cpf,
             welcome_message: settings.welcome_message || '',
+            ai_provider: settings.ai_provider || 'openai',
+            ai_model: settings.ai_model || 'gpt-4o-mini',
+            ai_api_key: settings.ai_api_key || '',
+            ai_base_url: settings.ai_base_url || '',
+            ai_temperature: settings.ai_temperature !== undefined ? Number(settings.ai_temperature) : 0.3,
+            ai_system_prompt: settings.ai_system_prompt || '',
             payment_required: settings.payment_required !== undefined ? !!settings.payment_required : true,
             default_gateway: settings.default_gateway || 'asaas',
-            accepted_payment_methods: settings.accepted_payment_methods || ['pix'],
+            gateway_credentials: settings.gateway_credentials || {},
             whatsapp_provider: settings.whatsapp_provider || 'evolution',
+            evolution_base_url: settings.evolution_base_url || '',
             evolution_instance: settings.evolution_instance || '',
+            evolution_api_key: settings.evolution_api_key || '',
+            waha_base_url: settings.waha_base_url || '',
+            waha_session: settings.waha_session || 'default',
+            waha_api_key: settings.waha_api_key || '',
             meta_phone_number_id: settings.meta_phone_number_id || '',
             meta_waba_id: settings.meta_waba_id || '',
             meta_access_token: settings.meta_access_token || '',
+            meta_verify_token: settings.meta_verify_token || '',
             commission_model: settings.commission_model || 'percentage',
             default_commission_rate: settings.default_commission_rate || 0,
             split_enabled: !!settings.split_enabled
+        },
+
+        onProviderChange() {
+            const defaults = {
+                'openai': 'gpt-4o-mini',
+                'anthropic': 'claude-3-5-haiku-20241022',
+                'gemini': 'gemini-1.5-flash',
+                'groq': 'llama-3.3-70b-versatile',
+                'openrouter': 'openai/gpt-4o-mini',
+                'custom': 'llama3.2'
+            };
+            const defaultModels = Object.values(defaults);
+            if (!this.form.ai_model || defaultModels.includes(this.form.ai_model)) {
+                this.form.ai_model = defaults[this.form.ai_provider] || 'gpt-4o-mini';
+            }
         },
 
         async saveSettings() {

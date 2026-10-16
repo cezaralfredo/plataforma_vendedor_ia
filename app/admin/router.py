@@ -33,17 +33,22 @@ from app.database import get_db
 from app.models.admin_account import AdminAccount
 from app.models.payment import Payment
 from app.models.user import User
+from app.schemas.branch import BranchCreate, BranchResponse, BranchUpdate
 from app.schemas.company_settings import CompanySettingsResponse, CompanySettingsUpdate
 from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.schemas.seller import SellerCreate, SellerResponse, SellerUpdate
 from app.schemas.user import UserImportRequest, UserImportSummary
 from app.security import AdminContext, require_admin, require_admin_mutation, require_csrf_token
 from app.services.asaas_client import AsaasIntegrationError
+from app.services.branch_service import BranchService
 from app.services.client_import_service import ClientImportService
 from app.services.company_settings_service import CompanySettingsService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
+from app.services.seller_service import SellerService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
 
 templates = Jinja2Templates(directory="app/admin/templates")
 
@@ -444,6 +449,121 @@ async def api_toggle_product_active(product_id: int, db: Session = Depends(get_d
     db.commit()
     db.refresh(product)
     return jsonable_encoder(ProductResponse.model_validate(product))
+
+
+# -------------------------------------------------------------------------
+# Gestão de Filiais (Branches)
+# -------------------------------------------------------------------------
+
+@router.get("/api/branches", dependencies=[Depends(require_admin)])
+async def api_list_branches(active_only: bool = False, db: Session = Depends(get_db)):
+    service = BranchService(db)
+    branches = service.list_branches(active_only=active_only)
+    return [jsonable_encoder(BranchResponse.model_validate(b)) for b in branches]
+
+
+@router.post("/api/branches", dependencies=[Depends(require_admin_mutation)])
+async def api_create_branch(payload: BranchCreate, db: Session = Depends(get_db)):
+    service = BranchService(db)
+    try:
+        branch = service.create(payload)
+        return jsonable_encoder(BranchResponse.model_validate(branch))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/api/branches/{branch_id}", dependencies=[Depends(require_admin)])
+async def api_get_branch(branch_id: int, db: Session = Depends(get_db)):
+    service = BranchService(db)
+    branch = service.get_by_id(branch_id)
+    if not branch:
+        raise HTTPException(status_code=404, detail="Filial não encontrada")
+    return jsonable_encoder(BranchResponse.model_validate(branch))
+
+
+@router.put("/api/branches/{branch_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_update_branch(branch_id: int, payload: BranchUpdate, db: Session = Depends(get_db)):
+    service = BranchService(db)
+    try:
+        branch = service.update(branch_id, payload)
+        if not branch:
+            raise HTTPException(status_code=404, detail="Filial não encontrada")
+        return jsonable_encoder(BranchResponse.model_validate(branch))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/api/branches/{branch_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_delete_branch(branch_id: int, db: Session = Depends(get_db)):
+    service = BranchService(db)
+    deleted = service.delete(branch_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Filial não encontrada")
+    return {"status": "success", "message": "Filial removida com sucesso"}
+
+
+# -------------------------------------------------------------------------
+# Gestão de Vendedores (Sellers)
+# -------------------------------------------------------------------------
+
+@router.get("/api/sellers", dependencies=[Depends(require_admin)])
+async def api_list_sellers(
+    branch_id: int | None = None,
+    active_only: bool = False,
+    db: Session = Depends(get_db),
+):
+    service = SellerService(db)
+    sellers = service.list_sellers(branch_id=branch_id, active_only=active_only)
+    return [jsonable_encoder(SellerResponse.model_validate(s)) for s in sellers]
+
+
+@router.post("/api/sellers", dependencies=[Depends(require_admin_mutation)])
+async def api_create_seller(payload: SellerCreate, db: Session = Depends(get_db)):
+    service = SellerService(db)
+    try:
+        seller = service.create(payload)
+        return jsonable_encoder(SellerResponse.model_validate(seller))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/api/sellers/{seller_id}", dependencies=[Depends(require_admin)])
+async def api_get_seller(seller_id: int, db: Session = Depends(get_db)):
+    service = SellerService(db)
+    seller = service.get_by_id(seller_id)
+    if not seller:
+        raise HTTPException(status_code=404, detail="Vendedor não encontrado")
+    return jsonable_encoder(SellerResponse.model_validate(seller))
+
+
+@router.put("/api/sellers/{seller_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_update_seller(seller_id: int, payload: SellerUpdate, db: Session = Depends(get_db)):
+    service = SellerService(db)
+    try:
+        seller = service.update(seller_id, payload)
+        if not seller:
+            raise HTTPException(status_code=404, detail="Vendedor não encontrado")
+        return jsonable_encoder(SellerResponse.model_validate(seller))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/api/sellers/{seller_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_delete_seller(seller_id: int, db: Session = Depends(get_db)):
+    service = SellerService(db)
+    deleted = service.delete(seller_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Vendedor não encontrado")
+    return {"status": "success", "message": "Vendedor removido com sucesso"}
+
+
+@router.get("/api/sellers/{seller_id}/metrics", dependencies=[Depends(require_admin)])
+async def api_seller_metrics(seller_id: int, db: Session = Depends(get_db)):
+    service = SellerService(db)
+    try:
+        return jsonable_encoder(service.get_metrics(seller_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_admin)])

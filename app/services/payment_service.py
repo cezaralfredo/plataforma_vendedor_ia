@@ -144,6 +144,8 @@ class PaymentService:
         product_id: int | None = None,
         description: str | None = None,
         billing_type: str = "undefined",
+        seller_id: int | None = None,
+        branch_id: int | None = None,
     ) -> Payment:
         if amount_cents <= 0:
             raise ValueError("O valor da cobrança deve ser maior que zero")
@@ -153,15 +155,69 @@ class PaymentService:
         if asaas_billing_type not in {"PIX", "BOLETO", "CREDIT_CARD", "UNDEFINED"}:
             raise ValueError("Invalid billing type")
 
-        customer_id = await self.ensure_asaas_customer(user_id)
-        due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-
         charge_desc = description or "Pagamento de produto"
         if product_id and not description:
             from app.models.product import Product
             prod = self.db.query(Product).filter(Product.id == product_id).first()
             if prod:
                 charge_desc = f"Produto: {prod.name}"
+
+        # Cálculo da comissão do vendedor e herança da filial
+        commission_amount_cents = 0
+        if seller_id:
+            from app.models.seller import Seller
+            seller = self.db.query(Seller).filter(Seller.id == seller_id).first()
+            if seller:
+                if not branch_id and seller.branch_id:
+                    branch_id = seller.branch_id
+                rate = float(seller.commission_rate or 0.0)
+                commission_amount_cents = int(round(amount_cents * (rate / 100.0)))
+
+        # Verifica o gateway bancário ativo configurado pelo cliente
+        from app.services.company_settings_service import CompanySettingsService
+        from app.services.payment_gateways import ChargeRequest, get_payment_gateway
+        company_settings = CompanySettingsService(self.db).get_or_create_default()
+        active_gateway = (company_settings.default_gateway or "asaas").lower().strip()
+
+        if active_gateway != "asaas":
+            gateway = get_payment_gateway(active_gateway, company_settings.gateway_credentials)
+            user = self.user_repo.get(user_id)
+            req = ChargeRequest(
+                amount_cents=amount_cents,
+                user_id=user_id,
+                customer_name=user.name if user else "Cliente",
+                customer_phone=getattr(user, "phone", None),
+                customer_email=getattr(user, "email", None),
+                customer_cpf=getattr(user, "cpf_cnpj", None),
+                description=charge_desc,
+                billing_type=billing_type,
+                order_ref=f"prod:{product_id}:user:{user_id}",
+                product_id=product_id,
+            )
+            result = await gateway.create_charge(req)
+            payment = Payment(
+                user_id=user_id,
+                product_id=product_id,
+                branch_id=branch_id,
+                seller_id=seller_id,
+                commission_amount_cents=commission_amount_cents,
+                description=charge_desc,
+                asaas_payment_id=result.gateway_payment_id,
+                amount_cents=amount_cents,
+                billing_type=billing_type,
+                status=result.status,
+                invoice_url=result.invoice_url or result.pix_copy_paste,
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+            self.db.add(payment)
+            self.db.commit()
+            self.db.refresh(payment)
+            return payment
+
+        # Fluxo Asaas padrão
+        customer_id = await self.ensure_asaas_customer(user_id)
+        due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
         remote_payment = await self.asaas.create_payment(
             customer_id=customer_id,
@@ -176,6 +232,9 @@ class PaymentService:
         payment = Payment(
             user_id=user_id,
             product_id=product_id,
+            branch_id=branch_id,
+            seller_id=seller_id,
+            commission_amount_cents=commission_amount_cents,
             description=charge_desc,
             asaas_payment_id=payment_id,
             amount_cents=amount_cents,

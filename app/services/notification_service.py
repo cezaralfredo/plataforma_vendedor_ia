@@ -198,8 +198,31 @@ class NotificationService:
 
         webhook_url = self.get_effective_webhook_url()
         if not webhook_url:
+            # Envio direto pelo provedor WhatsApp ativo (WAHA, Evolution ou Meta)
+            full_payload = self.get_delivery_payload(delivery)
+            recipient_phone = (full_payload.get("chatId") or full_payload.get("whatsapp")) if full_payload else None
+            if full_payload and recipient_phone:
+                from app.services.whatsapp.gateway import WhatsAppGatewayService
+
+                gateway = WhatsAppGatewayService(self.db)
+                result = await gateway.send_text(
+                    phone=recipient_phone,
+                    text=full_payload.get("formatted_message", ""),
+                )
+                if result.success:
+                    self.claim_delivery(delivery.id)
+                    self.mark_delivery_sent(
+                        delivery_id=delivery.id,
+                        provider_message_id=result.message_id,
+                    )
+                    logger.info("Notificação de pagamento entregue via %s (msg_id: %s)", result.provider, result.message_id)
+                    return True
+                else:
+                    self.defer_delivery(delivery.id, result.error or "Falha no envio direto pelo provedor WhatsApp")
+                    return False
+
             logger.info(
-                "No notification webhook configured. Delivery %s remains pending for retry.",
+                "No notification webhook or recipient phone configured. Delivery %s remains pending.",
                 delivery.id,
             )
             return False

@@ -1,6 +1,11 @@
-# Plataforma Atende Agenda
+# Plataforma Vendedor IA — Anauê Design
 
-API REST completa para gestão de agendamentos, profissionais, serviços e pagamentos — construída com **FastAPI**, **SQLAlchemy** e **PostgreSQL**. Inclui integração com **Asaas** para pagamentos e suporte a **MCP (Model Context Protocol)** para agentes de IA.
+Plataforma completa de **Vendas e Atendimento Automatizado com Inteligência Artificial via WhatsApp**, com gestão de produtos, filiais, vendedores com comissão, múltiplos gateways de pagamento (Asaas, Mercado Pago, EFI Pay, PIX Direto) e suporte nativo aos provedores WhatsApp (**WAHA**, **Evolution API** e **Meta Cloud API Oficial**).
+
+- **URL do Serviço:** [https://vendedor.anauedesign.com.br](https://vendedor.anauedesign.com.br)
+- **Painel Administrativo:** [https://vendedor.anauedesign.com.br/admin](https://vendedor.anauedesign.com.br/admin)
+- **Área do Vendedor:** [https://vendedor.anauedesign.com.br/seller](https://vendedor.anauedesign.com.br/seller)
+- **MCP (Model Context Protocol):** `/mcp` para agentes de IA externos e orquestradores.
 
 ---
 

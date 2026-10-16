@@ -20,11 +20,13 @@ from app.api.payments import router as payments_router
 from app.api.triage import router as triage_router
 from app.api.users import router as users_router
 from app.api.webhooks import router as webhooks_router
+from app.api.whatsapp_webhooks import router as whatsapp_webhooks_router
 from app.config import Settings, settings
 from app.database import SessionLocal
 from app.mcp.router import router as mcp_router
 from app.repositories.appointment_repo import AppointmentRepository
 from app.security import require_api_key
+from app.seller import router as seller_router
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +104,10 @@ def create_app(
     application.include_router(webhooks_router)
     application.include_router(notification_deliveries_router)
     application.include_router(triage_router)
+    application.include_router(whatsapp_webhooks_router)
     application.include_router(mcp_router)
     application.include_router(admin_router)
+    application.include_router(seller_router)
 
     Instrumentator().instrument(application)
 

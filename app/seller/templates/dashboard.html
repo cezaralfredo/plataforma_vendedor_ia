@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minha Área de Vendas - {{ seller.name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        body { font-family: "Plus Jakarta Sans", sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <!-- Header / Navbar do Vendedor -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                    <i class="fas fa-store"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm text-white flex items-center gap-2">
+                        {{ seller.name }}
+                        <span class="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                            {{ branch.name }}
+                        </span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Código do Vendedor: <span class="font-mono text-emerald-400 font-semibold">{{ seller.code }}</span></p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <form method="POST" action="/seller/logout">
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all">
+                        <i class="fas fa-sign-out-alt text-xs"></i> Sair
+                    </button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8" x-data="{ copySuccess: false }">
+        <!-- Banner de Link de Vendas -->
+        <div class="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-slate-800/80 to-slate-900 border border-emerald-500/20 shadow-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <span class="text-[11px] font-bold text-emerald-400 tracking-wider uppercase mb-1 block">Seu Link de Vendas Direto</span>
+                <h2 class="text-lg font-bold text-white">Venda pelo WhatsApp com identificação automática</h2>
+                <p class="text-xs text-slate-400 mt-1">Qualquer cliente que comprar usando seu código gera comissão creditada instantaneamente na sua conta.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" readonly value="https://wa.me/{{ branch.whatsapp_number or seller.whatsapp_number }}?text=Ol%C3%A1%2C%20fui%20atendido(a)%20pelo%20vendedor%20{{ seller.code }}" class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-emerald-300 w-64 sm:w-80 select-all" id="sellerLink" />
+                <button type="button" @click="navigator.clipboard.writeText(document.getElementById('sellerLink').value); copySuccess = true; setTimeout(() => copySuccess = false, 2500)" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all">
+                    <i class="fas" :class="copySuccess ? 'fa-check' : 'fa-copy'"></i>
+                    <span x-text="copySuccess ? 'Copiado!' : 'Copiar Link'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4 Cards de Métricas Pessoais do Vendedor -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">Vendas Confirmadas</span>
+                    <i class="fas fa-chart-line text-emerald-400"></i>
+                </div>
+                <p class="text-2xl font-bold text-white">R$ {{ "%.2f"|format(metrics.total_sales_cents / 100) }}</p>
+                <span class="text-[11px] text-emerald-400 mt-1 block">Total aprovado no PIX / Gateway</span>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">Comissão Aprovada</span>
+                    <i class="fas fa-coins text-amber-400"></i>
+                </div>
+                <p class="text-2xl font-bold text-amber-400">R$ {{ "%.2f"|format(metrics.paid_commission_cents / 100) }}</p>
+                <span class="text-[11px] text-slate-400 mt-1 block">Creditada para você</span>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">Comissão Pendente</span>
+                    <i class="fas fa-clock text-sky-400"></i>
+                </div>
+                <p class="text-2xl font-bold text-sky-400">R$ {{ "%.2f"|format(metrics.pending_commission_cents / 100) }}</p>
+                <span class="text-[11px] text-slate-400 mt-1 block">Aguardando PIX do cliente</span>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">Sua Taxa de Comissão</span>
+                    <i class="fas fa-percentage text-purple-400"></i>
+                </div>
+                <p class="text-2xl font-bold text-purple-400">{{ seller.commission_rate }}%</p>
+                <span class="text-[11px] text-slate-400 mt-1 block">Filial: {{ branch.name }}</span>
+            </div>
+        </div>
+
+        <!-- Tabela de Pedidos do Vendedor -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-hidden shadow-xl">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-sm text-white">Meus Pedidos Recentes</h3>
+                    <p class="text-xs text-slate-400">Vendas geradas na sua filial</p>
+                </div>
+                <span class="text-xs text-slate-400 font-medium">Total: {{ orders|length }} pedido(s)</span>
+            </div>
+
+            {% if orders %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                        <tr>
+                            <th class="py-3 px-4">ID Pedido</th>
+                            <th class="py-3 px-4">Item / Descrição</th>
+                            <th class="py-3 px-4">Valor Total</th>
+                            <th class="py-3 px-4">Sua Comissão</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Data</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                        {% for o in orders %}
+                        <tr class="hover:bg-slate-900/40 transition-colors">
+                            <td class="py-3 px-4 font-mono font-bold text-white">#{{ o.id }}</td>
+                            <td class="py-3 px-4">{{ o.description or 'Venda de Produto' }}</td>
+                            <td class="py-3 px-4 font-semibold text-white">R$ {{ "%.2f"|format(o.amount_cents / 100) }}</td>
+                            <td class="py-3 px-4 font-bold text-emerald-400">R$ {{ "%.2f"|format((o.commission_amount_cents or 0) / 100) }}</td>
+                            <td class="py-3 px-4">
+                                {% if o.status in ['received', 'confirmed'] %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Pago ✅</span>
+                                {% elif o.status == 'pending' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">Aguardando PIX ⏳</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30">{{ o.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 text-slate-400">{{ o.created_at.strftime('%d/%m/%Y %H:%M') if o.created_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="py-12 text-center text-slate-500">
+                <i class="fas fa-shopping-cart text-3xl mb-3 text-slate-700 block"></i>
+                <p class="text-sm">Você ainda não possui pedidos registrados.</p>
+                <p class="text-xs text-slate-600 mt-1">Compartilhe seu link de vendas para começar a faturar!</p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

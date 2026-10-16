@@ -36,7 +36,7 @@ def generate_secure_password(length: int = 20) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Cria ou redefine o login e senha de acesso administrativo para loja.anauedesign.com.br"
+        description="Cria ou redefine o login e senha de acesso administrativo para vendedor.anauedesign.com.br"
     )
     parser.add_argument(
         "--username",
@@ -58,8 +58,8 @@ def main():
     parser.add_argument(
         "--domain",
         type=str,
-        default=os.getenv("DOMAIN", "loja.anauedesign.com.br"),
-        help="Domínio da plataforma (padrão: loja.anauedesign.com.br)",
+        default=os.getenv("DOMAIN", "vendedor.anauedesign.com.br"),
+        help="Domínio da plataforma (padrão: vendedor.anauedesign.com.br)",
     )
     parser.add_argument(
         "--database-url",
@@ -110,7 +110,7 @@ def main():
             account = upsert_admin_account(db, username=username, password=password)
 
             print("\n" + "=" * 68)
-            print("  ANAUÊ DESIGN - VENDEDOR ONLINE (loja.anauedesign.com.br)")
+            print("  ANAUÊ DESIGN - VENDEDOR ONLINE (vendedor.anauedesign.com.br)")
             print("  Credenciais de Acesso Administrativo Configuradas")
             print("=" * 68)
             print(f"  Domínio:            https://{domain}")

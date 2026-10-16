@@ -42,12 +42,35 @@ class CommissionSettingsSchema(BaseModel):
 class ChannelSettingsSchema(BaseModel):
     whatsapp_provider: str = Field(
         default="evolution",
-        description="Provedor de WhatsApp ('evolution' ou 'meta')",
+        description="Provedor de WhatsApp ('evolution', 'meta' ou 'waha')",
+    )
+    # Evolution
+    evolution_base_url: str | None = Field(
+        default=None,
+        description="URL base do servidor Evolution API",
     )
     evolution_instance: str | None = Field(
         default=None,
         description="Nome da instância na Evolution API",
     )
+    evolution_api_key: str | None = Field(
+        default=None,
+        description="API Key da Evolution API",
+    )
+    # WAHA
+    waha_base_url: str | None = Field(
+        default=None,
+        description="URL base do servidor WAHA (WhatsApp HTTP API)",
+    )
+    waha_session: str | None = Field(
+        default="default",
+        description="Nome da sessão no WAHA",
+    )
+    waha_api_key: str | None = Field(
+        default=None,
+        description="API Key de autenticação no WAHA",
+    )
+    # Meta
     meta_phone_number_id: str | None = Field(
         default=None,
         description="ID do telefone na Meta Cloud API",
@@ -59,6 +82,10 @@ class ChannelSettingsSchema(BaseModel):
     meta_waba_id: str | None = Field(
         default=None,
         description="ID da conta WhatsApp Business (WABA)",
+    )
+    meta_verify_token: str | None = Field(
+        default=None,
+        description="Token de verificação do Webhook da Meta",
     )
 
 
@@ -83,6 +110,30 @@ class AIAttendanceSettingsSchema(BaseModel):
         default=None,
         description="Mensagem de boas-vindas customizada",
     )
+    ai_provider: str = Field(
+        default="openai",
+        description="Provedor de IA ('openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'custom')",
+    )
+    ai_model: str = Field(
+        default="gpt-4o-mini",
+        description="Modelo de IA selecionado",
+    )
+    ai_api_key: str | None = Field(
+        default=None,
+        description="Chave de API do provedor de IA",
+    )
+    ai_base_url: str | None = Field(
+        default=None,
+        description="URL base opcional para provedores customizados ou Ollama/vLLM",
+    )
+    ai_temperature: Decimal = Field(
+        default=Decimal("0.3"),
+        description="Criatividade/temperatura da IA (0.0 a 1.0)",
+    )
+    ai_system_prompt: str | None = Field(
+        default=None,
+        description="Prompt de sistema customizado para o assistente",
+    )
 
 
 class CompanySettingsCreate(BaseModel):
@@ -95,14 +146,26 @@ class CompanySettingsCreate(BaseModel):
     default_commission_rate: Decimal = Decimal("0.0")
     split_enabled: bool = False
     whatsapp_provider: str = "evolution"
+    evolution_base_url: str | None = None
     evolution_instance: str | None = None
+    evolution_api_key: str | None = None
+    waha_base_url: str | None = None
+    waha_session: str | None = "default"
+    waha_api_key: str | None = None
     meta_phone_number_id: str | None = None
     meta_access_token: str | None = None
     meta_waba_id: str | None = None
+    meta_verify_token: str | None = None
     assistant_name: str = "Assistente"
     tone: str = "casual"
     require_cpf: bool = False
     welcome_message: str | None = None
+    ai_provider: str = "openai"
+    ai_model: str = "gpt-4o-mini"
+    ai_api_key: str | None = None
+    ai_base_url: str | None = None
+    ai_temperature: Decimal = Decimal("0.3")
+    ai_system_prompt: str | None = None
     custom_settings: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -116,14 +179,26 @@ class CompanySettingsUpdate(BaseModel):
     default_commission_rate: Decimal | None = None
     split_enabled: bool | None = None
     whatsapp_provider: str | None = None
+    evolution_base_url: str | None = None
     evolution_instance: str | None = None
+    evolution_api_key: str | None = None
+    waha_base_url: str | None = None
+    waha_session: str | None = None
+    waha_api_key: str | None = None
     meta_phone_number_id: str | None = None
     meta_access_token: str | None = None
     meta_waba_id: str | None = None
+    meta_verify_token: str | None = None
     assistant_name: str | None = None
     tone: str | None = None
     require_cpf: bool | None = None
     welcome_message: str | None = None
+    ai_provider: str | None = None
+    ai_model: str | None = None
+    ai_api_key: str | None = None
+    ai_base_url: str | None = None
+    ai_temperature: Decimal | None = None
+    ai_system_prompt: str | None = None
     custom_settings: dict[str, Any] | None = None
 
 
@@ -138,14 +213,26 @@ class CompanySettingsResponse(BaseModel):
     default_commission_rate: Decimal
     split_enabled: bool
     whatsapp_provider: str
-    evolution_instance: str | None
-    meta_phone_number_id: str | None
-    meta_access_token: str | None
-    meta_waba_id: str | None
+    evolution_base_url: str | None = None
+    evolution_instance: str | None = None
+    evolution_api_key: str | None = None
+    waha_base_url: str | None = None
+    waha_session: str | None = None
+    waha_api_key: str | None = None
+    meta_phone_number_id: str | None = None
+    meta_access_token: str | None = None
+    meta_waba_id: str | None = None
+    meta_verify_token: str | None = None
     assistant_name: str
     tone: str
     require_cpf: bool
-    welcome_message: str | None
+    welcome_message: str | None = None
+    ai_provider: str = "openai"
+    ai_model: str = "gpt-4o-mini"
+    ai_api_key: str | None = None
+    ai_base_url: str | None = None
+    ai_temperature: Decimal = Decimal("0.3")
+    ai_system_prompt: str | None = None
     custom_settings: dict[str, Any]
     created_at: datetime
     updated_at: datetime
