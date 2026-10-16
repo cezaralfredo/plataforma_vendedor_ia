@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+
+{% block title %}Lojas & Filiais - Admin Vendedor Online{% endblock %}
+{% block page_title %}Gestão de Lojas & Filiais{% endblock %}
+
+{% block content %}
+<div x-data="storesPage()" x-init="init()" class="space-y-6">
+  <!-- Header Actions -->
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p class="text-xs text-slate-500 font-medium">Gerencie as filiais e lojas físicas onde os vendedores estão alocados para atendimento e entrega de produtos.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/admin/sellers" class="inline-flex items-center justify-center rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition-all gap-2">
+        <i class="fas fa-user-tag text-xs text-indigo-600"></i>Ver Vendedores
+      </a>
+      <button type="button" @click="openCreate()" class="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 hover:shadow transition-all gap-2">
+        <i class="fas fa-plus text-xs"></i>Nova Loja
+      </button>
+    </div>
+  </header>
+
+  <!-- Feedback Message -->
+  <div x-show="message" x-cloak class="rounded-2xl border px-4 py-3 text-sm font-medium shadow-xs" :class="messageError ? 'border-rose-200 bg-rose-50/90 text-rose-900' : 'border-emerald-200 bg-emerald-50/90 text-emerald-900'" x-text="message"></div>
+
+  <!-- KPI Metrics -->
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm hover:border-blue-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total de Lojas</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+          <i class="fas fa-store text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-slate-900" x-text="branches.length"></p>
+      <p class="mt-1 text-xs text-slate-400">Unidades cadastradas</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm hover:border-emerald-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Lojas Ativas</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+          <i class="fas fa-check-circle text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-emerald-950" x-text="branches.filter(b => b.active).length"></p>
+      <p class="mt-1 text-xs text-emerald-700">Em operação regular</p>
+    </div>
+
+    <div class="rounded-2xl border border-indigo-200/90 bg-indigo-50/50 p-5 shadow-sm hover:border-indigo-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-indigo-700">Vendedores Vinculados</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+          <i class="fas fa-user-tag text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-indigo-950" x-text="totalActiveSellers"></p>
+      <p class="mt-1 text-xs text-indigo-700">Equipe ativa nas lojas</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm hover:border-slate-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Cidades Atendidas</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          <i class="fas fa-map-marker-alt text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-slate-900" x-text="uniqueCitiesCount"></p>
+      <p class="mt-1 text-xs text-slate-400">Pontos geográficos</p>
+    </div>
+  </div>
+
+  <!-- Branches Table Card -->
+  <section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <div class="flex flex-col gap-3 border-b border-slate-200/80 px-6 py-5 lg:flex-row lg:items-center lg:justify-between bg-white">
+      <div>
+        <h3 class="text-base font-semibold tracking-tight text-slate-900">Unidades de Loja</h3>
+        <p class="text-xs text-slate-500 mt-0.5"><span class="font-medium text-slate-800" x-text="filteredBranches.length"></span> loja(s) encontrada(s)</p>
+      </div>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input x-model.trim="search" type="search" placeholder="Buscar por nome, código, cidade..." class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        <select x-model="statusFilter" class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          <option value="all">Todas as situações</option>
+          <option value="active">Apenas ativas</option>
+          <option value="inactive">Apenas inativas</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="p-12 text-center text-xs font-medium text-slate-500">
+      <i class="fas fa-circle-notch mr-2 animate-spin text-blue-600"></i>Carregando lojas...
+    </div>
+
+    <!-- Error State -->
+    <div x-show="loadError && !loading" x-cloak class="m-5 rounded-2xl border border-rose-200 bg-rose-50/90 p-5 text-center shadow-xs">
+      <p class="text-xs font-medium text-rose-700" x-text="loadError"></p>
+      <button type="button" @click="loadBranches()" class="mt-2 text-xs font-semibold text-rose-800 underline hover:text-rose-950 transition-colors">Tentar novamente</button>
+    </div>
+
+    <!-- Content (Mobile + Desktop) -->
+    <div x-show="!loading && !loadError" x-cloak>
+      <!-- Mobile List -->
+      <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+        <template x-for="branch in filteredBranches" :key="branch.id">
+          <article class="space-y-3 p-4" :class="branch.active ? '' : 'bg-slate-50/60'">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <p class="font-semibold text-slate-900 text-sm" x-text="branch.name"></p>
+                  <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200/60 uppercase" x-text="branch.code"></span>
+                </div>
+                <p x-show="branch.cnpj" class="text-[11px] text-slate-400 mt-0.5" x-text="'CNPJ: ' + branch.cnpj"></p>
+              </div>
+              <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="branch.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200/80'" x-text="branch.active ? 'Ativa' : 'Inativa'"></span>
+            </div>
+
+            <!-- Contato & Endereço Mobile -->
+            <div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-2 text-xs text-slate-700">
+              <div class="flex items-center gap-2">
+                <i class="fab fa-whatsapp text-emerald-600"></i>
+                <span class="font-medium text-slate-800" x-text="branch.whatsapp_number || branch.phone || 'Sem telefone'"></span>
+              </div>
+              <div class="flex items-start gap-2">
+                <i class="fas fa-map-marker-alt text-slate-400 mt-0.5"></i>
+                <span class="text-slate-600" x-text="branch.full_address || [branch.address, branch.city, branch.state].filter(Boolean).join(', ') || 'Endereço não cadastrado'"></span>
+              </div>
+            </div>
+
+            <!-- Vendedores Vinculados Mobile -->
+            <div class="flex items-center justify-between text-xs pt-1">
+              <div class="flex items-center gap-1.5 text-indigo-700 font-medium">
+                <i class="fas fa-user-tag text-indigo-500"></i>
+                <span x-text="(branch.active_sellers_count || 0) + ' vendedor(es) ativo(s)'"></span>
+              </div>
+              <a :href="'/admin/sellers?branch_id=' + branch.id" class="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                Ver equipe &rarr;
+              </a>
+            </div>
+
+            <div class="flex gap-4 border-t border-slate-100 pt-3 text-xs font-semibold">
+              <button @click="openEdit(branch)" class="text-blue-600 hover:text-blue-800">Editar Loja</button>
+              <button @click="toggleActive(branch)" :class="branch.active ? 'text-amber-600 hover:text-amber-800' : 'text-emerald-600 hover:text-emerald-800'" x-text="branch.active ? 'Desativar' : 'Ativar'"></button>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <!-- Desktop Table -->
+      <div class="admin-table hidden md:block overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100">
+          <thead class="bg-slate-50/75 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
+            <tr>
+              <th class="px-5 py-3.5">Loja / Código</th>
+              <th class="px-5 py-3.5">Contato</th>
+              <th class="px-5 py-3.5">Endereço Completo & Cidade</th>
+              <th class="px-5 py-3.5">Vendedores Vinculados</th>
+              <th class="px-5 py-3.5">Status</th>
+              <th class="px-5 py-3.5 text-right">Gestão</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100/80 text-sm text-slate-700">
+            <template x-for="branch in filteredBranches" :key="branch.id">
+              <tr :class="branch.active ? 'hover:bg-blue-50/20' : 'bg-slate-50/50 text-slate-400 hover:bg-slate-50'" class="transition-colors">
+                <td class="px-5 py-4">
+                  <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100/80 shrink-0">
+                      <i class="fas fa-store text-sm"></i>
+                    </span>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold text-slate-900" x-text="branch.name"></span>
+                        <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200/60 uppercase" x-text="branch.code"></span>
+                      </div>
+                      <p x-show="branch.cnpj" class="text-[11px] text-slate-400 mt-0.5" x-text="'CNPJ: ' + branch.cnpj"></p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-xs">
+                  <div class="space-y-0.5">
+                    <p x-show="branch.whatsapp_number" class="font-medium text-emerald-700 flex items-center gap-1.5">
+                      <i class="fab fa-whatsapp text-emerald-600"></i>
+                      <span x-text="branch.whatsapp_number"></span>
+                    </p>
+                    <p x-show="branch.phone && branch.phone !== branch.whatsapp_number" class="text-slate-500 flex items-center gap-1.5">
+                      <i class="fas fa-phone text-slate-400 text-[10px]"></i>
+                      <span x-text="branch.phone"></span>
+                    </p>
+                    <p x-show="branch.email" class="text-slate-400 flex items-center gap-1.5">
+                      <i class="fas fa-envelope text-slate-400 text-[10px]"></i>
+                      <span x-text="branch.email"></span>
+                    </p>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-xs">
+                  <div class="max-w-xs">
+                    <p class="font-medium text-slate-800 leading-snug" x-text="branch.full_address || branch.address || 'Endereço não cadastrado'"></p>
+                    <p x-show="branch.city || branch.state" class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      <i class="fas fa-map-pin text-slate-400 text-[10px]"></i>
+                      <span x-text="[branch.city, branch.state].filter(Boolean).join(' - ')"></span>
+                    </p>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-xs">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <i class="fas fa-user-tag text-[10px]"></i>
+                      <span x-text="(branch.active_sellers_count || 0) + ' ativos'"></span>
+                    </span>
+                    <a :href="'/admin/sellers?branch_id=' + branch.id" title="Ver vendedores vinculados a esta loja" class="rounded-lg p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+                      <i class="fas fa-external-link-alt text-xs"></i>
+                    </a>
+                  </div>
+                </td>
+                <td class="px-5 py-4">
+                  <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                        :class="branch.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'"
+                        x-text="branch.active ? 'Ativa' : 'Inativa'"></span>
+                </td>
+                <td class="px-5 py-4 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <button type="button" @click="openEdit(branch)" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 transition-all">
+                      <i class="fas fa-edit mr-1 text-slate-400"></i>Editar
+                    </button>
+                    <button type="button" @click="toggleActive(branch)" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium shadow-2xs hover:bg-slate-50 transition-all"
+                            :class="branch.active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'">
+                      <i class="fas" :class="branch.active ? 'fa-pause' : 'fa-check'"></i>
+                      <span x-text="branch.active ? 'Desativar' : 'Ativar'"></span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div x-show="!filteredBranches.length" class="p-12 text-center text-slate-400 text-xs">
+        <i class="fas fa-store-slash text-3xl mb-3 text-slate-300"></i>
+        <p class="font-medium text-slate-600">Nenhuma loja encontrada com os filtros selecionados.</p>
+        <p class="text-[11px] text-slate-400 mt-1">Clique em "Nova Loja" acima para cadastrar a primeira unidade.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal Create / Edit Store -->
+  <div x-show="modalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="modalOpen=false">
+    <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="modalOpen=false">
+      <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <i class="fas fa-store text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="editingId ? 'Editar Loja / Filial' : 'Nova Loja / Filial'"></h3>
+            <p class="text-xs text-slate-500">Cadastre a identificação, contatos e endereço completo da unidade.</p>
+          </div>
+        </div>
+        <button type="button" @click="modalOpen=false" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+
+      <form class="space-y-4" @submit.prevent="saveBranch()">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Nome da Loja <span class="text-rose-500">*</span>
+              <input x-model.trim="form.name" required placeholder="Ex: Matriz São Paulo, Filial Santos..." class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Código Único <span class="text-rose-500">*</span>
+              <input x-model.trim="form.code" required placeholder="Ex: MATRIZ, LJ01..." class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm uppercase text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              CNPJ
+              <input x-model.trim="form.cnpj" placeholder="00.000.000/0001-00" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              WhatsApp da Loja
+              <input x-model.trim="form.whatsapp_number" inputmode="tel" placeholder="(11) 99999-8888" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Telefone Fixo
+              <input x-model.trim="form.phone" inputmode="tel" placeholder="(11) 3333-2222" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+        </div>
+
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          E-mail de Contato
+          <input x-model.trim="form.email" type="email" placeholder="loja@anauedesign.com.br" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        </label>
+
+        <!-- Seção de Endereço Completo -->
+        <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                <i class="fas fa-map-marker-alt text-xs"></i>
+              </span>
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-blue-950">Endereço da Loja / Expedição</p>
+                <p class="text-[11px] text-blue-700/80">Localização física para faturamento e suporte aos vendedores</p>
+              </div>
+            </div>
+            <span x-show="searchingCep" class="text-xs font-medium text-blue-600 flex items-center gap-1">
+              <i class="fas fa-circle-notch animate-spin text-xs"></i>Buscando CEP...
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">CEP</label>
+              <input x-model.trim="form.postal_code" @blur="fetchCep()" placeholder="00000-000" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Logradouro / Endereço</label>
+              <input x-model.trim="form.address" placeholder="Av. Paulista, Rua..." class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Número</label>
+              <input x-model.trim="form.address_number" placeholder="Ex: 1000 ou S/N" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Bairro</label>
+              <input x-model.trim="form.neighborhood" placeholder="Ex: Bela Vista" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Cidade</label>
+              <input x-model.trim="form.city" placeholder="Ex: São Paulo" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Estado (UF)</label>
+              <select x-model="form.state" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                <option value="">UF</option>
+                <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+                <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+                <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+                <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+                <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+                <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+                <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+                <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+                <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="branch_active" x-model="form.active" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          <label for="branch_active" class="text-xs font-medium text-slate-700 cursor-pointer">
+            Loja ativa e operacional (disponível para vincular novos vendedores)
+          </label>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" @click="modalOpen=false" class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-xs">
+            Cancelar
+          </button>
+          <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-60 flex items-center gap-1.5">
+            <template x-if="saving">
+              <i class="fas fa-circle-notch animate-spin text-xs"></i>
+            </template>
+            <span x-text="saving ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Cadastrar Loja')"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function storesPage() {
+  return {
+    branches: [],
+    loading: true,
+    loadError: null,
+    search: '',
+    statusFilter: 'all',
+    modalOpen: false,
+    editingId: null,
+    saving: false,
+    searchingCep: false,
+    message: '',
+    messageError: false,
+    form: {
+      name: '',
+      code: '',
+      cnpj: '',
+      phone: '',
+      whatsapp_number: '',
+      email: '',
+      postal_code: '',
+      address: '',
+      address_number: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      active: true,
+    },
+
+    get filteredBranches() {
+      return this.branches.filter(b => {
+        if (this.statusFilter === 'active' && !b.active) return false;
+        if (this.statusFilter === 'inactive' && b.active) return false;
+        if (this.search) {
+          const s = this.search.toLowerCase();
+          const matchName = (b.name || '').toLowerCase().includes(s);
+          const matchCode = (b.code || '').toLowerCase().includes(s);
+          const matchCity = (b.city || '').toLowerCase().includes(s);
+          const matchAddr = (b.address || '').toLowerCase().includes(s);
+          if (!matchName && !matchCode && !matchCity && !matchAddr) return false;
+        }
+        return true;
+      });
+    },
+
+    get totalActiveSellers() {
+      return this.branches.reduce((acc, b) => acc + (b.active_sellers_count || 0), 0);
+    },
+
+    get uniqueCitiesCount() {
+      const cities = new Set(this.branches.map(b => b.city).filter(Boolean));
+      return cities.size;
+    },
+
+    init() {
+      this.loadBranches();
+    },
+
+    async loadBranches() {
+      this.loading = true;
+      this.loadError = null;
+      try {
+        const res = await adminFetch('/admin/api/branches');
+        if (!res.ok) throw new Error('Falha ao carregar lista de lojas');
+        this.branches = await res.json();
+      } catch (err) {
+        this.loadError = err.message || 'Erro de conexão ao buscar lojas';
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    openCreate() {
+      this.editingId = null;
+      this.form = {
+        name: '',
+        code: '',
+        cnpj: '',
+        phone: '',
+        whatsapp_number: '',
+        email: '',
+        postal_code: '',
+        address: '',
+        address_number: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        active: true,
+      };
+      this.modalOpen = true;
+    },
+
+    openEdit(branch) {
+      this.editingId = branch.id;
+      this.form = {
+        name: branch.name || '',
+        code: branch.code || '',
+        cnpj: branch.cnpj || '',
+        phone: branch.phone || '',
+        whatsapp_number: branch.whatsapp_number || '',
+        email: branch.email || '',
+        postal_code: branch.postal_code || '',
+        address: branch.address || '',
+        address_number: branch.address_number || '',
+        neighborhood: branch.neighborhood || '',
+        city: branch.city || '',
+        state: branch.state || '',
+        active: branch.active ?? true,
+      };
+      this.modalOpen = true;
+    },
+
+    async fetchCep() {
+      const raw = (this.form.postal_code || '').replace(/\D/g, '');
+      if (raw.length !== 8) return;
+      this.searchingCep = true;
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.erro) {
+          if (!this.form.address) this.form.address = data.logradouro || '';
+          if (!this.form.neighborhood) this.form.neighborhood = data.bairro || '';
+          if (!this.form.city) this.form.city = data.localidade || '';
+          if (!this.form.state) this.form.state = data.uf || '';
+        }
+      } catch (e) {
+        // silencioso
+      } finally {
+        this.searchingCep = false;
+      }
+    },
+
+    async saveBranch() {
+      this.saving = true;
+      try {
+        const url = this.editingId
+          ? `/admin/api/branches/${this.editingId}`
+          : '/admin/api/branches';
+        const method = this.editingId ? 'PUT' : 'POST';
+
+        const res = await adminFetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.form),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Erro ao salvar loja');
+        }
+
+        this.modalOpen = false;
+        this.showToast(this.editingId ? 'Loja atualizada com sucesso!' : 'Loja cadastrada com sucesso!');
+        await this.loadBranches();
+      } catch (err) {
+        this.showToast(err.message, true);
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async toggleActive(branch) {
+      const action = branch.active ? 'desativar' : 'reativar';
+      if (!confirm(`Deseja realmente ${action} a loja "${branch.name}"?`)) return;
+
+      try {
+        const res = await adminFetch(`/admin/api/branches/${branch.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: !branch.active }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || `Erro ao ${action} loja`);
+        }
+        this.showToast(`Loja ${branch.active ? 'desativada' : 'ativada'} com sucesso!`);
+        await this.loadBranches();
+      } catch (err) {
+        this.showToast(err.message, true);
+      }
+    },
+
+    showToast(msg, isError = false) {
+      this.message = msg;
+      this.messageError = isError;
+      setTimeout(() => {
+        this.message = '';
+      }, 4000);
+    }
+  };
+}
+</script>
+{% endblock %}

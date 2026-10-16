@@ -1,0 +1,679 @@
+{% extends "base.html" %}
+
+{% block title %}Vendedores - Admin Vendedor Online{% endblock %}
+{% block page_title %}Gestão de Vendedores & Lojas{% endblock %}
+
+{% block content %}
+<div x-data="sellersPage()" x-init="init()" class="space-y-6">
+  <!-- Header Actions -->
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p class="text-xs text-slate-500 font-medium">Cada vendedor está obrigatoriamente vinculado à sua loja física de atuação, com credenciais de login, taxa de comissão e chave PIX para repasse.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/admin/stores" class="inline-flex items-center justify-center rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition-all gap-2">
+        <i class="fas fa-store text-xs text-blue-600"></i>Gestão de Lojas
+      </a>
+      <button type="button" @click="openCreate()" class="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 hover:shadow transition-all gap-2">
+        <i class="fas fa-user-plus text-xs"></i>Novo Vendedor
+      </button>
+    </div>
+  </header>
+
+  <!-- Feedback Message -->
+  <div x-show="message" x-cloak class="rounded-2xl border px-4 py-3 text-sm font-medium shadow-xs" :class="messageError ? 'border-rose-200 bg-rose-50/90 text-rose-900' : 'border-emerald-200 bg-emerald-50/90 text-emerald-900'" x-text="message"></div>
+
+  <!-- KPI Metrics -->
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm hover:border-blue-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total de Vendedores</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+          <i class="fas fa-user-tag text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-slate-900" x-text="sellers.length"></p>
+      <p class="mt-1 text-xs text-slate-400">Profissionais cadastrados</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm hover:border-emerald-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Vendedores Ativos</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+          <i class="fas fa-user-check text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-emerald-950" x-text="sellers.filter(s => s.active).length"></p>
+      <p class="mt-1 text-xs text-emerald-700">Habilitados para venda</p>
+    </div>
+
+    <div class="rounded-2xl border border-indigo-200/90 bg-indigo-50/50 p-5 shadow-sm hover:border-indigo-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-indigo-700">Lojas com Vendedores</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+          <i class="fas fa-store text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-indigo-950" x-text="storesWithSellersCount"></p>
+      <p class="mt-1 text-xs text-indigo-700">Unidades com equipe alocada</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm hover:border-slate-300 transition-all duration-200">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Média de Comissão</p>
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          <i class="fas fa-percentage text-xs"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-2xl font-semibold tracking-tight text-slate-900" x-text="averageCommissionRate + '%'"></p>
+      <p class="mt-1 text-xs text-slate-400">Taxa média padrão</p>
+    </div>
+  </div>
+
+  <!-- Sellers Table Card -->
+  <section class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <div class="flex flex-col gap-3 border-b border-slate-200/80 px-6 py-5 lg:flex-row lg:items-center lg:justify-between bg-white">
+      <div>
+        <h3 class="text-base font-semibold tracking-tight text-slate-900">Equipe de Vendedores</h3>
+        <p class="text-xs text-slate-500 mt-0.5"><span class="font-medium text-slate-800" x-text="filteredSellers.length"></span> vendedor(es) listado(s)</p>
+      </div>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input x-model.trim="search" type="search" placeholder="Buscar por nome, e-mail, código..." class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        
+        <!-- Filtro por Loja -->
+        <select x-model="branchFilter" class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          <option value="all">Todas as Lojas</option>
+          <template x-for="branch in branches" :key="branch.id">
+            <option :value="branch.id" x-text="branch.name + ' (' + branch.code + ')'"></option>
+          </template>
+        </select>
+
+        <select x-model="statusFilter" class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          <option value="all">Todas as situações</option>
+          <option value="active">Apenas ativos</option>
+          <option value="inactive">Apenas inativos</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="p-12 text-center text-xs font-medium text-slate-500">
+      <i class="fas fa-circle-notch mr-2 animate-spin text-blue-600"></i>Carregando vendedores...
+    </div>
+
+    <!-- Error State -->
+    <div x-show="loadError && !loading" x-cloak class="m-5 rounded-2xl border border-rose-200 bg-rose-50/90 p-5 text-center shadow-xs">
+      <p class="text-xs font-medium text-rose-700" x-text="loadError"></p>
+      <button type="button" @click="loadData()" class="mt-2 text-xs font-semibold text-rose-800 underline hover:text-rose-950 transition-colors">Tentar novamente</button>
+    </div>
+
+    <!-- Content (Mobile + Desktop) -->
+    <div x-show="!loading && !loadError" x-cloak>
+      <!-- Mobile List -->
+      <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+        <template x-for="seller in filteredSellers" :key="seller.id">
+          <article class="space-y-3 p-4" :class="seller.active ? '' : 'bg-slate-50/60'">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <p class="font-semibold text-slate-900 text-sm" x-text="seller.name"></p>
+                  <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200/60 uppercase" x-text="seller.code"></span>
+                </div>
+                <!-- Loja vinculada Mobile -->
+                <div class="mt-1 flex items-center gap-1.5 text-xs text-blue-700 font-medium">
+                  <i class="fas fa-store text-blue-600 text-[11px]"></i>
+                  <span x-text="seller.branch_name || getBranchName(seller.branch_id)"></span>
+                </div>
+              </div>
+              <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="seller.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200/80'" x-text="seller.active ? 'Ativo' : 'Inativo'"></span>
+            </div>
+
+            <!-- Contato & Dados Financeiros Mobile -->
+            <div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-1.5 text-xs text-slate-700">
+              <div class="flex items-center gap-2">
+                <i class="fab fa-whatsapp text-emerald-600"></i>
+                <span class="font-medium text-slate-800" x-text="seller.whatsapp_number"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <i class="fas fa-envelope text-slate-400"></i>
+                <span class="text-slate-600" x-text="seller.email"></span>
+              </div>
+              <div class="flex items-center justify-between border-t border-slate-200/60 pt-1.5 mt-1 text-[11px]">
+                <span class="text-slate-500">Comissão: <strong class="text-slate-800" x-text="seller.commission_rate + '%'"></strong></span>
+                <span x-show="seller.pix_key" class="text-slate-500">PIX: <strong class="text-slate-700" x-text="seller.pix_key"></strong></span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold">
+              <button @click="openMetrics(seller)" class="text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                <i class="fas fa-chart-line text-[11px]"></i>Métricas & Vendas
+              </button>
+              <div class="flex gap-3">
+                <button @click="openEdit(seller)" class="text-blue-600 hover:text-blue-800">Editar</button>
+                <button @click="toggleActive(seller)" :class="seller.active ? 'text-amber-600 hover:text-amber-800' : 'text-emerald-600 hover:text-emerald-800'" x-text="seller.active ? 'Desativar' : 'Ativar'"></button>
+              </div>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <!-- Desktop Table -->
+      <div class="admin-table hidden md:block overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100">
+          <thead class="bg-slate-50/75 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
+            <tr>
+              <th class="px-5 py-3.5">Vendedor / Código</th>
+              <th class="px-5 py-3.5">Loja Vinculada</th>
+              <th class="px-5 py-3.5">Contato & Acesso</th>
+              <th class="px-5 py-3.5">Comissão & PIX</th>
+              <th class="px-5 py-3.5">Status</th>
+              <th class="px-5 py-3.5 text-right">Gestão</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100/80 text-sm text-slate-700">
+            <template x-for="seller in filteredSellers" :key="seller.id">
+              <tr :class="seller.active ? 'hover:bg-blue-50/20' : 'bg-slate-50/50 text-slate-400 hover:bg-slate-50'" class="transition-colors">
+                <td class="px-5 py-4">
+                  <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100/80 shrink-0">
+                      <i class="fas fa-user-tie text-sm"></i>
+                    </span>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold text-slate-900" x-text="seller.name"></span>
+                        <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200/60 uppercase" x-text="seller.code"></span>
+                      </div>
+                      <p x-show="seller.cpf" class="text-[11px] text-slate-400 mt-0.5" x-text="'CPF: ' + seller.cpf"></p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-xs">
+                  <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/80 border border-blue-200/70 text-blue-800">
+                    <i class="fas fa-store text-blue-600 text-xs"></i>
+                    <div>
+                      <p class="font-semibold" x-text="seller.branch_name || getBranchName(seller.branch_id)"></p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-xs">
+                  <div class="space-y-0.5">
+                    <p class="font-medium text-emerald-700 flex items-center gap-1.5">
+                      <i class="fab fa-whatsapp text-emerald-600"></i>
+                      <span x-text="seller.whatsapp_number"></span>
+                    </p>
+                    <p class="text-slate-500 flex items-center gap-1.5">
+                      <i class="fas fa-envelope text-slate-400 text-[10px]"></i>
+                      <span x-text="seller.email"></span>
+                    </p>
+                    <p x-show="seller.phone && seller.phone !== seller.whatsapp_number" class="text-slate-400 flex items-center gap-1.5">
+                      <i class="fas fa-phone text-slate-400 text-[10px]"></i>
+                      <span x-text="seller.phone"></span>
+                    </p>
+                  </div>
+                </td>
+                <td class="px-5 py-4 text-xs">
+                  <div>
+                    <span class="inline-flex items-center gap-1 font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+                      <i class="fas fa-percentage text-[10px] text-indigo-600"></i>
+                      <span x-text="seller.commission_rate + '% comissão'"></span>
+                    </span>
+                    <template x-if="seller.pix_key">
+                      <p class="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                        <i class="fas fa-qrcode text-emerald-600 text-[10px]"></i>
+                        <span class="truncate max-w-[140px]" :title="seller.pix_key" x-text="seller.pix_key"></span>
+                      </p>
+                    </template>
+                  </div>
+                </td>
+                <td class="px-5 py-4">
+                  <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                        :class="seller.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'"
+                        x-text="seller.active ? 'Ativo' : 'Inativo'"></span>
+                </td>
+                <td class="px-5 py-4 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <button type="button" @click="openMetrics(seller)" title="Ver histórico de vendas e comissões" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 shadow-2xs hover:bg-indigo-50 transition-all">
+                      <i class="fas fa-chart-line mr-1 text-indigo-500"></i>Métricas
+                    </button>
+                    <button type="button" @click="openEdit(seller)" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 transition-all">
+                      <i class="fas fa-edit mr-1 text-slate-400"></i>Editar
+                    </button>
+                    <button type="button" @click="toggleActive(seller)" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium shadow-2xs hover:bg-slate-50 transition-all"
+                            :class="seller.active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'">
+                      <i class="fas" :class="seller.active ? 'fa-pause' : 'fa-check'"></i>
+                      <span x-text="seller.active ? 'Desativar' : 'Ativar'"></span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div x-show="!filteredSellers.length" class="p-12 text-center text-slate-400 text-xs">
+        <i class="fas fa-users-slash text-3xl mb-3 text-slate-300"></i>
+        <p class="font-medium text-slate-600">Nenhum vendedor encontrado com os filtros selecionados.</p>
+        <p class="text-[11px] text-slate-400 mt-1">Clique em "Novo Vendedor" acima para cadastrar e vincular à sua loja.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal Create / Edit Seller -->
+  <div x-show="modalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="modalOpen=false">
+    <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="modalOpen=false">
+      <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+            <i class="fas fa-user-tag text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="editingId ? 'Editar Vendedor' : 'Novo Vendedor'"></h3>
+            <p class="text-xs text-slate-500">O vendedor estará vinculado obrigatoriamente à loja na qual trabalha.</p>
+          </div>
+        </div>
+        <button type="button" @click="modalOpen=false" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+
+      <form class="space-y-4" @submit.prevent="saveSeller()">
+        <!-- Seleção Obrigatória de Loja Vinculada -->
+        <div class="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+          <label class="block text-xs font-bold uppercase tracking-wider text-blue-900 mb-1.5">
+            Loja / Filial de Atuação <span class="text-rose-500">*</span>
+          </label>
+          <select x-model.number="form.branch_id" required class="w-full rounded-xl border border-blue-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            <option value="" disabled>Selecione a loja onde o vendedor trabalha...</option>
+            <template x-for="branch in branches" :key="branch.id">
+              <option :value="branch.id" x-text="branch.name + ' (' + branch.code + ') - ' + (branch.city || 'Sem cidade')"></option>
+            </template>
+          </select>
+          <p class="text-[11px] text-blue-700/80 mt-1.5 flex items-center gap-1">
+            <i class="fas fa-info-circle text-[10px]"></i>
+            Os atendimentos e comissões deste profissional serão contabilizados sob esta unidade.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Nome Completo do Vendedor <span class="text-rose-500">*</span>
+              <input x-model.trim="form.name" required placeholder="Ex: Lucas Ferreira Silva" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Código Único <span class="text-rose-500">*</span>
+              <input x-model.trim="form.code" required placeholder="Ex: VEND01" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm uppercase text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              WhatsApp de Atendimento <span class="text-rose-500">*</span>
+              <input x-model.trim="form.whatsapp_number" required inputmode="tel" placeholder="(11) 99999-8888" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Telefone Fixo / Adicional
+              <input x-model.trim="form.phone" inputmode="tel" placeholder="(11) 3333-2222" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              E-mail de Acesso <span class="text-rose-500">*</span>
+              <input x-model.trim="form.email" type="email" required placeholder="vendedor@anauedesign.com.br" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              <span x-text="editingId ? 'Nova Senha (deixe em branco para manter)' : 'Senha de Acesso *'"></span>
+              <input x-model="form.password" type="password" :required="!editingId" minlength="6" placeholder="Mínimo 6 caracteres" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              CPF
+              <input x-model.trim="form.cpf" placeholder="000.000.000-00" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Comissão por Venda (%)
+              <input x-model.number="form.commission_rate" type="number" step="0.1" min="0" max="100" placeholder="5.0" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Chave PIX para Repasse
+              <input x-model.trim="form.pix_key" placeholder="CPF, e-mail ou chave aleatória" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="seller_active" x-model="form.active" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          <label for="seller_active" class="text-xs font-medium text-slate-700 cursor-pointer">
+            Vendedor ativo e autorizado a realizar vendas e atendimentos no sistema
+          </label>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button type="button" @click="modalOpen=false" class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-xs">
+            Cancelar
+          </button>
+          <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-60 flex items-center gap-1.5">
+            <template x-if="saving">
+              <i class="fas fa-circle-notch animate-spin text-xs"></i>
+            </template>
+            <span x-text="saving ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Cadastrar Vendedor')"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Metrics / Financial Performance -->
+  <div x-show="metricsModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="metricsModalOpen=false">
+    <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80" @click.outside="metricsModalOpen=false">
+      <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+            <i class="fas fa-chart-pie text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="currentMetrics?.seller_name || 'Desempenho de Vendas'"></h3>
+            <p class="text-xs text-slate-500">Loja: <span class="font-medium text-slate-800" x-text="currentMetrics?.branch_name"></span></p>
+          </div>
+        </div>
+        <button type="button" @click="metricsModalOpen=false" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+
+      <div x-show="loadingMetrics" class="py-12 text-center text-xs text-slate-500">
+        <i class="fas fa-circle-notch animate-spin text-blue-600 mr-2"></i>Carregando métricas...
+      </div>
+
+      <div x-show="!loadingMetrics && currentMetrics" class="space-y-4">
+        <div class="grid grid-cols-2 gap-3 text-center">
+          <div class="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Pedidos Concluídos</p>
+            <p class="mt-1 text-xl font-bold text-slate-900" x-text="currentMetrics?.total_orders_count || 0"></p>
+          </div>
+          <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/60 p-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Volume Total Vendido</p>
+            <p class="mt-1 text-xl font-bold text-emerald-950" x-text="formatMoney(currentMetrics?.total_sales_cents)"></p>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-indigo-950">Comissão Total Calculada</span>
+            <span class="text-base font-bold text-indigo-700" x-text="formatMoney(currentMetrics?.total_commission_cents)"></span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-indigo-100/70 text-xs">
+            <div>
+              <p class="text-slate-500">Comissão Paga</p>
+              <p class="font-semibold text-emerald-700" x-text="formatMoney(currentMetrics?.paid_commission_cents)"></p>
+            </div>
+            <div>
+              <p class="text-slate-500">Comissão Pendente</p>
+              <p class="font-semibold text-amber-700" x-text="formatMoney(currentMetrics?.pending_commission_cents)"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button type="button" @click="metricsModalOpen=false" class="rounded-xl bg-slate-900 text-white px-5 py-2 text-xs font-medium hover:bg-slate-800 transition-all">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function sellersPage() {
+  return {
+    sellers: [],
+    branches: [],
+    loading: true,
+    loadError: null,
+    search: '',
+    branchFilter: 'all',
+    statusFilter: 'all',
+    modalOpen: false,
+    editingId: null,
+    saving: false,
+    message: '',
+    messageError: false,
+    metricsModalOpen: false,
+    loadingMetrics: false,
+    currentMetrics: null,
+    form: {
+      branch_id: '',
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      whatsapp_number: '',
+      cpf: '',
+      code: '',
+      commission_rate: 0.0,
+      pix_key: '',
+      active: true,
+    },
+
+    get filteredSellers() {
+      return this.sellers.filter(s => {
+        if (this.statusFilter === 'active' && !s.active) return false;
+        if (this.statusFilter === 'inactive' && s.active) return false;
+        if (this.branchFilter !== 'all' && s.branch_id !== Number(this.branchFilter)) return false;
+        if (this.search) {
+          const q = this.search.toLowerCase();
+          const matchName = (s.name || '').toLowerCase().includes(q);
+          const matchEmail = (s.email || '').toLowerCase().includes(q);
+          const matchCode = (s.code || '').toLowerCase().includes(q);
+          const matchPhone = (s.whatsapp_number || '').toLowerCase().includes(q);
+          if (!matchName && !matchEmail && !matchCode && !matchPhone) return false;
+        }
+        return true;
+      });
+    },
+
+    get storesWithSellersCount() {
+      const branchIds = new Set(this.sellers.map(s => s.branch_id).filter(Boolean));
+      return branchIds.size;
+    },
+
+    get averageCommissionRate() {
+      if (!this.sellers.length) return '0.0';
+      const sum = this.sellers.reduce((acc, s) => acc + (Number(s.commission_rate) || 0), 0);
+      return (sum / this.sellers.length).toFixed(1);
+    },
+
+    getBranchName(branchId) {
+      const b = this.branches.find(item => item.id === branchId);
+      return b ? b.name : 'Loja #' + branchId;
+    },
+
+    formatMoney(cents) {
+      if (!cents && cents !== 0) return 'R$ 0,00';
+      return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    },
+
+    async init() {
+      // Checa se há branch_id na query string
+      const urlParams = new URLSearchParams(window.location.search);
+      const bParam = urlParams.get('branch_id');
+      if (bParam) {
+        this.branchFilter = Number(bParam);
+      }
+      await this.loadData();
+    },
+
+    async loadData() {
+      this.loading = true;
+      this.loadError = null;
+      try {
+        const [sellersRes, branchesRes] = await Promise.all([
+          adminFetch('/admin/api/sellers'),
+          adminFetch('/admin/api/branches'),
+        ]);
+
+        if (!sellersRes.ok || !branchesRes.ok) {
+          throw new Error('Falha ao sincronizar dados com o servidor.');
+        }
+
+        this.sellers = await sellersRes.json();
+        this.branches = await branchesRes.json();
+      } catch (err) {
+        this.loadError = err.message || 'Erro ao carregar vendedores e lojas';
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    openCreate() {
+      this.editingId = null;
+      let defaultBranchId = '';
+      if (this.branchFilter !== 'all' && Number(this.branchFilter)) {
+        defaultBranchId = Number(this.branchFilter);
+      } else if (this.branches.length > 0) {
+        defaultBranchId = this.branches[0].id;
+      }
+
+      this.form = {
+        branch_id: defaultBranchId,
+        name: '',
+        email: '',
+        password: '',
+        phone: '',
+        whatsapp_number: '',
+        cpf: '',
+        code: '',
+        commission_rate: 5.0,
+        pix_key: '',
+        active: true,
+      };
+      this.modalOpen = true;
+    },
+
+    openEdit(seller) {
+      this.editingId = seller.id;
+      this.form = {
+        branch_id: seller.branch_id,
+        name: seller.name || '',
+        email: seller.email || '',
+        password: '',
+        phone: seller.phone || '',
+        whatsapp_number: seller.whatsapp_number || '',
+        cpf: seller.cpf || '',
+        code: seller.code || '',
+        commission_rate: Number(seller.commission_rate) || 0.0,
+        pix_key: seller.pix_key || '',
+        active: seller.active ?? true,
+      };
+      this.modalOpen = true;
+    },
+
+    async saveSeller() {
+      if (!this.form.branch_id) {
+        alert('Por favor, selecione a loja na qual o vendedor trabalha.');
+        return;
+      }
+
+      this.saving = true;
+      try {
+        const payload = { ...this.form };
+        if (this.editingId && !payload.password) {
+          delete payload.password;
+        }
+
+        const url = this.editingId
+          ? `/admin/api/sellers/${this.editingId}`
+          : '/admin/api/sellers';
+        const method = this.editingId ? 'PUT' : 'POST';
+
+        const res = await adminFetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Erro ao salvar vendedor');
+        }
+
+        this.modalOpen = false;
+        this.showToast(this.editingId ? 'Vendedor atualizado com sucesso!' : 'Vendedor cadastrado com sucesso!');
+        await this.loadData();
+      } catch (err) {
+        this.showToast(err.message, true);
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async toggleActive(seller) {
+      const action = seller.active ? 'desativar' : 'reativar';
+      if (!confirm(`Deseja realmente ${action} o vendedor "${seller.name}"?`)) return;
+
+      try {
+        const res = await adminFetch(`/admin/api/sellers/${seller.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: !seller.active }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || `Erro ao ${action} vendedor`);
+        }
+        this.showToast(`Vendedor ${seller.active ? 'desativado' : 'ativado'} com sucesso!`);
+        await this.loadData();
+      } catch (err) {
+        this.showToast(err.message, true);
+      }
+    },
+
+    async openMetrics(seller) {
+      this.metricsModalOpen = true;
+      this.loadingMetrics = true;
+      this.currentMetrics = null;
+      try {
+        const res = await adminFetch(`/admin/api/sellers/${seller.id}/metrics`);
+        if (!res.ok) throw new Error('Não foi possível carregar as métricas do vendedor.');
+        this.currentMetrics = await res.json();
+      } catch (err) {
+        alert(err.message);
+        this.metricsModalOpen = false;
+      } finally {
+        this.loadingMetrics = false;
+      }
+    },
+
+    showToast(msg, isError = false) {
+      this.message = msg;
+      this.messageError = isError;
+      setTimeout(() => {
+        this.message = '';
+      }, 4000);
+    }
+  };
+}
+</script>
+{% endblock %}

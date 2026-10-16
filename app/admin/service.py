@@ -11,10 +11,12 @@ from app.admin import auth
 from app.config import Settings
 from app.models.admin_user import AdminUser
 from app.models.appointment import Appointment
+from app.models.branch import Branch
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.product import Product
+from app.models.seller import Seller
 from app.models.user import User
 from app.models.webhook_event import WebhookEvent
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
@@ -174,8 +176,11 @@ class AdminService:
                 or_(
                     User.name.ilike(term),
                     User.phone.ilike(term),
+                    User.whatsapp_number.ilike(term),
                     User.email.ilike(term),
                     User.city.ilike(term),
+                    User.address.ilike(term),
+                    User.neighborhood.ilike(term),
                 )
             )
         total = query.count()
@@ -187,8 +192,15 @@ class AdminService:
                 "phone": user.phone,
                 "email": user.email,
                 "whatsapp_number": user.whatsapp_number,
+                "postal_code": user.postal_code,
+                "address": user.address,
+                "address_number": user.address_number,
+                "address_complement": user.address_complement,
+                "neighborhood": user.neighborhood,
                 "city": user.city,
                 "state": user.state,
+                "delivery_instructions": user.delivery_instructions,
+                "full_address": user.full_address,
                 "tags": user.tags if isinstance(user.tags, list) else [],
                 "notes": user.notes,
                 "active": user.active,
@@ -200,14 +212,24 @@ class AdminService:
         ], total
 
     def create_client(self, data) -> User:
-        self._ensure_unique_client_contacts(data.phone, data.email)
+        phone = (getattr(data, "phone", None) or getattr(data, "whatsapp_number", None) or "").strip()
+        whatsapp = (getattr(data, "whatsapp_number", None) or phone).strip()
+        address = (getattr(data, "address", None) or "").strip()
+        email = data.email.strip() if getattr(data, "email", None) else None
+        self._ensure_unique_client_contacts(phone, email)
         user = User(
             name=data.name.strip(),
-            phone=data.phone.strip(),
-            email=data.email.strip() if data.email else None,
-            whatsapp_number=data.whatsapp_number.strip() if data.whatsapp_number else (data.phone.strip() if data.phone else None),
+            phone=phone,
+            whatsapp_number=whatsapp,
+            email=email,
+            postal_code=data.postal_code.strip() if getattr(data, "postal_code", None) else None,
+            address=address,
+            address_number=data.address_number.strip() if getattr(data, "address_number", None) else None,
+            address_complement=data.address_complement.strip() if getattr(data, "address_complement", None) else None,
+            neighborhood=data.neighborhood.strip() if getattr(data, "neighborhood", None) else None,
             city=data.city.strip() if getattr(data, "city", None) else None,
             state=data.state.strip().upper()[:2] if getattr(data, "state", None) else None,
+            delivery_instructions=data.delivery_instructions.strip() if getattr(data, "delivery_instructions", None) else None,
             tags=data.tags if isinstance(getattr(data, "tags", None), list) else [],
             notes=data.notes.strip() if getattr(data, "notes", None) else None,
         )
@@ -1060,3 +1082,150 @@ class AdminService:
             "vacuum_executed": vacuum_executed,
             "message": f"Limpeza concluída com sucesso! {del_appointments} agendamentos, {del_payments} pagamentos e {total_notifs} registros de notificação foram expurgados.",
         }
+
+    # ------------------------------------------------------------------
+    # Gestão de Lojas / Filiais (Branches / Stores)
+    # ------------------------------------------------------------------
+    def list_branches(
+        self, search: str | None = None, active_only: bool = False
+    ) -> list[dict]:
+        query = self.db.query(Branch)
+        if active_only:
+            query = query.filter(Branch.active.is_(True))
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    Branch.name.ilike(term),
+                    Branch.code.ilike(term),
+                    Branch.city.ilike(term),
+                    Branch.address.ilike(term),
+                )
+            )
+        branches = query.order_by(Branch.name).all()
+        return [
+            {
+                "id": b.id,
+                "name": b.name,
+                "code": b.code,
+                "cnpj": b.cnpj,
+                "phone": b.phone,
+                "whatsapp_number": b.whatsapp_number,
+                "email": b.email,
+                "postal_code": b.postal_code,
+                "address": b.address,
+                "address_number": b.address_number,
+                "neighborhood": b.neighborhood,
+                "city": b.city,
+                "state": b.state,
+                "active": b.active,
+                "sellers_count": b.sellers_count,
+                "active_sellers_count": b.active_sellers_count,
+                "full_address": b.full_address,
+                "created_at": b.created_at,
+                "updated_at": b.updated_at,
+            }
+            for b in branches
+        ]
+
+    def get_branch(self, branch_id: int) -> dict | None:
+        branch = self.db.get(Branch, branch_id)
+        if not branch:
+            return None
+        sellers = [
+            {
+                "id": s.id,
+                "name": s.name,
+                "email": s.email,
+                "whatsapp_number": s.whatsapp_number,
+                "code": s.code,
+                "active": s.active,
+                "commission_rate": float(s.commission_rate or 0.0),
+            }
+            for s in branch.sellers
+        ]
+        return {
+            "id": branch.id,
+            "name": branch.name,
+            "code": branch.code,
+            "cnpj": branch.cnpj,
+            "phone": branch.phone,
+            "whatsapp_number": branch.whatsapp_number,
+            "email": branch.email,
+            "postal_code": branch.postal_code,
+            "address": branch.address,
+            "address_number": branch.address_number,
+            "neighborhood": branch.neighborhood,
+            "city": branch.city,
+            "state": branch.state,
+            "active": branch.active,
+            "sellers_count": branch.sellers_count,
+            "active_sellers_count": branch.active_sellers_count,
+            "full_address": branch.full_address,
+            "created_at": branch.created_at,
+            "updated_at": branch.updated_at,
+            "sellers": sellers,
+        }
+
+    def create_branch(self, data) -> Branch:
+        code = data.code.strip().upper()
+        existing = self.db.query(Branch).filter(func.upper(Branch.code) == code).first()
+        if existing:
+            raise ValueError(f"Já existe uma loja cadastrada com o código '{code}'.")
+
+        branch = Branch(
+            name=data.name.strip(),
+            code=code,
+            cnpj=data.cnpj.strip() if getattr(data, "cnpj", None) else None,
+            phone=data.phone.strip() if getattr(data, "phone", None) else None,
+            whatsapp_number=data.whatsapp_number.strip() if getattr(data, "whatsapp_number", None) else None,
+            email=data.email.strip() if getattr(data, "email", None) else None,
+            postal_code=data.postal_code.strip() if getattr(data, "postal_code", None) else None,
+            address=data.address.strip() if getattr(data, "address", None) else None,
+            address_number=data.address_number.strip() if getattr(data, "address_number", None) else None,
+            neighborhood=data.neighborhood.strip() if getattr(data, "neighborhood", None) else None,
+            city=data.city.strip() if getattr(data, "city", None) else None,
+            state=data.state.strip().upper()[:2] if getattr(data, "state", None) else None,
+            active=data.active if getattr(data, "active", None) is not None else True,
+        )
+        self.db.add(branch)
+        self.db.commit()
+        self.db.refresh(branch)
+        return branch
+
+    def update_branch(self, branch_id: int, data) -> Branch | None:
+        branch = self.db.get(Branch, branch_id)
+        if not branch:
+            return None
+        values = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else dict(data)
+        if "code" in values and values["code"]:
+            new_code = values["code"].strip().upper()
+            existing = self.db.query(Branch).filter(
+                func.upper(Branch.code) == new_code, Branch.id != branch_id
+            ).first()
+            if existing:
+                raise ValueError(f"Já existe uma loja cadastrada com o código '{new_code}'.")
+            values["code"] = new_code
+        if "state" in values and values["state"]:
+            values["state"] = str(values["state"]).strip().upper()[:2]
+
+        for field, value in values.items():
+            if isinstance(value, str):
+                value = value.strip()
+            setattr(branch, field, value)
+        self.db.commit()
+        self.db.refresh(branch)
+        return branch
+
+    def delete_branch(self, branch_id: int) -> bool:
+        branch = self.db.get(Branch, branch_id)
+        if not branch:
+            return False
+        if branch.sellers:
+            # Se houver vendedores vinculados, desativa para preservar integridade
+            branch.active = False
+            self.db.commit()
+            return True
+        self.db.delete(branch)
+        self.db.commit()
+        return True

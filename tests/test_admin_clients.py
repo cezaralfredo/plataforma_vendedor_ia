@@ -66,7 +66,13 @@ def test_admin_client_api_manages_client_lifecycle(anonymous_client, db_session)
     created = anonymous_client.post(
         "/admin/api/clients",
         headers=_admin_headers(),
-        json={"name": "Maria", "phone": "11955556666", "email": "maria@example.com"},
+        json={
+            "name": "Maria",
+            "phone": "11955556666",
+            "whatsapp_number": "11955556666",
+            "address": "Rua das Acácias, 120",
+            "email": "maria@example.com",
+        },
     )
 
     assert created.status_code == 201
@@ -74,10 +80,11 @@ def test_admin_client_api_manages_client_lifecycle(anonymous_client, db_session)
     updated = anonymous_client.put(
         f"/admin/api/clients/{client_id}",
         headers=_admin_headers(),
-        json={"name": "Maria Silva"},
+        json={"name": "Maria Silva", "address": "Rua das Acácias, 125"},
     )
     assert updated.status_code == 200
     assert updated.json()["name"] == "Maria Silva"
+    assert updated.json()["address"] == "Rua das Acácias, 125"
 
     deleted = anonymous_client.delete(
         f"/admin/api/clients/{client_id}", headers=_admin_headers()
@@ -88,13 +95,19 @@ def test_admin_client_api_manages_client_lifecycle(anonymous_client, db_session)
 
 
 def test_admin_client_api_reports_unique_contact_conflict(anonymous_client, db_session):
-    db_session.add(User(name="Existente", phone="11911110000", email="same@example.com"))
+    db_session.add(User(name="Existente", phone="11911110000", whatsapp_number="11911110000", address="Rua Central, 50", email="same@example.com"))
     db_session.commit()
 
     response = anonymous_client.post(
         "/admin/api/clients",
         headers=_admin_headers(),
-        json={"name": "Duplicado", "phone": "11911110000", "email": "same@example.com"},
+        json={
+            "name": "Duplicado",
+            "phone": "11911110000",
+            "whatsapp_number": "11911110000",
+            "address": "Rua Nova, 100",
+            "email": "same@example.com",
+        },
     )
 
     assert response.status_code == 409
@@ -139,25 +152,38 @@ def test_admin_client_api_standardized_fields_and_validation(anonymous_client, d
     resp_empty_name = anonymous_client.post(
         "/admin/api/clients",
         headers=_admin_headers(),
-        json={"name": "   ", "phone": "11988887777"},
+        json={"name": "   ", "whatsapp_number": "11988887777", "address": "Rua A, 1"},
     )
     assert resp_empty_name.status_code == 422
 
-    # Phone is mandatory
-    resp_empty_phone = anonymous_client.post(
+    # WhatsApp is mandatory
+    resp_empty_whatsapp = anonymous_client.post(
         "/admin/api/clients",
         headers=_admin_headers(),
-        json={"name": "Carlos", "phone": ""},
+        json={"name": "Carlos", "whatsapp_number": "", "address": "Rua A, 1"},
     )
-    assert resp_empty_phone.status_code == 422
+    assert resp_empty_whatsapp.status_code == 422
 
-    # Creation with standardized fields (matching CSV model)
+    # Address is mandatory for delivery logistics
+    resp_empty_address = anonymous_client.post(
+        "/admin/api/clients",
+        headers=_admin_headers(),
+        json={"name": "Carlos", "whatsapp_number": "11988887777", "address": "   "},
+    )
+    assert resp_empty_address.status_code == 422
+
+    # Creation with standardized fields and delivery logistics
     created = anonymous_client.post(
         "/admin/api/clients",
         headers=_admin_headers(),
         json={
             "name": "Carlos Silva",
-            "phone": "11988887777",
+            "whatsapp_number": "11988887777",
+            "address": "Av. Paulista",
+            "address_number": "1000",
+            "neighborhood": "Bela Vista",
+            "postal_code": "01310-100",
+            "delivery_instructions": "Deixar na portaria principal",
             "email": "carlos@teste.com",
             "city": "São Paulo",
             "state": "sp",
@@ -168,11 +194,16 @@ def test_admin_client_api_standardized_fields_and_validation(anonymous_client, d
     assert created.status_code == 201
     data = created.json()
     assert data["name"] == "Carlos Silva"
-    assert data["phone"] == "11988887777"
+    assert data["whatsapp_number"] == "11988887777"
+    assert data["address"] == "Av. Paulista"
+    assert data["address_number"] == "1000"
+    assert data["neighborhood"] == "Bela Vista"
+    assert data["delivery_instructions"] == "Deixar na portaria principal"
     assert data["city"] == "São Paulo"
     assert data["state"] == "SP"
     assert data["tags"] == ["vip", "recorrente"]
     assert data["notes"] == "Cliente preferencial"
+    assert "Av. Paulista" in (data.get("full_address") or "")
 
     client_id = data["id"]
 
@@ -203,5 +234,6 @@ def test_admin_client_api_standardized_fields_and_validation(anonymous_client, d
     found = next(c for c in list_resp.json()["data"] if c["id"] == client_id)
     assert found["city"] == "Campinas"
     assert found["tags"] == ["vip", "fidelidade"]
+
 
 

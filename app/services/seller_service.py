@@ -76,12 +76,28 @@ class SellerService:
         clean_phone = "".join(filter(str.isdigit, str(phone)))
         return self.db.query(Seller).filter(Seller.whatsapp_number.like(f"%{clean_phone}%")).first()
 
-    def list_sellers(self, branch_id: int | None = None, active_only: bool = False) -> list[Seller]:
+    def list_sellers(
+        self,
+        branch_id: int | None = None,
+        active_only: bool = False,
+        search: str | None = None,
+    ) -> list[Seller]:
         q = self.db.query(Seller)
         if branch_id:
             q = q.filter(Seller.branch_id == branch_id)
         if active_only:
             q = q.filter(Seller.active.is_(True))
+        if search:
+            from sqlalchemy import or_
+            term = f"%{search.strip()}%"
+            q = q.filter(
+                or_(
+                    Seller.name.ilike(term),
+                    Seller.email.ilike(term),
+                    Seller.code.ilike(term),
+                    Seller.whatsapp_number.ilike(term),
+                )
+            )
         return q.order_by(Seller.name).all()
 
     def update(self, seller_id: int, data: SellerUpdate) -> Seller | None:

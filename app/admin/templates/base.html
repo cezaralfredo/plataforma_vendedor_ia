@@ -71,6 +71,16 @@
                         <i class="fas fa-box-open mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/products') %}text-blue-600{% endif %}"></i>
                         Produtos
                     </a>
+                    <a href="/admin/stores"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/stores') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-store mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/stores') %}text-blue-600{% endif %}"></i>
+                        Lojas
+                    </a>
+                    <a href="/admin/sellers"
+                       class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/sellers') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
+                        <i class="fas fa-user-tag mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/sellers') %}text-blue-600{% endif %}"></i>
+                        Vendedores
+                    </a>
                     <a href="/admin/settings"
                        class="flex items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all {% if request.url.path.startswith('/admin/settings') %}bg-blue-50/90 text-blue-700 ring-1 ring-blue-500/20 shadow-xs{% else %}text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-normal{% endif %}">
                         <i class="fas fa-sliders-h mr-3 w-5 text-center text-slate-500 {% if request.url.path.startswith('/admin/settings') %}text-blue-600{% endif %}"></i>

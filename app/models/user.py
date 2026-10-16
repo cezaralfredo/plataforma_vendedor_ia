@@ -13,7 +13,9 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
-    whatsapp_number: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    whatsapp_number: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="", server_default="", index=True
+    )
     cpf_cnpj: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     asaas_customer_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     active: Mapped[bool] = mapped_column(
@@ -43,13 +45,19 @@ class User(Base):
         JSON, nullable=False, default=dict, server_default="{}"
     )
 
-    # Dados adicionais de cadastro
+    # Dados de endereço completo e logística de entrega
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
     postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="", server_default=""
+    )
+    address_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    address_complement: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    neighborhood: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    delivery_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Consentimento
     opt_in_whatsapp: Mapped[bool] = mapped_column(
@@ -58,4 +66,25 @@ class User(Base):
 
     appointments = relationship("Appointment", back_populates="user")
     payments = relationship("Payment", back_populates="user")
+
+    @property
+    def full_address(self) -> str:
+        """Retorna o endereço completo e formatado para a logística de entrega."""
+        parts = []
+        if self.address:
+            addr = self.address
+            if self.address_number:
+                addr += f", {self.address_number}"
+            if self.address_complement:
+                addr += f" ({self.address_complement})"
+            parts.append(addr)
+        if self.neighborhood:
+            parts.append(self.neighborhood)
+        city_state = " - ".join(filter(None, [self.city, self.state]))
+        if city_state:
+            parts.append(city_state)
+        if self.postal_code:
+            parts.append(f"CEP: {self.postal_code}")
+        return ", ".join(parts) if parts else (self.address or "")
+
 

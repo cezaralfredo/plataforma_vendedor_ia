@@ -20,7 +20,11 @@ class Branch(Base):
     cnpj: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     whatsapp_number: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    neighborhood: Mapped[str | None] = mapped_column(String(100), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state: Mapped[str | None] = mapped_column(String(2), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -41,4 +45,25 @@ class Branch(Base):
     @property
     def sellers_count(self) -> int:
         return len(self.sellers) if self.sellers else 0
+
+    @property
+    def active_sellers_count(self) -> int:
+        return len([s for s in self.sellers if s.active]) if self.sellers else 0
+
+    @property
+    def full_address(self) -> str:
+        parts = []
+        if self.address:
+            addr = self.address
+            if self.address_number:
+                addr += f", {self.address_number}"
+            parts.append(addr)
+        if self.neighborhood:
+            parts.append(self.neighborhood)
+        city_state = " - ".join(filter(None, [self.city, self.state]))
+        if city_state:
+            parts.append(city_state)
+        if self.postal_code:
+            parts.append(f"CEP: {self.postal_code}")
+        return ", ".join(parts) if parts else (self.address or "")
 

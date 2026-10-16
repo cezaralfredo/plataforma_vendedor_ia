@@ -259,6 +259,16 @@ async def clients_page(request: Request):
     return templates.TemplateResponse(request=request, name="users.html")
 
 
+@router.get("/stores", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def stores_page(request: Request):
+    return templates.TemplateResponse(request=request, name="stores.html")
+
+
+@router.get("/sellers", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def sellers_page(request: Request):
+    return templates.TemplateResponse(request=request, name="sellers.html")
+
+
 @router.get("/appointments/{appointment_id}", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def appointment_detail(
     request: Request,
@@ -456,9 +466,13 @@ async def api_toggle_product_active(product_id: int, db: Session = Depends(get_d
 # -------------------------------------------------------------------------
 
 @router.get("/api/branches", dependencies=[Depends(require_admin)])
-async def api_list_branches(active_only: bool = False, db: Session = Depends(get_db)):
+async def api_list_branches(
+    search: str | None = None,
+    active_only: bool = False,
+    db: Session = Depends(get_db),
+):
     service = BranchService(db)
-    branches = service.list_branches(active_only=active_only)
+    branches = service.list_branches(search=search, active_only=active_only)
     return [jsonable_encoder(BranchResponse.model_validate(b)) for b in branches]
 
 
@@ -510,10 +524,11 @@ async def api_delete_branch(branch_id: int, db: Session = Depends(get_db)):
 async def api_list_sellers(
     branch_id: int | None = None,
     active_only: bool = False,
+    search: str | None = None,
     db: Session = Depends(get_db),
 ):
     service = SellerService(db)
-    sellers = service.list_sellers(branch_id=branch_id, active_only=active_only)
+    sellers = service.list_sellers(branch_id=branch_id, active_only=active_only, search=search)
     return [jsonable_encoder(SellerResponse.model_validate(s)) for s in sellers]
 
 

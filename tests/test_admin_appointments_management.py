@@ -29,6 +29,8 @@ def test_admin_can_create_client_and_appointment(
             "new_client": {
                 "name": "Cliente Teste",
                 "phone": "+5511977777777",
+                "whatsapp_number": "+5511977777777",
+                "address": "Rua Exemplo, 100",
                 "email": "cliente@example.com",
             },
             "start_time": "2026-07-30T09:00:00-03:00",

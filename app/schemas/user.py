@@ -1,14 +1,25 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class UserCreate(BaseModel):
     name: str
-    phone: str
+    whatsapp_number: str = ""
+    address: str = ""
+    phone: str | None = None
     email: str | None = None
-    whatsapp_number: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_whatsapp_phone(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("whatsapp_number") and data.get("phone"):
+                data["whatsapp_number"] = data["phone"]
+            elif not data.get("phone") and data.get("whatsapp_number"):
+                data["phone"] = data["whatsapp_number"]
+        return data
     cpf_cnpj: str | None = None
     source: str = "direct"
     external_id: str | None = None
@@ -19,10 +30,17 @@ class UserCreate(BaseModel):
     birth_date: date | None = None
     gender: str | None = None
     postal_code: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
     city: str | None = None
     state: str | None = None
-    address: str | None = None
+    delivery_instructions: str | None = None
     opt_in_whatsapp: bool = True
+
+    @classmethod
+    def model_validate(cls, obj: Any, *args, **kwargs):
+        return super().model_validate(obj, *args, **kwargs)
 
 
 class UserUpdate(BaseModel):
@@ -45,6 +63,10 @@ class UserUpdate(BaseModel):
     city: str | None = None
     state: str | None = None
     address: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
+    delivery_instructions: str | None = None
     opt_in_whatsapp: bool | None = None
 
 
@@ -72,6 +94,11 @@ class UserRead(BaseModel):
     city: str | None = None
     state: str | None = None
     address: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
+    delivery_instructions: str | None = None
+    full_address: str | None = None
     opt_in_whatsapp: bool = True
 
 
@@ -92,6 +119,10 @@ class UserImportItem(BaseModel):
     city: str | None = None
     state: str | None = None
     address: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
+    delivery_instructions: str | None = None
     opt_in_whatsapp: bool | None = True
 
 

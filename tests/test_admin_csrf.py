@@ -29,7 +29,7 @@ MUTATIONS = [
     ("POST", "/admin/api/products/1/stock", {"quantity_delta": 5}, 200, {"stock_quantity": 15}),
     ("POST", "/admin/api/products/1/toggle-active", None, 200, {"active": False}),
     ("POST", "/admin/api/clients", {
-        "name": "Novo cliente", "phone": "11988887777", "email": "novo@example.com",
+        "name": "Novo cliente", "phone": "11988887777", "whatsapp_number": "11988887777", "address": "Rua das Flores, 100", "email": "novo@example.com",
     }, 201, {"name": "Novo cliente"}),
     ("PUT", "/admin/api/clients/1", {"name": "Cliente atualizado"}, 200, {"name": "Cliente atualizado"}),
     ("DELETE", "/admin/api/clients/1", None, 200, {"outcome": "archived"}),

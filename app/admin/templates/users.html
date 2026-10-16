@@ -52,23 +52,34 @@
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="font-semibold text-slate-900" x-text="client.name"></p>
-                <template x-if="client.city || client.state">
-                  <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                    <i class="fas fa-map-marker-alt text-[10px] text-slate-400"></i>
-                    <span x-text="[client.city, client.state].filter(Boolean).join(' - ')"></span>
+                <div class="mt-1 space-y-0.5">
+                  <p class="text-xs font-medium text-emerald-700 flex items-center gap-1.5">
+                    <i class="fab fa-whatsapp text-emerald-600"></i>
+                    <span x-text="maskPhone(client.whatsapp_number || client.phone)"></span>
                   </p>
-                </template>
-                <p class="text-xs text-slate-500 mt-0.5" x-text="maskPhone(client.phone)"></p>
-                <p class="text-xs text-slate-400" x-text="maskEmail(client.email)"></p>
+                  <p x-show="client.email" class="text-xs text-slate-400" x-text="maskEmail(client.email)"></p>
+                </div>
+                <!-- Endereço e Logística Mobile -->
+                <div class="mt-2 rounded-xl bg-slate-50 border border-slate-200/80 p-2.5 text-xs text-slate-700">
+                  <div class="flex items-start gap-1.5">
+                    <i class="fas fa-truck text-indigo-600 mt-0.5 text-[11px]"></i>
+                    <div>
+                      <p class="font-medium text-slate-800" x-text="client.full_address || client.address || 'Endereço não informado'"></p>
+                      <template x-if="client.delivery_instructions">
+                        <p class="text-[11px] text-slate-500 mt-1 italic flex items-center gap-1">
+                          <i class="fas fa-info-circle text-indigo-400"></i>
+                          <span x-text="client.delivery_instructions"></span>
+                        </p>
+                      </template>
+                    </div>
+                  </div>
+                </div>
                 <template x-if="client.tags && client.tags.length">
-                  <div class="flex flex-wrap gap-1 mt-1.5">
+                  <div class="flex flex-wrap gap-1 mt-2">
                     <template x-for="tag in client.tags" :key="tag">
                       <span class="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200/60" x-text="tag"></span>
                     </template>
                   </div>
-                </template>
-                <template x-if="client.notes">
-                  <p class="text-[11px] text-slate-400 mt-1 italic" x-text="client.notes"></p>
                 </template>
               </div>
               <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="client.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200/80'" x-text="client.active ? 'Ativo' : 'Arquivado'"></span>
@@ -101,10 +112,11 @@
           <thead class="bg-slate-50/75 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
             <tr>
               <th class="px-5 py-3">Cliente</th>
-              <th class="px-5 py-3">Contato protegido</th>
+              <th class="px-5 py-3">Contato / WhatsApp</th>
+              <th class="px-5 py-3">Endereço Completo & Logística</th>
               <th class="px-5 py-3">Agendamentos</th>
-              <th class="px-5 py-3">Pagamentos recebidos</th>
-              <th class="px-5 py-3">Último agendamento</th>
+              <th class="px-5 py-3">Pagamentos</th>
+              <th class="px-5 py-3">Último</th>
               <th class="px-5 py-3">Status</th>
               <th class="px-5 py-3 text-right">Gestão</th>
             </tr>
@@ -114,12 +126,6 @@
               <tr :class="client.active ? 'hover:bg-blue-50/20' : 'bg-slate-50/50 text-slate-400 hover:bg-slate-50'" class="transition-colors">
                 <td class="px-5 py-3.5">
                   <div class="font-medium text-slate-900" x-text="client.name"></div>
-                  <template x-if="client.city || client.state">
-                    <p class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                      <i class="fas fa-map-marker-alt text-[10px] text-slate-400"></i>
-                      <span x-text="[client.city, client.state].filter(Boolean).join(' - ')"></span>
-                    </p>
-                  </template>
                   <template x-if="client.tags && client.tags.length">
                     <div class="flex flex-wrap gap-1 mt-1.5">
                       <template x-for="tag in client.tags" :key="tag">
@@ -132,8 +138,23 @@
                   </template>
                 </td>
                 <td class="px-5 py-3.5 text-xs">
-                  <p class="font-medium text-slate-800" x-text="maskPhone(client.phone)"></p>
-                  <p class="text-[11px] text-slate-500" x-text="maskEmail(client.email)"></p>
+                  <p class="font-semibold text-emerald-700 flex items-center gap-1.5">
+                    <i class="fab fa-whatsapp text-emerald-600"></i>
+                    <span x-text="maskPhone(client.whatsapp_number || client.phone)"></span>
+                  </p>
+                  <p x-show="client.phone && client.phone !== client.whatsapp_number" class="text-[11px] text-slate-500 mt-0.5" x-text="maskPhone(client.phone)"></p>
+                  <p x-show="client.email" class="text-[11px] text-slate-400" x-text="maskEmail(client.email)"></p>
+                </td>
+                <td class="px-5 py-3.5 text-xs">
+                  <div class="max-w-xs">
+                    <p class="font-medium text-slate-800 leading-snug" x-text="client.full_address || client.address || 'Não cadastrado'"></p>
+                    <template x-if="client.delivery_instructions">
+                      <div class="mt-1 flex items-start gap-1 text-[11px] text-indigo-700 bg-indigo-50/70 border border-indigo-100 rounded-md px-1.5 py-0.5">
+                        <i class="fas fa-truck text-[10px] mt-0.5 shrink-0"></i>
+                        <span class="truncate" :title="client.delivery_instructions" x-text="client.delivery_instructions"></span>
+                      </div>
+                    </template>
+                  </div>
                 </td>
                 <td class="px-5 py-3.5 text-xs font-medium text-slate-800" x-text="client.appointments_total"></td>
                 <td class="px-5 py-3.5 text-xs font-semibold text-emerald-700" x-text="client.payments_received_total"></td>
@@ -174,11 +195,11 @@
 
   <!-- Modal de Criação / Edição de Cliente -->
   <div x-show="formOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="formOpen=false">
-    <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="formOpen=false">
+    <div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="formOpen=false">
       <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
         <div>
           <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="editingId?'Editar cliente':'Novo cliente'"></h3>
-          <p class="text-xs text-slate-500">Preencha os dados do cliente (campos com * são obrigatórios).</p>
+          <p class="text-xs text-slate-500">Nome, WhatsApp e Endereço são obrigatórios para a logística de entrega dos produtos.</p>
         </div>
         <button type="button" @click="formOpen=false" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors">
           <i class="fas fa-times text-sm"></i>
@@ -186,78 +207,104 @@
       </div>
       <form class="space-y-4" @submit.prevent="save()">
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          Nome <span class="text-rose-500">*</span>
+          Nome do Cliente <span class="text-rose-500">*</span>
           <input x-model.trim="form.name" required placeholder="Nome completo do cliente" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
         </label>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-            Telefone <span class="text-rose-500">*</span>
-            <input x-model.trim="form.phone" required inputmode="tel" placeholder="(11) 99999-8888" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            WhatsApp <span class="text-rose-500">*</span>
+            <input x-model.trim="form.whatsapp_number" required inputmode="tel" placeholder="(11) 99999-8888" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
           </label>
           <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-            E-mail
-            <input x-model.trim="form.email" type="email" placeholder="cliente@exemplo.com" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            Telefone Adicional
+            <input x-model.trim="form.phone" inputmode="tel" placeholder="(11) 3333-2222" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
           </label>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="sm:col-span-2">
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-              Cidade
-              <input x-model.trim="form.city" placeholder="Ex: São Paulo" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
-            </label>
+
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          E-mail
+          <input x-model.trim="form.email" type="email" placeholder="cliente@exemplo.com" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        </label>
+
+        <!-- Seção de Endereço Completo & Logística de Entrega -->
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+              <i class="fas fa-truck text-xs"></i>
+            </span>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-indigo-950">Endereço Completo & Logística de Entrega</p>
+              <p class="text-[11px] text-indigo-700/80">Dados essenciais para roteamento e entrega dos produtos</p>
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-              Estado (UF)
-              <select x-model="form.state" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div class="sm:col-span-1">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">CEP</label>
+              <input x-model.trim="form.postal_code" placeholder="00000-000" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Endereço / Logradouro <span class="text-rose-500">*</span></label>
+              <input x-model.trim="form.address" required placeholder="Rua, Avenida, Alameda..." class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Número</label>
+              <input x-model.trim="form.address_number" placeholder="Ex: 123 ou S/N" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Complemento</label>
+              <input x-model.trim="form.address_complement" placeholder="Apto, Bloco, Sala, Casa..." class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Bairro</label>
+              <input x-model.trim="form.neighborhood" placeholder="Ex: Centro" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Cidade</label>
+              <input x-model.trim="form.city" placeholder="Ex: São Paulo" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Estado (UF)</label>
+              <select x-model="form.state" class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
                 <option value="">UF</option>
-                <option value="AC">AC</option>
-                <option value="AL">AL</option>
-                <option value="AP">AP</option>
-                <option value="AM">AM</option>
-                <option value="BA">BA</option>
-                <option value="CE">CE</option>
-                <option value="DF">DF</option>
-                <option value="ES">ES</option>
-                <option value="GO">GO</option>
-                <option value="MA">MA</option>
-                <option value="MT">MT</option>
-                <option value="MS">MS</option>
-                <option value="MG">MG</option>
-                <option value="PA">PA</option>
-                <option value="PB">PB</option>
-                <option value="PR">PR</option>
-                <option value="PE">PE</option>
-                <option value="PI">PI</option>
-                <option value="RJ">RJ</option>
-                <option value="RN">RN</option>
-                <option value="RS">RS</option>
-                <option value="RO">RO</option>
-                <option value="RR">RR</option>
-                <option value="SC">SC</option>
-                <option value="SP">SP</option>
-                <option value="SE">SE</option>
-                <option value="TO">TO</option>
+                <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+                <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+                <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+                <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+                <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+                <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+                <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+                <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+                <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
               </select>
-            </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Instruções para Entrega / Ponto de Referência</label>
+            <textarea x-model.trim="form.delivery_instructions" rows="2" placeholder="Ex: Deixar na portaria com Sr. José, portão preto em frente à praça..." class="mt-1 w-full rounded-xl border border-slate-300/80 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
           </div>
         </div>
+
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
           Tags
           <input x-model.trim="form.tags" placeholder="vip, recorrente, indicação" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
           <span class="mt-1 block text-[11px] font-normal text-slate-400">Separe os marcadores por vírgula</span>
         </label>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          Observações
-          <textarea x-model.trim="form.notes" rows="2" placeholder="Observações, preferências ou notas adicionais..." class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
-        </label>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          WhatsApp <span class="font-normal text-slate-400 normal-case">(opcional, se diferente do telefone)</span>
-          <input x-model.trim="form.whatsapp_number" inputmode="tel" placeholder="Mesmo do telefone se em branco" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          Observações Internas
+          <textarea x-model.trim="form.notes" rows="2" placeholder="Observações de atendimento ou preferências..." class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
         </label>
         <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
           <button type="button" @click="formOpen=false" class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-xs">Cancelar</button>
-          <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-60 flex items-center gap-1.5" x-text="saving?'Salvando...':'Salvar'"></button>
+          <button type="submit" :disabled="saving" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-60 flex items-center gap-1.5" x-text="saving?'Salvando...':'Salvar Cliente'"></button>
         </div>
       </form>
     </div>
@@ -417,23 +464,41 @@
 <script>
 function clientsPage(){return{
   clients:[],total:0,page:1,pageSize:20,totalPages:0,search:'',status:'active',loading:false,loadError:'',formOpen:false,editingId:null,saving:false,
-  form:{name:'',phone:'',email:'',whatsapp_number:'',city:'',state:'',tags:'',notes:''},
+  form:{
+    name:'',phone:'',whatsapp_number:'',email:'',
+    postal_code:'',address:'',address_number:'',address_complement:'',neighborhood:'',city:'',state:'',
+    delivery_instructions:'',tags:'',notes:''
+  },
   importModalOpen:false,importing:false,importFile:null,importSource:'import_csv',importStrategy:'update',importSummary:null,
   maskPhone(value){const digits=String(value||'').replace(/\D/g,'');return digits.length<6?'Não informado':`${digits.slice(0,4)}••••${digits.slice(-3)}`},
   maskEmail(value){if(!value||!value.includes('@'))return '';const [name,domain]=value.split('@');return `${name.slice(0,2)}•••@${domain}`},
   formatDate(value){return value?new Intl.DateTimeFormat('pt-BR').format(new Date(value)):'Nenhum'},
   async request(url,options={}){const response=await adminFetch(url,{headers:{'Content-Type':'application/json'},...options});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail||'Não foi possível concluir a operação.')}return response.status===204?null:response.json()},
   async reload(){this.loading=true;this.loadError='';try{const query=new URLSearchParams({page:this.page,page_size:this.pageSize,status:this.status});if(this.search)query.set('search',this.search);const result=await this.request(`/admin/api/clients?${query}`);this.clients=result.data||[];this.total=result.total||0;this.totalPages=result.total_pages||0}catch(error){this.clients=[];this.loadError=error.message}finally{this.loading=false}},
-  openCreate(){this.editingId=null;this.form={name:'',phone:'',email:'',whatsapp_number:'',city:'',state:'',tags:'',notes:''};this.formOpen=true},
+  openCreate(){
+    this.editingId=null;
+    this.form={
+      name:'',phone:'',whatsapp_number:'',email:'',
+      postal_code:'',address:'',address_number:'',address_complement:'',neighborhood:'',city:'',state:'',
+      delivery_instructions:'',tags:'',notes:''
+    };
+    this.formOpen=true;
+  },
   openEdit(client){
     this.editingId=client.id;
     this.form={
-      name:client.name,
-      phone:client.phone,
+      name:client.name||'',
+      phone:client.phone||'',
+      whatsapp_number:client.whatsapp_number||client.phone||'',
       email:client.email||'',
-      whatsapp_number:client.whatsapp_number||'',
+      postal_code:client.postal_code||'',
+      address:client.address||'',
+      address_number:client.address_number||'',
+      address_complement:client.address_complement||'',
+      neighborhood:client.neighborhood||'',
       city:client.city||'',
       state:client.state||'',
+      delivery_instructions:client.delivery_instructions||'',
       tags:Array.isArray(client.tags)?client.tags.join(', '):(client.tags||''),
       notes:client.notes||''
     };
@@ -444,13 +509,19 @@ function clientsPage(){return{
     try{
       const payload={
         name:this.form.name,
-        phone:this.form.phone,
-        email:this.form.email||null,
-        whatsapp_number:this.form.whatsapp_number||null,
-        city:this.form.city||null,
-        state:this.form.state||null,
-        tags:this.form.tags||[],
-        notes:this.form.notes||null
+        whatsapp_number:this.form.whatsapp_number,
+        address:this.form.address,
+        phone:this.form.phone || this.form.whatsapp_number,
+        email:this.form.email || null,
+        postal_code:this.form.postal_code || null,
+        address_number:this.form.address_number || null,
+        address_complement:this.form.address_complement || null,
+        neighborhood:this.form.neighborhood || null,
+        city:this.form.city || null,
+        state:this.form.state || null,
+        delivery_instructions:this.form.delivery_instructions || null,
+        tags:this.form.tags || [],
+        notes:this.form.notes || null
       };
       await this.request(this.editingId?`/admin/api/clients/${this.editingId}`:'/admin/api/clients',{method:this.editingId?'PUT':'POST',body:JSON.stringify(payload)});
       this.formOpen=false;

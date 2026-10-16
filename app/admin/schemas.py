@@ -161,13 +161,29 @@ class AdminFilters(BaseModel):
 
 class AdminClientCreate(BaseModel):
     name: str
-    phone: str
+    whatsapp_number: str
+    address: str
+    phone: str | None = None
     email: str | None = None
-    whatsapp_number: str | None = None
+    postal_code: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
     city: str | None = None
     state: str | None = None
+    delivery_instructions: str | None = None
     tags: list[str] = Field(default_factory=list)
     notes: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_contacts(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("whatsapp_number") and data.get("phone"):
+                data["whatsapp_number"] = data["phone"]
+            elif not data.get("phone") and data.get("whatsapp_number"):
+                data["phone"] = data["whatsapp_number"]
+        return data
 
     @field_validator("name")
     @classmethod
@@ -177,13 +193,29 @@ class AdminClientCreate(BaseModel):
             raise ValueError("O nome do cliente é obrigatório.")
         return cleaned
 
-    @field_validator("phone")
+    @field_validator("whatsapp_number")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
+    def validate_whatsapp(cls, v: str) -> str:
         cleaned = v.strip() if isinstance(v, str) else ""
         if not cleaned or len(cleaned) < 8:
-            raise ValueError("O telefone do cliente é obrigatório e deve ser válido.")
+            raise ValueError("O WhatsApp do cliente é obrigatório e deve ser válido.")
         return cleaned
+
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, v: str) -> str:
+        cleaned = v.strip() if isinstance(v, str) else ""
+        if not cleaned:
+            raise ValueError("O endereço do cliente é obrigatório para entrega na logística.")
+        return cleaned
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip() if isinstance(v, str) else ""
+            return cleaned or None
+        return None
 
     @field_validator("state")
     @classmethod
@@ -210,8 +242,14 @@ class AdminClientUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     whatsapp_number: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
     city: str | None = None
     state: str | None = None
+    delivery_instructions: str | None = None
     tags: list[str] | str | None = None
     notes: str | None = None
 
@@ -225,13 +263,23 @@ class AdminClientUpdate(BaseModel):
             return cleaned
         return None
 
-    @field_validator("phone")
+    @field_validator("whatsapp_number")
     @classmethod
-    def validate_phone(cls, v: str | None) -> str | None:
+    def validate_whatsapp(cls, v: str | None) -> str | None:
         if v is not None:
             cleaned = v.strip() if isinstance(v, str) else ""
             if not cleaned or len(cleaned) < 8:
-                raise ValueError("O telefone do cliente deve ser válido.")
+                raise ValueError("O WhatsApp do cliente deve ser válido.")
+            return cleaned
+        return None
+
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip() if isinstance(v, str) else ""
+            if not cleaned:
+                raise ValueError("O endereço não pode ser vazio.")
             return cleaned
         return None
 
@@ -261,8 +309,15 @@ class AdminClientSummary(BaseModel):
     phone: str
     email: str | None = None
     whatsapp_number: str | None = None
+    postal_code: str | None = None
+    address: str | None = None
+    address_number: str | None = None
+    address_complement: str | None = None
+    neighborhood: str | None = None
     city: str | None = None
     state: str | None = None
+    delivery_instructions: str | None = None
+    full_address: str | None = None
     tags: list[str] = Field(default_factory=list)
     notes: str | None = None
     active: bool
