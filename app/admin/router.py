@@ -690,6 +690,36 @@ async def api_notify_delivery_dispatch(
         raise HTTPException(status_code=500, detail=f"Erro ao processar notificação WhatsApp: {e}")
 
 
+# ==========================================================
+# Recuperação Automática de Vendas & Follow-up
+# ==========================================================
+
+@router.get("/api/recovery/leads", dependencies=[Depends(require_admin)])
+async def api_recovery_leads(minutes_idle: int = 45, db: Session = Depends(get_db)):
+    from app.services.recovery_service import SalesRecoveryService
+    service = SalesRecoveryService(db)
+    leads = service.find_pending_leads(minutes_idle=minutes_idle)
+    return jsonable_encoder([
+        {
+            "id": u.id,
+            "name": u.name,
+            "phone": u.whatsapp_number or u.phone,
+            "city": u.city,
+            "state": u.state,
+            "last_followup_at": (u.custom_fields or {}).get("last_followup_at"),
+        }
+        for u in leads
+    ])
+
+
+@router.post("/api/recovery/run", dependencies=[Depends(require_admin_mutation)])
+async def api_run_recovery(minutes_idle: int = 45, db: Session = Depends(get_db)):
+    from app.services.recovery_service import SalesRecoveryService
+    service = SalesRecoveryService(db)
+    result = await service.run_batch_recovery(minutes_idle=minutes_idle)
+    return jsonable_encoder(result)
+
+
 @router.get("/settings", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     service = CompanySettingsService(db)

@@ -123,10 +123,11 @@ async def test_catalog_subagent(db_session: Session):
 
     agent = CatalogSubagent(db_session)
     tools = agent.get_tools()
-    assert len(tools) == 2
+    assert len(tools) == 3
     tool_names = [t.name for t in tools]
     assert "consultar_catalogo" in tool_names
     assert "obter_detalhes_produto" in tool_names
+    assert "enviar_foto_produto" in tool_names
 
     # Consulta catálogo
     res = await agent.execute_tool("consultar_catalogo", {"termo_busca": "DryFit"})

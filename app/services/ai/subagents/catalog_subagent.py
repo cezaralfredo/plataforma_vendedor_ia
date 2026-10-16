@@ -15,12 +15,21 @@ logger = logging.getLogger(__name__)
 class CatalogSubagent(BaseSubagent):
     """
     Subagente especialista em catálogo, estoque e especificações de produtos.
-    Fornece aos modelos informações precisas sobre preços, estoque e peso (weight_kg).
+    Fornece aos modelos informações precisas sobre preços, estoque, peso (weight_kg)
+    e envio de fotos dos produtos no chat do WhatsApp.
     """
 
-    def __init__(self, db: Session, product_service: ProductService | None = None):
+    def __init__(
+        self,
+        db: Session,
+        product_service: ProductService | None = None,
+        user: Any = None,
+        gateway: Any = None,
+    ):
         self.db = db
         self.product_service = product_service or ProductService(db)
+        self.user = user
+        self.gateway = gateway
 
     def get_tools(self) -> list[ToolDefinition]:
         return [
@@ -51,6 +60,24 @@ class CatalogSubagent(BaseSubagent):
                     "required": ["produto_id"],
                 },
             ),
+            ToolDefinition(
+                name="enviar_foto_produto",
+                description="Envia a foto oficial de um produto diretamente para o WhatsApp do cliente para que ele possa visualizar o item.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "produto_id": {
+                            "type": "integer",
+                            "description": "ID numérico do produto cuja foto será enviada.",
+                        },
+                        "legenda": {
+                            "type": "string",
+                            "description": "Legenda opcional para acompanhar a imagem (ex: nome e valor).",
+                        },
+                    },
+                    "required": ["produto_id"],
+                },
+            ),
         ]
 
     def _format_product(self, p: Product) -> dict[str, Any]:
@@ -63,6 +90,8 @@ class CatalogSubagent(BaseSubagent):
             "peso_kg": round(peso, 3) if peso is not None else None,
             "estoque": p.stock_quantity,
             "descricao": p.description or "",
+            "foto_url": p.image_url,
+            "possui_foto": bool(p.image_url),
         }
 
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
@@ -92,5 +121,39 @@ class CatalogSubagent(BaseSubagent):
                 return json.dumps({"erro": f"Produto #{prod_id} não encontrado ou inativo"}, ensure_ascii=False)
 
             return json.dumps({"status": "sucesso", "produto": self._format_product(p)}, ensure_ascii=False)
+
+        elif tool_name == "enviar_foto_produto":
+            prod_id = arguments.get("produto_id")
+            if not prod_id:
+                return json.dumps({"erro": "produto_id é obrigatório"}, ensure_ascii=False)
+
+            p = self.product_service.get_product(int(prod_id))
+            if not p or not p.active:
+                return json.dumps({"erro": f"Produto #{prod_id} não encontrado."}, ensure_ascii=False)
+
+            if not p.image_url:
+                return json.dumps({
+                    "status": "sem_foto",
+                    "mensagem": f"O produto '{p.name}' não possui imagem cadastrada no momento.",
+                }, ensure_ascii=False)
+
+            legenda = arguments.get("legenda") or f"📸 {p.name}\n💰 R$ {p.price_cents / 100:.2f}"
+            sent = False
+            phone = getattr(self.user, "whatsapp_number", None) or getattr(self.user, "phone", None)
+
+            if self.gateway and phone:
+                try:
+                    res = await self.gateway.send_image(phone, p.image_url, caption=legenda)
+                    sent = getattr(res, "success", False)
+                except Exception as e:
+                    logger.warning("Falha ao enviar imagem do produto via gateway: %s", e)
+
+            return json.dumps({
+                "status": "sucesso",
+                "produto_nome": p.name,
+                "foto_url": p.image_url,
+                "foto_enviada": sent,
+                "mensagem": f"Foto de '{p.name}' despachada para o WhatsApp do cliente.",
+            }, ensure_ascii=False)
 
         return json.dumps({"erro": f"Ferramenta desconhecida no CatalogSubagent: {tool_name}"}, ensure_ascii=False)

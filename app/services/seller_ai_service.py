@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate
 from app.services.ai.orchestrator import SalesOrchestrator
 from app.services.company_settings_service import CompanySettingsService
+from app.services.delivery_service import DeliveryService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
 from app.services.user_service import UserService
@@ -34,6 +35,7 @@ class SellerAIService:
         self.user_service = UserService(db)
         self.payment_service = PaymentService(db)
         self.product_service = ProductService(db)
+        self.delivery_service = DeliveryService(db)
 
     def _get_or_create_user(self, phone: str, name: str | None = None) -> User:
         user = self.user_service.find_by_phone(phone)
@@ -176,6 +178,8 @@ class SellerAIService:
             company_settings=self.company_settings,
             payment_service=self.payment_service,
             product_service=self.product_service,
+            delivery_service=self.delivery_service,
+            gateway=self.gateway,
         )
 
         response_text = await orchestrator.process_message(text, history)

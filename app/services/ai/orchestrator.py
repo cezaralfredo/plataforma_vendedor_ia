@@ -40,22 +40,29 @@ class SalesOrchestrator:
         llm_client: BaseLLMClient | None = None,
         payment_service: Any = None,
         product_service: Any = None,
+        delivery_service: Any = None,
+        gateway: Any = None,
     ):
         self.db = db
         self.user = user
         self.company_settings = company_settings
         self.llm_client = llm_client if llm_client is not None else get_llm_client(company_settings)
+        self.gateway = gateway
+        self.delivery_service = delivery_service
 
-        # Inicializa subagentes especialistas
-        self.catalog_subagent = CatalogSubagent(db, product_service=product_service)
+        # Inicializa subagentes especialistas com recursos multimídia e logísticos
+        self.catalog_subagent = CatalogSubagent(
+            db, product_service=product_service, user=user, gateway=gateway
+        )
         self.checkout_subagent = CheckoutSubagent(
             db,
             user,
             payment_service=payment_service,
             product_service=product_service,
+            delivery_service=delivery_service,
         )
         self.order_status_subagent = OrderStatusSubagent(db, user)
-        self.support_subagent = SupportSubagent(company_settings, db=db, user=user)
+        self.support_subagent = SupportSubagent(company_settings, db=db, user=user, gateway=gateway)
 
         # Registro de ferramentas mapeadas para os respectivos subagentes
         self.subagents: list[BaseSubagent] = [
@@ -98,10 +105,10 @@ class SalesOrchestrator:
             f"Nome do cliente que você está atendendo: {self.user.name or 'Cliente'}.{seller_context}\n\n"
             "Diretrizes e Regras de Ouro:\n"
             "1. Comunicação ideal para WhatsApp: Seja acolhedor, objetivo, use parágrafos curtos, negrito para destacar valores e emojis moderados.\n"
-            "2. Catálogo e Produtos: Ao apresentar itens ou tirar dúvidas de especificações, mencione sempre o preço e o peso em kg (weight_kg).\n"
-            "3. Fechamento de Venda: Se o cliente demonstrar intenção de comprar qualquer item, use a ferramenta 'criar_pedido_cobranca' para gerar imediatamente o pedido e o link do PIX.\n"
-            "4. Acompanhamento: Se o cliente quiser saber se o pagamento dele foi aprovado, use a ferramenta 'consultar_status_pedido'.\n"
-            "5. Dúvidas complexas ou reclamações: Use a ferramenta 'acionar_atendente_humano' para fornecer o canal de suporte.\n"
+            "2. Catálogo e Fotos: Ao apresentar produtos, mencione preço e especificações. Se o cliente pedir para ver o produto ou pedir fotos, use a ferramenta 'enviar_foto_produto' para disparar a imagem no WhatsApp.\n"
+            "3. Fechamento de Venda Flexível: O cliente pode escolher pagar antecipadamente (PIX) ou pagar no ato da entrega (Dinheiro, PIX ou Cartão com o entregador). Use 'criar_pedido_entrega' com o endereço informado e o momento de pagamento escolhido.\n"
+            "4. Rastreamento e Entregas: Se o cliente perguntar onde está o pedido, se já foi despachado ou status de pagamento, use a ferramenta 'consultar_status_pedido'.\n"
+            "5. Negociação e Transbordo: Se o cliente solicitar negociação especial ou pedir atendente humano, use 'acionar_atendente_humano' para avisar o vendedor responsável imediatamente no WhatsApp.\n"
             "6. Nunca invente dados de produtos ou links de pagamento fora das ferramentas oficiais disponíveis."
         )
 
