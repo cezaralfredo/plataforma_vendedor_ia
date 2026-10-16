@@ -88,6 +88,7 @@ services:
 
 volumes:
   agenda_pgdata:
+    name: ${POSTGRES_VOLUME_NAME:-vendedor-online_agenda_pgdata}
 
 networks:
   agenda_internal:
