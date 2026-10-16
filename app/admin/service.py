@@ -16,7 +16,6 @@ from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.product import Product
-from app.models.seller import Seller
 from app.models.user import User
 from app.models.webhook_event import WebhookEvent
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
@@ -1198,7 +1197,7 @@ class AdminService:
         if not branch:
             return None
         values = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else dict(data)
-        if "code" in values and values["code"]:
+        if values.get("code"):
             new_code = values["code"].strip().upper()
             existing = self.db.query(Branch).filter(
                 func.upper(Branch.code) == new_code, Branch.id != branch_id
@@ -1206,7 +1205,7 @@ class AdminService:
             if existing:
                 raise ValueError(f"Já existe uma loja cadastrada com o código '{new_code}'.")
             values["code"] = new_code
-        if "state" in values and values["state"]:
+        if values.get("state"):
             values["state"] = str(values["state"]).strip().upper()[:2]
 
         for field, value in values.items():

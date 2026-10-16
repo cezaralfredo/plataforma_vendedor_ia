@@ -1,6 +1,5 @@
 from app.config import settings
 from app.models.branch import Branch
-from app.models.seller import Seller
 
 
 def _admin_headers() -> dict[str, str]:
