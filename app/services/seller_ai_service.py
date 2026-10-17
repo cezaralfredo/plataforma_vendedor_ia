@@ -5,13 +5,16 @@ from sqlalchemy.orm import Session
 
 from app.models.chat_message import ChatMessage
 from app.models.company_settings import CompanySettings
+from app.models.payment import Payment
 from app.models.user import User
 from app.schemas.user import UserCreate
 from app.services.ai.orchestrator import SalesOrchestrator
+from app.services.ai.subagents.support_subagent import SupportSubagent
 from app.services.company_settings_service import CompanySettingsService
 from app.services.delivery_service import DeliveryService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
+from app.services.triage_service import TriageService
 from app.services.user_service import UserService
 from app.services.whatsapp.base import InboundMessage
 from app.services.whatsapp.gateway import WhatsAppGatewayService
@@ -28,7 +31,7 @@ class SellerAIService:
     pedidos e transbordo humano) e despacha a resposta de volta ao cliente.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, triage_service: TriageService | None = None):
         self.db = db
         self.company_settings: CompanySettings = CompanySettingsService(db).get_or_create_default()
         self.gateway = WhatsAppGatewayService(db)
@@ -36,6 +39,7 @@ class SellerAIService:
         self.payment_service = PaymentService(db)
         self.product_service = ProductService(db)
         self.delivery_service = DeliveryService(db)
+        self.triage_service = triage_service or TriageService()
 
     def _get_or_create_user(self, phone: str, name: str | None = None) -> User:
         user = self.user_service.find_by_phone(phone)
@@ -165,6 +169,96 @@ class SellerAIService:
                         return ""
                 except Exception:
                     logger.debug("Falha ao analisar data de pausa de IA para %s", phone)
+
+        # 1. Triagem Ultrarrápida de Nível 1 com TypeSafe Jev (OpenRouter Decisions API)
+        triage_result = None
+        try:
+            triage_result = await self.triage_service.evaluate(text, phone=phone)
+        except Exception as exc:
+            logger.warning("Erro na avaliação de triagem com Jev: %s. Prosseguindo para o orquestrador.", exc)
+
+        if triage_result and not triage_result.is_fallback:
+            logger.info(
+                "Triagem Jev executada para %s: ação=%s, intent=%s (conf=%.2f), frustração=%s",
+                phone,
+                triage_result.recommended_action,
+                triage_result.intent,
+                triage_result.intent_confidence,
+                triage_result.frustration_level,
+            )
+
+            # Ação 1: Transbordo Humano Imediato (0 tokens de LLM)
+            if triage_result.recommended_action == "fast_handoff_human":
+                support_subagent = SupportSubagent(self.company_settings, db=self.db, user=user, gateway=self.gateway)
+                res_tool = await support_subagent.execute_tool(
+                    "acionar_atendente_humano",
+                    {"motivo": f"Solicitado pelo cliente via Triagem Jev (intenção: {triage_result.intent})"},
+                )
+                import json
+                support_data = json.loads(res_tool)
+                response_text = (
+                    f"Com certeza, {user.name or 'Cliente'}! Já notifiquei nossa equipe de atendimento humano.\n\n"
+                    f"Se preferir falar diretamente agora, basta clicar no link:\n"
+                    f"👉 {support_data.get('link_suporte')}\n\n"
+                    "Em instantes você será atendido! 🤝"
+                )
+                self._record_chat(phone, "assistant", response_text, inbound.provider)
+                try:
+                    await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+                except Exception as exc:
+                    logger.error("Erro ao despachar fast_handoff_human via WhatsApp (%s): %s", inbound.provider, exc)
+                return response_text
+
+            # Ação 2: Confirmação Rápida de Pagamento PIX (0 tokens de LLM)
+            if triage_result.recommended_action == "fast_check_pix":
+                recent_payment = (
+                    self.db.query(Payment)
+                    .filter(Payment.user_id == user.id)
+                    .order_by(Payment.created_at.desc())
+                    .first()
+                )
+                if recent_payment:
+                    if recent_payment.status in ("received", "confirmed"):
+                        valor_str = f"R$ {recent_payment.amount_cents / 100:.2f}"
+                        response_text = (
+                            f"🎉 Excelente notícia, {user.name or 'Cliente'}! Localizamos o seu pagamento de *{valor_str}* confirmado com sucesso!\n\n"
+                            f"📦 *Pedido #{recent_payment.id}* está confirmado e em preparação. Muito obrigado pela confiança! 🚀"
+                        )
+                    else:
+                        valor_str = f"R$ {recent_payment.amount_cents / 100:.2f}"
+                        link_pix = f"\n👉 Link do pagamento: {recent_payment.invoice_url}" if recent_payment.invoice_url else ""
+                        response_text = (
+                            f"Olá, {user.name or 'Cliente'}! Estou acompanhando seu pagamento de *{valor_str}* no sistema.\n\n"
+                            f"⏳ Assim que a confirmação bancária for liquidada (normalmente leva poucos segundos), "
+                            f"seu pedido será atualizado automaticamente aqui!{link_pix}"
+                        )
+                    self._record_chat(phone, "assistant", response_text, inbound.provider)
+                    try:
+                        await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+                    except Exception as exc:
+                        logger.error("Erro ao despachar fast_check_pix via WhatsApp (%s): %s", inbound.provider, exc)
+                    return response_text
+
+            # Ação 3: Saudação Rápida Inicial (0 tokens de LLM)
+            if triage_result.recommended_action == "fast_greeting":
+                history = self._get_recent_history(phone)
+                # Dispara resposta rápida apenas se for mensagem inicial sem histórico de compras ativo
+                if len(history) <= 1:
+                    company_name = self.company_settings.company_name or "Nossa Loja"
+                    welcome = self.company_settings.welcome_message
+                    if welcome and welcome.strip():
+                        response_text = welcome.strip()
+                    else:
+                        response_text = (
+                            f"Olá, {user.name or 'seja muito bem-vindo(a)'}! Tudo bem?\n\n"
+                            f"Sou o consultor virtual da *{company_name}*. Como posso te ajudar hoje?"
+                        )
+                    self._record_chat(phone, "assistant", response_text, inbound.provider)
+                    try:
+                        await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+                    except Exception as exc:
+                        logger.error("Erro ao despachar fast_greeting via WhatsApp (%s): %s", inbound.provider, exc)
+                    return response_text
 
         history = self._get_recent_history(phone)
 

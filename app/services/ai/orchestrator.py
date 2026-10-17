@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.chat_message import ChatMessage
 from app.models.company_settings import CompanySettings
 from app.models.user import User
+from app.services.ai.prompt_engine import SalesPromptEngine
 from app.services.ai.providers.base import (
     BaseLLMClient,
     LLMMessage,
@@ -83,39 +84,10 @@ class SalesOrchestrator:
 
 
     def _build_system_prompt(self) -> str:
-        company_name = self.company_settings.company_name or "Nossa Loja"
-        assistant_name = self.company_settings.assistant_name or "Consultor Virtual"
-        tone = self.company_settings.tone or "amigável e comercial"
-        custom_instructions = self.company_settings.ai_system_prompt or ""
-
-        custom_fields = self.user.custom_fields or {}
-        seller_name = custom_fields.get("seller_name")
-        branch_name = custom_fields.get("branch_name")
-
-        seller_context = ""
-        if seller_name:
-            seller_context = f"\nVocê está atendendo este cliente com foco comercial sob indicação do vendedor(a) '{seller_name}'"
-            if branch_name:
-                seller_context += f" da filial '{branch_name}'"
-            seller_context += ".\n"
-
-        prompt = (
-            f"Você é {assistant_name}, o consultor de vendas inteligente da loja '{company_name}'.\n"
-            f"Seu tom de voz deve ser: {tone}.\n"
-            f"Nome do cliente que você está atendendo: {self.user.name or 'Cliente'}.{seller_context}\n\n"
-            "Diretrizes e Regras de Ouro:\n"
-            "1. Comunicação ideal para WhatsApp: Seja acolhedor, objetivo, use parágrafos curtos, negrito para destacar valores e emojis moderados.\n"
-            "2. Catálogo e Fotos: Ao apresentar produtos, mencione preço e especificações. Se o cliente pedir para ver o produto ou pedir fotos, use a ferramenta 'enviar_foto_produto' para disparar a imagem no WhatsApp.\n"
-            "3. Fechamento de Venda Flexível: O cliente pode escolher pagar antecipadamente (PIX) ou pagar no ato da entrega (Dinheiro, PIX ou Cartão com o entregador). Use 'criar_pedido_entrega' com o endereço informado e o momento de pagamento escolhido.\n"
-            "4. Rastreamento e Entregas: Se o cliente perguntar onde está o pedido, se já foi despachado ou status de pagamento, use a ferramenta 'consultar_status_pedido'.\n"
-            "5. Negociação e Transbordo: Se o cliente solicitar negociação especial ou pedir atendente humano, use 'acionar_atendente_humano' para avisar o vendedor responsável imediatamente no WhatsApp.\n"
-            "6. Nunca invente dados de produtos ou links de pagamento fora das ferramentas oficiais disponíveis."
+        return SalesPromptEngine.build_system_prompt(
+            company_settings=self.company_settings,
+            user=self.user,
         )
-
-        if custom_instructions:
-            prompt += f"\n\nInstruções Adicionais da Loja:\n{custom_instructions}"
-
-        return prompt
 
 
     async def _execute_tool_call(self, tool_call: ToolCall) -> str:
