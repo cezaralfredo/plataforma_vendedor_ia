@@ -1,17 +1,18 @@
 """Add coexistence mode fields to company_settings.
 
 Revision ID: a1b2c3d4e5f7
-Revises: f0a1b2c3d4e5
+Revises: c3d4e5f6a7b8
 Create Date: 2026-10-19
 """
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "a1b2c3d4e5f7"
-down_revision: str | None = "f0a1b2c3d4e5"
+down_revision: str | None = "c3d4e5f6a7b8"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
