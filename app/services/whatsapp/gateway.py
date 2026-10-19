@@ -12,6 +12,7 @@ from app.services.whatsapp.base import (
 )
 from app.services.whatsapp.evolution import EvolutionWhatsAppProvider
 from app.services.whatsapp.meta import MetaWhatsAppProvider
+from app.services.whatsapp.tracker import SentMessageTracker
 from app.services.whatsapp.waha import WahaWhatsAppProvider
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,10 @@ class WhatsAppGatewayService:
         self, phone: str, text: str, provider_name: str | None = None
     ) -> SendMessageResult:
         provider = self.get_provider(provider_name)
-        return await provider.send_text(phone, text)
+        result = await provider.send_text(phone, text)
+        if result.success and result.message_id:
+            SentMessageTracker.get_instance().record(result.message_id)
+        return result
 
     async def send_image(
         self,
@@ -59,7 +63,10 @@ class WhatsAppGatewayService:
         provider_name: str | None = None,
     ) -> SendMessageResult:
         provider = self.get_provider(provider_name)
-        return await provider.send_image(phone, image_url, caption)
+        result = await provider.send_image(phone, image_url, caption)
+        if result.success and result.message_id:
+            SentMessageTracker.get_instance().record(result.message_id)
+        return result
 
     def parse_inbound(
         self, provider_name: str, payload: dict[str, Any]

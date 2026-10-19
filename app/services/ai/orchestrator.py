@@ -114,7 +114,11 @@ class SalesOrchestrator:
         messages: list[LLMMessage] = [LLMMessage(role="system", content=system_prompt)]
 
         for h in history:
-            messages.append(LLMMessage(role=h.role, content=h.content))
+            role = "assistant" if h.role in ("assistant", "human_agent") else h.role
+            content = h.content
+            if h.role == "human_agent" and content:
+                content = f"[Atendente Humano da Loja]: {content}"
+            messages.append(LLMMessage(role=role, content=content))
 
         messages.append(LLMMessage(role="user", content=user_message))
 

@@ -149,7 +149,25 @@ class MetaWhatsAppProvider(BaseWhatsAppProvider):
             return None
 
         msg = messages[0]
-        sender_phone = self._clean_phone(str(msg.get("from") or ""))
+        metadata = value.get("metadata", {})
+        display_phone = self._clean_phone(str(metadata.get("display_phone_number") or ""))
+
+        raw_from = self._clean_phone(str(msg.get("from") or ""))
+        raw_to = self._clean_phone(str(msg.get("to") or msg.get("recipient_id") or ""))
+        is_echo = bool(msg.get("is_echo", False))
+
+        # No modo Coexistence da Meta, mensagens enviadas pelo WhatsApp Business App
+        # podem vir com is_echo=True ou o campo "from" correspondente ao número da empresa
+        if is_echo or (display_phone and raw_from == display_phone and raw_to):
+            is_from_me = True
+            sender_phone = raw_to or raw_from
+            sender_name = "Atendente"
+        else:
+            is_from_me = False
+            sender_phone = raw_from
+            contacts = value.get("contacts", [{}])
+            sender_name = contacts[0].get("profile", {}).get("name") if contacts else "Cliente"
+
         if not sender_phone:
             return None
 
@@ -168,8 +186,6 @@ class MetaWhatsAppProvider(BaseWhatsAppProvider):
         if not text:
             return None
 
-        contacts = value.get("contacts", [{}])
-        sender_name = contacts[0].get("profile", {}).get("name") if contacts else "Cliente"
         msg_id = str(msg.get("id") or "")
 
         return InboundMessage(
@@ -178,6 +194,7 @@ class MetaWhatsAppProvider(BaseWhatsAppProvider):
             sender_name=sender_name or "Cliente",
             text=text,
             message_id=msg_id,
+            is_from_me=is_from_me,
             raw_payload=payload,
         )
 

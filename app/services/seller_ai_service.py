@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -124,11 +124,80 @@ class SellerAIService:
             seller.branch.name if seller.branch else "N/A",
         )
 
+    def is_bot_message(self, message_id: str, phone: str, text: str) -> bool:
+        """Verifica se a mensagem com fromMe: true foi disparada pela própria API ou por humano no WhatsApp Business."""
+        from app.services.whatsapp.tracker import SentMessageTracker
+        if SentMessageTracker.get_instance().is_bot_message(message_id):
+            return True
+
+        recent = (
+            self.db.query(ChatMessage)
+            .filter(ChatMessage.phone == phone, ChatMessage.role == "assistant")
+            .order_by(ChatMessage.created_at.desc())
+            .first()
+        )
+        if recent and recent.content and text:
+            if recent.content.strip() == text.strip():
+                return True
+        return False
+
     async def handle_inbound_message(self, inbound: InboundMessage) -> str:
         """Ponto de entrada único para qualquer mensagem recebida no WhatsApp."""
         phone = inbound.sender_phone
         text = inbound.text.strip()
         user = self._get_or_create_user(phone, inbound.sender_name)
+
+        # Se for mensagem enviada do próprio número (fromMe: true / WhatsApp Business App)
+        if inbound.is_from_me:
+            # 1. Se for eco da mensagem que o próprio bot enviou via API, ignora
+            if self.is_bot_message(inbound.message_id, phone, text):
+                logger.debug("Mensagem %s ignorada: eco do envio do próprio bot para %s.", inbound.message_id, phone)
+                return ""
+
+            # 2. Intervenção de atendente humano pelo app WhatsApp Business
+            self.company_settings = CompanySettingsService(self.db).get_or_create_default()
+            if not self.company_settings.coexistence_enabled:
+                logger.info("Coexistence desabilitada. Mensagem do atendente humano para %s ignorada.", phone)
+                return ""
+
+            lowered = text.lower()
+            custom_fields = dict(user.custom_fields or {})
+
+            # Comando do atendente para reativar IA: #ia, #bot, #ativar, #robo, #auto
+            if any(cmd in lowered for cmd in ["#ia", "#bot", "#ativar", "#robo", "#auto"]):
+                custom_fields.pop("ai_paused_until", None)
+                user.custom_fields = custom_fields
+                self.db.commit()
+                self._record_chat(phone, "human_agent", text, inbound.provider)
+                logger.info("Coexistence: Atendente reativou o bot via comando (%s) para o cliente %s.", text, phone)
+                return ""
+
+            # Comando do atendente para pausar por tempo longo: #pausa, #pause, #humano, #manual
+            if any(cmd in lowered for cmd in ["#pausa", "#pause", "#humano", "#manual"]):
+                paused_until = (datetime.now(UTC) + timedelta(hours=4)).isoformat()
+                custom_fields["ai_paused_until"] = paused_until
+                user.custom_fields = custom_fields
+                self.db.commit()
+                self._record_chat(phone, "human_agent", text, inbound.provider)
+                logger.info("Coexistence: Atendente pausou a IA por 4 horas via comando (%s) para o cliente %s.", text, phone)
+                return ""
+
+            # Mensagem normal do atendente humano ao cliente
+            pause_minutes = int(self.company_settings.coexistence_pause_minutes or 45)
+            paused_until = (datetime.now(UTC) + timedelta(minutes=pause_minutes)).isoformat()
+            custom_fields["ai_paused_until"] = paused_until
+            user.custom_fields = custom_fields
+            self.db.commit()
+
+            # Registra no histórico como human_agent para que a IA tenha contexto quando reassumir
+            self._record_chat(phone, "human_agent", text, inbound.provider)
+            logger.info(
+                "Coexistence: Atendente humano atendeu %s pelo WhatsApp Business. IA silenciada por %d minutos (até %s).",
+                phone,
+                pause_minutes,
+                paused_until,
+            )
+            return ""
 
         # Se for mensagem de áudio, tenta transcrever com Whisper
         if getattr(inbound, "media_type", None) == "audio" and inbound.media_url:

@@ -135,12 +135,19 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
         if event and event != "message":
             return None
 
-        # Ignorar mensagens enviadas pelo próprio bot
-        if msg_data.get("fromMe") is True:
+        is_from_me = bool(msg_data.get("fromMe", False))
+
+        if is_from_me:
+            # Em mensagens enviadas pelo app móvel/bot, o destinatário é o cliente
+            target = msg_data.get("to") or msg_data.get("chatId") or msg_data.get("from") or ""
+        else:
+            target = msg_data.get("from") or ""
+
+        # Ignora mensagens de grupos do WhatsApp
+        if str(target).endswith("@g.us"):
             return None
 
-        sender = msg_data.get("from") or ""
-        clean_phone = self._clean_phone(sender)
+        clean_phone = self._clean_phone(target)
         if not clean_phone:
             return None
 
@@ -168,9 +175,13 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
         msg_id = str(msg_data.get("id") or "")
         data_block = msg_data.get("_data") or {}
         sender_name = (
-            data_block.get("notifyName")
-            or msg_data.get("notifyName")
-            or "Cliente"
+            "Atendente"
+            if is_from_me
+            else (
+                data_block.get("notifyName")
+                or msg_data.get("notifyName")
+                or "Cliente"
+            )
         )
 
         return InboundMessage(
@@ -181,6 +192,7 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
             message_id=msg_id,
             media_type=media_type,
             media_url=media_url,
+            is_from_me=is_from_me,
             raw_payload=payload,
         )
 

@@ -35,19 +35,24 @@ def test_waha_parse_inbound_webhook():
     assert inbound.message_id == "true_5585999998888@c.us_3EB012345"
 
 
-def test_waha_ignores_from_me_messages():
+def test_waha_parses_from_me_messages_for_coexistence():
     provider = WahaWhatsAppProvider(base_url="http://waha:3000")
     payload = {
         "event": "message",
         "session": "default",
         "payload": {
             "id": "false_5585999998888@c.us_3EB012345",
-            "from": "5585999998888@c.us",
+            "to": "5585999998888@c.us",
             "fromMe": True,
-            "body": "Mensagem enviada pelo bot",
+            "body": "Mensagem enviada pelo atendente humano",
         },
     }
-    assert provider.parse_inbound_webhook(payload) is None
+    inbound = provider.parse_inbound_webhook(payload)
+    assert inbound is not None
+    assert inbound.is_from_me is True
+    assert inbound.sender_phone == "5585999998888"
+    assert inbound.sender_name == "Atendente"
+    assert inbound.text == "Mensagem enviada pelo atendente humano"
 
 
 @pytest.mark.asyncio

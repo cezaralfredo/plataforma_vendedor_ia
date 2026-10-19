@@ -44,6 +44,15 @@ class ChannelSettingsSchema(BaseModel):
         default="evolution",
         description="Provedor de WhatsApp ('evolution', 'meta' ou 'waha')",
     )
+    # Modo Coexistência (WhatsApp Business App móvel + IA simultâneos)
+    coexistence_enabled: bool = Field(
+        default=True,
+        description="Se o modo Coexistence (WhatsApp Business App + IA) está ativo",
+    )
+    coexistence_pause_minutes: int = Field(
+        default=45,
+        description="Minutos de silêncio da IA após atendimento humano no WhatsApp Business",
+    )
     # Evolution
     evolution_base_url: str | None = Field(
         default=None,
@@ -146,6 +155,8 @@ class CompanySettingsCreate(BaseModel):
     default_commission_rate: Decimal = Decimal("0.0")
     split_enabled: bool = False
     whatsapp_provider: str = "evolution"
+    coexistence_enabled: bool = True
+    coexistence_pause_minutes: int = 45
     evolution_base_url: str | None = None
     evolution_instance: str | None = None
     evolution_api_key: str | None = None
@@ -179,6 +190,8 @@ class CompanySettingsUpdate(BaseModel):
     default_commission_rate: Decimal | None = None
     split_enabled: bool | None = None
     whatsapp_provider: str | None = None
+    coexistence_enabled: bool | None = None
+    coexistence_pause_minutes: int | None = None
     evolution_base_url: str | None = None
     evolution_instance: str | None = None
     evolution_api_key: str | None = None
@@ -213,6 +226,8 @@ class CompanySettingsResponse(BaseModel):
     default_commission_rate: Decimal
     split_enabled: bool
     whatsapp_provider: str
+    coexistence_enabled: bool = True
+    coexistence_pause_minutes: int = 45
     evolution_base_url: str | None = None
     evolution_instance: str | None = None
     evolution_api_key: str | None = None

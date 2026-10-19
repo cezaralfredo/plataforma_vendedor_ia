@@ -124,16 +124,18 @@ class EvolutionWhatsAppProvider(BaseWhatsAppProvider):
     def parse_inbound_webhook(self, payload: dict[str, Any]) -> InboundMessage | None:
         """Processa webhook da Evolution API (evento messages.upsert)."""
         body = payload.get("data") or payload
-
-        # Ignorar mensagens enviadas pelo bot
         key = body.get("key") or {}
-        if key.get("fromMe") is True:
-            return None
 
         remote_jid = key.get("remoteJid") or ""
+        # Ignora mensagens de grupos do WhatsApp
+        if remote_jid.endswith("@g.us"):
+            return None
+
         clean_phone = self._clean_phone(remote_jid)
         if not clean_phone:
             return None
+
+        is_from_me = bool(key.get("fromMe", False))
 
         msg = body.get("message") or {}
         text = (
@@ -158,7 +160,7 @@ class EvolutionWhatsAppProvider(BaseWhatsAppProvider):
             return None
 
         msg_id = str(key.get("id") or "")
-        sender_name = body.get("pushName") or "Cliente"
+        sender_name = body.get("pushName") or ("Atendente" if is_from_me else "Cliente")
 
         return InboundMessage(
             provider=self.name,
@@ -168,6 +170,7 @@ class EvolutionWhatsAppProvider(BaseWhatsAppProvider):
             message_id=msg_id,
             media_type=media_type,
             media_url=media_url,
+            is_from_me=is_from_me,
             raw_payload=payload,
         )
 
