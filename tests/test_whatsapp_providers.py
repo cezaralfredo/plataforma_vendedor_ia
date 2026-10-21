@@ -190,3 +190,50 @@ def test_gateway_service_selects_active_provider(db_session):
     provider2 = gateway2.get_provider()
     assert isinstance(provider2, MetaWhatsAppProvider)
     assert provider2.phone_number_id == "meta-100"
+
+
+def test_waha_parse_inbound_with_lid_and_remote_jid_alt():
+    provider = WahaWhatsAppProvider(base_url="http://waha:3000")
+    payload = {
+        "event": "message",
+        "session": "default",
+        "payload": {
+            "id": "false_102228962623501@lid_3EB012345",
+            "from": "102228962623501@lid",
+            "body": "Olá via LID com remoteJidAlt",
+            "_data": {
+                "notifyName": "Cliente VIP",
+                "key": {
+                    "remoteJid": "102228962623501@lid",
+                    "remoteJidAlt": "5585988887777@s.whatsapp.net",
+                },
+            },
+        },
+    }
+    inbound = provider.parse_inbound_webhook(payload)
+    assert inbound is not None
+    assert inbound.sender_phone == "5585988887777"
+    assert inbound.sender_name == "Cliente VIP"
+
+
+def test_waha_parse_inbound_with_pure_lid():
+    provider = WahaWhatsAppProvider(base_url="http://waha:3000")
+    payload = {
+        "event": "message",
+        "session": "default",
+        "payload": {
+            "id": "false_102228962623501@lid_3EB012345",
+            "from": "102228962623501@lid",
+            "body": "Olá via pure LID",
+            "_data": {
+                "notifyName": "Cliente Anon",
+            },
+        },
+    }
+    inbound = provider.parse_inbound_webhook(payload)
+    assert inbound is not None
+    assert inbound.sender_phone == "102228962623501@lid"
+    assert provider._format_chat_id(inbound.sender_phone) == "102228962623501@lid"
+    assert provider._format_chat_id("102228962623501") == "102228962623501@lid"
+    assert provider._format_chat_id("5585999998888") == "5585999998888@c.us"
+

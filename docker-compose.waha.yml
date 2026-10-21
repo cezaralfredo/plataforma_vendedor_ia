@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   waha:
-    image: devlikeapro/waha:latest
+    image: devlikeapro/waha:noweb-arm-2026.7.2
     container_name: agenda_waha
     restart: unless-stopped
     ports:
@@ -15,17 +15,18 @@ services:
       - WAHA_DASHBOARD_USERNAME=admin
       - WAHA_DASHBOARD_PASSWORD=admin
       # Webhook de retorno para a API do Vendedor IA
-      - WHATSAPP_HOOK_URL=http://agenda-api:8000/api/webhooks/whatsapp/waha
+      - WHATSAPP_HOOK_URL=http://vendedor-ia:8000/api/webhooks/whatsapp/waha
       - WHATSAPP_HOOK_EVENTS=message
     volumes:
       - waha_sessions:/app/.sessions
     networks:
-      - mcp_internal
+      - npm_network
 
 volumes:
   waha_sessions:
     driver: local
 
 networks:
-  mcp_internal:
+  npm_network:
     external: true
+    name: ${NPM_NETWORK:-nginx-proxy_default}

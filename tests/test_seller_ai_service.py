@@ -266,3 +266,27 @@ async def test_seller_ai_transcribes_audio_voice_message(db_session: Session):
         assert "R$ 35.00" in response
         mock_send.assert_called_once()
 
+
+def test_split_whatsapp_message_by_separator():
+    text = (
+        "Olá, tudo bem? Somos distribuidor direto.\n\n"
+        "---\n\n"
+        "• *Camarão Médio*: R$ 25,00\n"
+        "• *Camarão Grande*: R$ 35,00\n\n"
+        "---\n\n"
+        "Quantos pacotes de 1kg você deseja reservar?"
+    )
+    chunks = SellerAIService.split_whatsapp_message(text)
+    assert len(chunks) == 3
+    assert "Olá, tudo bem?" in chunks[0]
+    assert "Camarão Médio" in chunks[1]
+    assert "Quantos pacotes" in chunks[2]
+
+
+def test_split_whatsapp_message_single_chunk():
+    text = "Olá! Como posso ajudar você hoje?"
+    chunks = SellerAIService.split_whatsapp_message(text)
+    assert len(chunks) == 1
+    assert chunks[0] == text
+
+

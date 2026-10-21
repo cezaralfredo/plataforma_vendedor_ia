@@ -36,11 +36,19 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
 
     @staticmethod
     def _clean_phone(phone: str) -> str:
-        digits = re.sub(r"\D", "", phone)
+        if str(phone).endswith("@lid"):
+            return str(phone)
+        digits = re.sub(r"\D", "", str(phone))
         return digits
 
     def _format_chat_id(self, phone: str) -> str:
-        clean = self._clean_phone(phone)
+        raw = str(phone or "").strip()
+        if "@" in raw:
+            return raw
+        clean = self._clean_phone(raw)
+        # Identifica se é um LID do WhatsApp (>= 14 dígitos sem DDI 55 padrão)
+        if len(clean) >= 14 and not clean.startswith("55"):
+            return f"{clean}@lid"
         return f"{clean}@c.us"
 
     async def send_text(self, phone: str, text: str) -> SendMessageResult:
@@ -128,26 +136,49 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
             )
 
     def parse_inbound_webhook(self, payload: dict[str, Any]) -> InboundMessage | None:
-        """Processa webhook do WAHA (evento 'message')."""
+        """Processa webhook do WAHA (evento 'message' ou 'message.any')."""
         event = payload.get("event")
         msg_data = payload.get("payload") or payload
 
-        if event and event != "message":
+        if event and event not in ("message", "message.any"):
             return None
 
         is_from_me = bool(msg_data.get("fromMe", False))
+        data_block = msg_data.get("_data") or {}
+        key_block = data_block.get("key") or msg_data.get("key") or {}
 
         if is_from_me:
             # Em mensagens enviadas pelo app móvel/bot, o destinatário é o cliente
             target = msg_data.get("to") or msg_data.get("chatId") or msg_data.get("from") or ""
         else:
-            target = msg_data.get("from") or ""
+            # 1. Prioriza identificador canônico de telefone se disponível (remoteJidAlt / participantAlt / senderPn)
+            candidate_pns = [
+                key_block.get("remoteJidAlt"),
+                key_block.get("participantAlt"),
+                data_block.get("senderPn"),
+                data_block.get("pn"),
+                msg_data.get("senderPn"),
+                msg_data.get("pn"),
+            ]
+            canonical = None
+            for cand in candidate_pns:
+                if cand and ("@c.us" in str(cand) or "@s.whatsapp.net" in str(cand)):
+                    canonical = str(cand)
+                    break
+
+            target = canonical or msg_data.get("from") or msg_data.get("chatId") or ""
 
         # Ignora mensagens de grupos do WhatsApp
         if str(target).endswith("@g.us"):
             return None
 
-        clean_phone = self._clean_phone(target)
+        # Se for um LID (@lid), preserva a tag para roteamento e envio correto
+        if str(target).endswith("@lid"):
+            clean_digits = re.sub(r"\D", "", str(target))
+            clean_phone = f"{clean_digits}@lid"
+        else:
+            clean_phone = self._clean_phone(target)
+
         if not clean_phone:
             return None
 

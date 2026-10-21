@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -141,6 +143,70 @@ class SellerAIService:
                 return True
         return False
 
+    @staticmethod
+    def split_whatsapp_message(text: str, max_chunk_chars: int = 500, max_chunks: int = 4) -> list[str]:
+        """
+        Fraciona uma mensagem de IA em blocos menores e naturais para envio no WhatsApp.
+        Suporta o separador explícito '---' e quebras duplas de parágrafo.
+        """
+        raw = (text or "").strip()
+        if not raw:
+            return []
+
+        # Divide por delimitador explícito '---' ou '___' isolado em linhas
+        raw_blocks = re.split(r"(?:\n\s*[-*_]{3,}\s*\n|\n{3,})", raw)
+
+        chunks: list[str] = []
+        for block in raw_blocks:
+            block = block.strip()
+            if not block:
+                continue
+
+            # Se o bloco for curto ou razoável, mantém íntegro
+            if len(block) <= max_chunk_chars:
+                chunks.append(block)
+                continue
+
+            # Se for longo, divide por quebras de parágrafo (\n\n)
+            paragraphs = block.split("\n\n")
+            current: list[str] = []
+            curr_len = 0
+            for p in paragraphs:
+                p = p.strip()
+                if not p:
+                    continue
+                if current and (curr_len + len(p) + 2 > max_chunk_chars):
+                    chunks.append("\n\n".join(current).strip())
+                    current = [p]
+                    curr_len = len(p)
+                else:
+                    current.append(p)
+                    curr_len += len(p) + 2
+            if current:
+                chunks.append("\n\n".join(current).strip())
+
+        # Limita o número máximo de mensagens para não sobrecarregar com notificações
+        if len(chunks) > max_chunks:
+            head = chunks[:max_chunks - 1]
+            tail = "\n\n".join(chunks[max_chunks - 1:])
+            chunks = head + [tail]
+
+        return [c for c in chunks if c.strip()] or [raw]
+
+    async def _send_fractioned_messages(self, phone: str, text: str, provider_name: str | None = None) -> None:
+        """Envia os blocos fracionados via WhatsApp com pequeno intervalo para simular digitação natural."""
+        chunks = self.split_whatsapp_message(text)
+        if not chunks:
+            return
+
+        for i, chunk in enumerate(chunks):
+            if i > 0:
+                await asyncio.sleep(1.0)
+            try:
+                await self.gateway.send_text(phone, chunk, provider_name=provider_name)
+            except Exception as exc:
+                logger.error("Erro ao despachar bloco %d de mensagem via WhatsApp (%s): %s", i + 1, provider_name, exc)
+
     async def handle_inbound_message(self, inbound: InboundMessage) -> str:
         """Ponto de entrada único para qualquer mensagem recebida no WhatsApp."""
         phone = inbound.sender_phone
@@ -273,7 +339,7 @@ class SellerAIService:
                 )
                 self._record_chat(phone, "assistant", response_text, inbound.provider)
                 try:
-                    await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+                    await self._send_fractioned_messages(phone, response_text, provider_name=inbound.provider)
                 except Exception as exc:
                     logger.error("Erro ao despachar fast_handoff_human via WhatsApp (%s): %s", inbound.provider, exc)
                 return response_text
@@ -303,7 +369,7 @@ class SellerAIService:
                         )
                     self._record_chat(phone, "assistant", response_text, inbound.provider)
                     try:
-                        await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+                        await self._send_fractioned_messages(phone, response_text, provider_name=inbound.provider)
                     except Exception as exc:
                         logger.error("Erro ao despachar fast_check_pix via WhatsApp (%s): %s", inbound.provider, exc)
                     return response_text
@@ -324,7 +390,7 @@ class SellerAIService:
                         )
                     self._record_chat(phone, "assistant", response_text, inbound.provider)
                     try:
-                        await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+                        await self._send_fractioned_messages(phone, response_text, provider_name=inbound.provider)
                     except Exception as exc:
                         logger.error("Erro ao despachar fast_greeting via WhatsApp (%s): %s", inbound.provider, exc)
                     return response_text
@@ -350,9 +416,9 @@ class SellerAIService:
         # Registra a resposta do vendedor inteligente no histórico
         self._record_chat(phone, "assistant", response_text, inbound.provider)
 
-        # Envia a mensagem de volta pelo canal WhatsApp do remetente
+        # Envia a mensagem de volta pelo canal WhatsApp do remetente de forma fracionada
         try:
-            await self.gateway.send_text(phone, response_text, provider_name=inbound.provider)
+            await self._send_fractioned_messages(phone, response_text, provider_name=inbound.provider)
         except Exception as exc:
             logger.error("Erro ao despachar resposta via WhatsApp Gateway (%s): %s", inbound.provider, exc)
 
