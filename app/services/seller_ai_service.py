@@ -189,7 +189,7 @@ class SellerAIService:
         if len(chunks) > max_chunks:
             head = chunks[:max_chunks - 1]
             tail = "\n\n".join(chunks[max_chunks - 1:])
-            chunks = head + [tail]
+            chunks = [*head, tail]
 
         return [c for c in chunks if c.strip()] or [raw]
 
