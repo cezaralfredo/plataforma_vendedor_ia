@@ -96,3 +96,32 @@ def test_evolution_webhook_post_triggers_seller_ai(anonymous_client: TestClient)
         inbound = mock_handle.call_args[0][0]
         assert inbound.sender_phone == "5585988887777"
         assert inbound.text == "Quero comprar"
+
+
+def test_waha_webhook_duplicate_is_ignored(anonymous_client: TestClient):
+    payload = {
+        "event": "message",
+        "session": "default",
+        "payload": {
+            "id": "waha-duplicate-test-999",
+            "from": "5585999998888@c.us",
+            "fromMe": False,
+            "body": "Quero 5kg de camarão médio",
+            "_data": {"notifyName": "Rodrigo"},
+        },
+    }
+
+    with patch("app.services.seller_ai_service.SellerAIService.handle_inbound_message", new_callable=AsyncMock) as mock_handle:
+        # Primeiro envio: deve ser processado normalmente
+        res1 = anonymous_client.post("/api/webhooks/whatsapp/waha", json=payload)
+        assert res1.status_code == 200
+        assert res1.json() == {"status": "ok"}
+        assert mock_handle.call_count == 1
+
+        # Segundo envio idêntico (duplicata de webhook): deve ser detectado e ignorado
+        res2 = anonymous_client.post("/api/webhooks/whatsapp/waha", json=payload)
+        assert res2.status_code == 200
+        assert res2.json() == {"status": "ok", "detail": "duplicate_ignored"}
+        # O agente NÃO deve ter sido chamado novamente!
+        assert mock_handle.call_count == 1
+

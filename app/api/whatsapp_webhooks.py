@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.services.company_settings_service import CompanySettingsService
 from app.services.seller_ai_service import SellerAIService
+from app.services.whatsapp.deduplicator import InboundDeduplicator
 from app.services.whatsapp.gateway import WhatsAppGatewayService
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,10 @@ async def handle_meta_webhook(
     inbound = gateway.parse_inbound("meta", payload)
 
     if inbound:
+        deduplicator = InboundDeduplicator.get_instance()
+        if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
+            return {"status": "ok", "detail": "duplicate_ignored"}
+
         seller_ai = SellerAIService(db)
         background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
 
@@ -67,6 +72,10 @@ async def handle_waha_webhook(
     inbound = gateway.parse_inbound("waha", payload)
 
     if inbound:
+        deduplicator = InboundDeduplicator.get_instance()
+        if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
+            return {"status": "ok", "detail": "duplicate_ignored"}
+
         seller_ai = SellerAIService(db)
         background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
 
@@ -84,6 +93,10 @@ async def handle_evolution_webhook(
     inbound = gateway.parse_inbound("evolution", payload)
 
     if inbound:
+        deduplicator = InboundDeduplicator.get_instance()
+        if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
+            return {"status": "ok", "detail": "duplicate_ignored"}
+
         seller_ai = SellerAIService(db)
         background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
 
@@ -102,6 +115,10 @@ async def handle_generic_inbound_webhook(
     inbound = gateway.parse_inbound(active_provider, payload)
 
     if inbound:
+        deduplicator = InboundDeduplicator.get_instance()
+        if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
+            return {"status": "ok", "provider": active_provider, "detail": "duplicate_ignored"}
+
         seller_ai = SellerAIService(db)
         background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
 

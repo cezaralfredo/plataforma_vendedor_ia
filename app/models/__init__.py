@@ -7,6 +7,7 @@ from app.models.delivery import Delivery
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
+from app.models.processed_inbound_message import ProcessedInboundMessage
 from app.models.product import Product
 from app.models.seller import Seller
 from app.models.user import User
@@ -22,6 +23,7 @@ __all__ = [
     "NotificationDelivery",
     "NotificationLog",
     "Payment",
+    "ProcessedInboundMessage",
     "Product",
     "Seller",
     "User",
