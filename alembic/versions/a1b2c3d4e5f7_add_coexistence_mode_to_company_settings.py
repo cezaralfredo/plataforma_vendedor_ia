@@ -18,26 +18,48 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "company_settings",
-        sa.Column(
-            "coexistence_enabled",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.true(),
-        ),
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    existing_tables = set(insp.get_table_names())
+    existing_cols = (
+        {c["name"] for c in insp.get_columns("company_settings")}
+        if "company_settings" in existing_tables
+        else set()
     )
-    op.add_column(
-        "company_settings",
-        sa.Column(
-            "coexistence_pause_minutes",
-            sa.Integer(),
-            nullable=False,
-            server_default="45",
-        ),
-    )
+
+    if "coexistence_enabled" not in existing_cols:
+        op.add_column(
+            "company_settings",
+            sa.Column(
+                "coexistence_enabled",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.true(),
+            ),
+        )
+    if "coexistence_pause_minutes" not in existing_cols:
+        op.add_column(
+            "company_settings",
+            sa.Column(
+                "coexistence_pause_minutes",
+                sa.Integer(),
+                nullable=False,
+                server_default="45",
+            ),
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("company_settings", "coexistence_pause_minutes")
-    op.drop_column("company_settings", "coexistence_enabled")
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    existing_tables = set(insp.get_table_names())
+    existing_cols = (
+        {c["name"] for c in insp.get_columns("company_settings")}
+        if "company_settings" in existing_tables
+        else set()
+    )
+
+    if "coexistence_pause_minutes" in existing_cols:
+        op.drop_column("company_settings", "coexistence_pause_minutes")
+    if "coexistence_enabled" in existing_cols:
+        op.drop_column("company_settings", "coexistence_enabled")
