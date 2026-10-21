@@ -58,6 +58,15 @@ class SellerAIService:
             except Exception as exc:
                 logger.warning("Erro ao cadastrar novo cliente via WhatsApp: %s", exc)
                 user = self.user_service.find_by_phone(phone)
+        elif (
+            user
+            and user.name.strip().lower() in ("cliente", "seja muito bem-vindo(a)")
+            and name
+            and name.strip()
+            and name.strip().lower() != "cliente"
+        ):
+            user.name = name.strip()
+            self.db.commit()
         return user
 
     def _record_chat(self, phone: str, role: str, content: str, provider: str | None = None) -> None:
@@ -125,6 +134,40 @@ class SellerAIService:
             seller.name,
             seller.branch.name if seller.branch else "N/A",
         )
+
+    def _update_customer_name_if_present(self, user: User, text: str) -> None:
+        """Detecta se o cliente informou o próprio nome na mensagem e atualiza o cadastro."""
+        import re
+
+        patterns = [
+            r"(?:^|\n)\s*(?:1[\.\-\)]\s*)?(?:meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de|sou\s+o|sou\s+a)\s+([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,50})",
+            r"(?:^|\n)\s*(?:1[\.\-\)]\s*)?nome(?:\s+completo)?\s*:\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,50})",
+            r"(?:^|\n)\s*1[\.\-\)]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,40})(?:\r?\n|$)",
+        ]
+        invalid_words = {
+            "cliente", "obrigado", "obrigada", "valeu", "sim", "não", "nao", "ok",
+            "bom dia", "boa tarde", "boa noite", "olá", "ola", "oi", "entrega",
+            "retirada", "pix", "dinheiro", "cartao", "cartão", "camarão", "peixe",
+            "produto", "endereço", "endereco", "rua", "av", "avenida",
+        }
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                raw_name = match.group(1).strip()
+                raw_name = re.sub(r"[\.,!?;].*$", "", raw_name).strip()
+                words = [w for w in raw_name.split() if w]
+                if (
+                    raw_name
+                    and 1 <= len(words) <= 5
+                    and len(raw_name) >= 2
+                    and not any(w.lower() in invalid_words for w in words)
+                    and raw_name.lower() not in invalid_words
+                ):
+                    clean_name = " ".join(part.capitalize() for part in words)
+                    user.name = clean_name
+                    self.db.commit()
+                    logger.info("Nome do cliente atualizado para '%s' (mensagem: '%s')", clean_name, text)
+                    return
 
     def is_bot_message(self, message_id: str, phone: str, text: str) -> bool:
         """Verifica se a mensagem com fromMe: true foi disparada pela própria API ou por humano no WhatsApp Business."""
@@ -278,6 +321,9 @@ class SellerAIService:
 
         # Identifica se a mensagem contém indicação ou link de um vendedor específico
         self._update_seller_attribution_if_present(user, text)
+
+        # Identifica se o cliente informou o próprio nome
+        self._update_customer_name_if_present(user, text)
 
         # Registra a mensagem do cliente no histórico
         self._record_chat(phone, "user", text, inbound.provider)

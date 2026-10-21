@@ -138,3 +138,15 @@ def test_sales_orchestrator_integration(db_session: Session):
     assert "Diego Santos" in system_prompt
     assert "Fechador Ágil & Dinâmico" in system_prompt
     assert "MANUAL DE CONVERSÃO" in system_prompt
+
+
+def test_build_system_prompt_demands_customer_name_when_generic():
+    """Valida que quando o cliente ainda é 'Cliente', o prompt exige a solicitação do nome completo."""
+    settings = CompanySettings(company_name="Camarão Express", assistant_name="Ana")
+    user = User(name="Cliente", phone="5585999990000")
+
+    prompt = SalesPromptEngine.build_system_prompt(settings, user)
+    assert "O nome do cliente ainda NÃO foi informado" in prompt
+    assert "NOME COMPLETO do cliente" in prompt
+    assert "OBRIGATÓRIO SOLICITAR O NOME COMPLETO DO CLIENTE" in prompt
+

@@ -115,9 +115,18 @@ class SalesPromptEngine:
             "2. Apresentação Visual e de Valor:\n"
             "   - Sempre que o cliente perguntar de um produto ou pedir para ver fotos/detalhes, acione imediatamente a ferramenta 'enviar_foto_produto'.\n"
             "   - Fale dos benefícios e aplicação do produto antes ou junto com o preço, gerando percepção de valor.\n\n"
-            "3. Fechamento por Dupla Alternativa (Closing):\n"
+            "3. Fechamento por Dupla Alternativa e Coleta de Dados para Entrega:\n"
             "   - Em vez de perguntar 'vai querer?', ofereça escolhas positivas: 'Você prefere receber hoje no seu endereço ou retirar na nossa loja?' ou 'Prefere fechar no PIX com confirmação imediata ou pagar na entrega?'.\n"
-            "   - Quando o cliente concordar ou escolher, use 'criar_pedido_cobranca' ou 'criar_pedido_entrega' sem demora.\n\n"
+            "   - OBRIGATÓRIO SOLICITAR O NOME COMPLETO DO CLIENTE:\n"
+            "     Toda vez que o cliente for fechar uma compra ou escolher entrega/retirada, é REGRA FUNDAMENTAL solicitar o *Nome Completo* do cliente (ou nome de quem vai receber a encomenda).\n"
+            "     Isso é indispensável para que o entregador e a equipe de despacho identifiquem a pessoa na entrega e na etiqueta do pacote.\n"
+            "     Exemplo de mensagem ao encaminhar para entrega/pagamento:\n"
+            "     \"Show! Para eu já deixar o seu pedido reservado e gerar a entrega certinha, por favor, me informa:\n"
+            "     1. Seu *Nome Completo* (ou de quem vai receber a entrega)\n"
+            "     2. Seu *Endereço Completo* (rua, número, bairro e cidade)\n"
+            "     3. Sua *Forma de Pagamento* preferida (PIX antecipado, ou Dinheiro / PIX / Cartão na entrega) 😊\"\n"
+            "   - Se o cliente já tiver informado endereço e pagamento mas ainda não disse o nome, pergunte antes de finalizar: 'E por favor, qual é o seu nome completo para colocarmos na etiqueta de entrega?'.\n"
+            "   - Ao acionar 'criar_pedido_entrega' ou 'criar_pedido_cobranca', SEMPRE informe o nome do cliente no parâmetro 'nome_cliente'.\n\n"
             "4. Cross-Sell / Venda Adicional Ética:\n"
             "   - Ao montar um pedido ou perceber interesse em um item principal, sugira naturalmente um item complementar do catálogo que combine perfeitamente (ex: acessórios, combos, bebidas ou itens de manutenção).\n\n"
             "5. Matriz de Contorno de Objeções:\n"
@@ -155,8 +164,15 @@ class SalesPromptEngine:
 
         context_lines: list[str] = [
             f"Você é {assistant_name}, o consultor comercial inteligente da loja '{company_name}'.",
-            f"Você está em atendimento direto pelo WhatsApp com o cliente: {customer_name}.",
         ]
+        if customer_name and customer_name.lower() != "cliente":
+            context_lines.append(f"Você está atendendo o cliente: {customer_name}. Trate-o sempre pelo primeiro nome com simpatia e acolhimento.")
+        else:
+            context_lines.append(
+                "O nome do cliente ainda NÃO foi informado (consta como 'Cliente'). "
+                "É REGRA DA LOJA: Você DEVE pedir com simpatia o NOME COMPLETO do cliente (ou de quem receberá a encomenda) "
+                "antes ou durante o fechamento do pedido, para identificar o cliente na entrega e colocar na etiqueta de despacho."
+            )
 
         if seller_name:
             seller_str = f"Você está conduzindo esta venda em parceria direta com o consultor(a) '{seller_name}'"

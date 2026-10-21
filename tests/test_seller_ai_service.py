@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.models.chat_message import ChatMessage
 from app.models.company_settings import CompanySettings
 from app.models.product import Product
+from app.models.user import User
+from app.services.ai.subagents.checkout_subagent import CheckoutSubagent
 from app.services.seller_ai_service import SellerAIService
 from app.services.whatsapp.base import InboundMessage
 
@@ -288,5 +291,49 @@ def test_split_whatsapp_message_single_chunk():
     chunks = SellerAIService.split_whatsapp_message(text)
     assert len(chunks) == 1
     assert chunks[0] == text
+
+
+def test_seller_ai_extracts_customer_name(db_session: Session):
+    service = SellerAIService(db_session)
+    user = User(name="Cliente", phone="5585988887777")
+    db_session.add(user)
+    db_session.commit()
+
+    service._update_customer_name_if_present(user, "Meu nome é Cezar Alfredo")
+    assert user.name == "Cezar Alfredo"
+
+    service._update_customer_name_if_present(user, "1. Ana Paula Souza\n2. Rua dos Anjos, 100")
+    assert user.name == "Ana Paula Souza"
+
+    service._update_customer_name_if_present(user, "Nome: Carlos Eduardo da Silva")
+    assert user.name == "Carlos Eduardo Da Silva"
+
+
+@pytest.mark.asyncio
+async def test_checkout_subagent_updates_customer_name_and_delivery(db_session: Session):
+    prod = Product(name="Camarão Médio", price_cents=2500, stock_quantity=50, active=True)
+    user = User(name="Cliente", phone="5585977776666")
+    db_session.add(prod)
+    db_session.add(user)
+    db_session.commit()
+
+    subagent = CheckoutSubagent(db=db_session, user=user)
+    res_raw = await subagent.execute_tool(
+        "criar_pedido_entrega",
+        {
+            "produto_id": prod.id,
+            "quantidade": 2,
+            "nome_cliente": "Cezar Alfredo",
+            "endereco_entrega": "Rua Central, 500, Fortaleza",
+            "momento_pagamento": "na_entrega",
+            "forma_pagamento": "pix",
+        },
+    )
+    data = json.loads(res_raw)
+    assert data["status"] == "sucesso"
+    assert subagent.user.name == "Cezar Alfredo"
+    assert subagent.user.address == "Rua Central, 500, Fortaleza"
+
+
 
 

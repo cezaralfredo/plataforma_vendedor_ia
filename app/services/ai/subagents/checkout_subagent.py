@@ -65,6 +65,10 @@ class CheckoutSubagent(BaseSubagent):
                             "enum": ["pix", "dinheiro", "cartao_credito", "cartao_debito"],
                             "description": "Meio de pagamento escolhido pelo cliente (PIX, dinheiro, cartão de crédito ou cartão de débito).",
                         },
+                        "nome_cliente": {
+                            "type": "string",
+                            "description": "Nome completo do cliente ou de quem receberá a entrega no local (essencial para a identificação na entrega e etiqueta).",
+                        },
                         "endereco_entrega": {
                             "type": "string",
                             "description": "Endereço completo de entrega fornecido pelo cliente (rua, número, bairro, cidade).",
@@ -98,6 +102,10 @@ class CheckoutSubagent(BaseSubagent):
                         "quantidade": {
                             "type": "integer",
                             "description": "Quantidade de unidades do produto (padrão: 1).",
+                        },
+                        "nome_cliente": {
+                            "type": "string",
+                            "description": "Nome completo do cliente informado na conversa.",
                         },
                         "banco_preferido": {
                             "type": "string",
@@ -138,6 +146,13 @@ class CheckoutSubagent(BaseSubagent):
 
         # Atualiza dados cadastrais do cliente se fornecidos na conversa
         changed = False
+        nome_arg = arguments.get("nome_cliente")
+        if nome_arg and nome_arg.strip():
+            clean_n = nome_arg.strip()
+            if clean_n.lower() not in ("cliente", "desconhecido", "nenhum", "null", "undefined", "nao", "não"):
+                self.user.name = " ".join(part.capitalize() for part in clean_n.split())
+                changed = True
+
         address_arg = arguments.get("endereco_entrega")
         if address_arg and address_arg.strip():
             self.user.address = address_arg.strip()
@@ -204,6 +219,10 @@ class CheckoutSubagent(BaseSubagent):
         delivery = self.delivery_service.create_delivery(delivery_dto)
         order_code = delivery.get("order_code", "ENT-XXXX")
 
+        nome_lembrete = ""
+        if (self.user.name or "").strip().lower() in ("cliente", "desconhecido", ""):
+            nome_lembrete = " REGRA OBRIGATÓRIA: O nome do cliente ainda não foi identificado. Peça com gentileza o nome completo dele para colocar na etiqueta de entrega!"
+
         if momento == "na_entrega":
             return json.dumps({
                 "status": "sucesso",
@@ -217,6 +236,7 @@ class CheckoutSubagent(BaseSubagent):
                 "instrucoes": (
                     f"Confirme ao cliente que o pedido {order_code} foi registrado com sucesso para entrega no endereço informado! "
                     f"Diga que o entregador levará a mercadoria e receberá o valor de R$ {total_cents / 100:.2f} via {forma.upper()} no ato da entrega."
+                    f"{nome_lembrete}"
                 ),
             }, ensure_ascii=False)
         else:
@@ -232,6 +252,7 @@ class CheckoutSubagent(BaseSubagent):
                 "instrucoes": (
                     f"Informe ao cliente o valor de R$ {total_cents / 100:.2f}, envie o link de pagamento PIX e diga que o pedido {order_code} "
                     f"será despachado para {final_address} assim que o pagamento for liquidado."
+                    f"{nome_lembrete}"
                 ),
             }, ensure_ascii=False)
 
@@ -242,6 +263,14 @@ class CheckoutSubagent(BaseSubagent):
 
         quantidade = max(1, int(arguments.get("quantidade") or 1))
         observacao = arguments.get("observacao") or ""
+
+        # Atualiza o nome do cliente se fornecido
+        nome_arg = arguments.get("nome_cliente")
+        if nome_arg and nome_arg.strip():
+            clean_n = nome_arg.strip()
+            if clean_n.lower() not in ("cliente", "desconhecido", "nenhum", "null", "undefined", "nao", "não"):
+                self.user.name = " ".join(part.capitalize() for part in clean_n.split())
+                self.db.commit()
 
         product = self.product_service.get_product(int(produto_id))
         if not product or not product.active:
@@ -287,6 +316,10 @@ class CheckoutSubagent(BaseSubagent):
             except Exception as e:
                 logger.debug("Falha ao registrar entrega vinculada ao pagamento: %s", e)
 
+            instrucoes = "Informe ao cliente o valor, o link do PIX e avise que a confirmação é automática após o pagamento."
+            if (self.user.name or "").strip().lower() in ("cliente", "desconhecido", ""):
+                instrucoes += " Peça também o nome completo dele para identificação na entrega."
+
             return json.dumps({
                 "status": "sucesso",
                 "pedido_id": payment.id,
@@ -296,7 +329,7 @@ class CheckoutSubagent(BaseSubagent):
                 "quantidade": quantidade,
                 "valor_total_formatado": f"R$ {total_cents / 100:.2f}",
                 "link_pagamento": payment.invoice_url or "Link será enviado em instantes",
-                "instrucoes": "Informe ao cliente o valor, o link do PIX e avise que a confirmação é automática após o pagamento.",
+                "instrucoes": instrucoes,
             }, ensure_ascii=False)
 
         except Exception as exc:
