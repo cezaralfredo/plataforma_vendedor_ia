@@ -18,21 +18,39 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 1. Campos de endereço completo e logística de entrega na tabela users
-    op.add_column("users", sa.Column("address_number", sa.String(length=30), nullable=True))
-    op.add_column("users", sa.Column("address_complement", sa.String(length=100), nullable=True))
-    op.add_column("users", sa.Column("neighborhood", sa.String(length=100), nullable=True))
-    op.add_column("users", sa.Column("delivery_instructions", sa.Text(), nullable=True))
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    existing_tables = set(insp.get_table_names())
 
-    # Preencher registros existentes onde whatsapp_number ou address estiverem nulos
-    op.execute("UPDATE users SET whatsapp_number = phone WHERE whatsapp_number IS NULL OR whatsapp_number = ''")
-    op.execute("UPDATE users SET address = 'Não informado' WHERE address IS NULL OR address = ''")
+    # 1. Campos de endereço completo e logística de entrega na tabela users
+    if "users" in existing_tables:
+        existing_user_cols = {c["name"] for c in insp.get_columns("users")}
+        if "address_number" not in existing_user_cols:
+            op.add_column("users", sa.Column("address_number", sa.String(length=30), nullable=True))
+        if "address_complement" not in existing_user_cols:
+            op.add_column("users", sa.Column("address_complement", sa.String(length=100), nullable=True))
+        if "neighborhood" not in existing_user_cols:
+            op.add_column("users", sa.Column("neighborhood", sa.String(length=100), nullable=True))
+        if "delivery_instructions" not in existing_user_cols:
+            op.add_column("users", sa.Column("delivery_instructions", sa.Text(), nullable=True))
+
+        # Preencher registros existentes onde whatsapp_number ou address estiverem nulos
+        if "whatsapp_number" in existing_user_cols and "phone" in existing_user_cols:
+            op.execute("UPDATE users SET whatsapp_number = phone WHERE whatsapp_number IS NULL OR whatsapp_number = ''")
+        if "address" in existing_user_cols:
+            op.execute("UPDATE users SET address = 'Não informado' WHERE address IS NULL OR address = ''")
 
     # 2. Campos adicionais na tabela branches (Lojas)
-    op.add_column("branches", sa.Column("email", sa.String(length=255), nullable=True))
-    op.add_column("branches", sa.Column("postal_code", sa.String(length=20), nullable=True))
-    op.add_column("branches", sa.Column("address_number", sa.String(length=30), nullable=True))
-    op.add_column("branches", sa.Column("neighborhood", sa.String(length=100), nullable=True))
+    if "branches" in existing_tables:
+        existing_branch_cols = {c["name"] for c in insp.get_columns("branches")}
+        if "email" not in existing_branch_cols:
+            op.add_column("branches", sa.Column("email", sa.String(length=255), nullable=True))
+        if "postal_code" not in existing_branch_cols:
+            op.add_column("branches", sa.Column("postal_code", sa.String(length=20), nullable=True))
+        if "address_number" not in existing_branch_cols:
+            op.add_column("branches", sa.Column("address_number", sa.String(length=30), nullable=True))
+        if "neighborhood" not in existing_branch_cols:
+            op.add_column("branches", sa.Column("neighborhood", sa.String(length=100), nullable=True))
 
 
 def downgrade() -> None:
