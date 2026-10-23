@@ -377,12 +377,21 @@ class SellerAIService:
                 )
                 import json
                 support_data = json.loads(res_tool)
-                response_text = (
-                    f"Com certeza, {user.name or 'Cliente'}! Já notifiquei nossa equipe de atendimento humano.\n\n"
-                    f"Se preferir falar diretamente agora, basta clicar no link:\n"
-                    f"👉 {support_data.get('link_suporte')}\n\n"
-                    "Em instantes você será atendido! 🤝"
-                )
+                support_link = support_data.get("link_suporte")
+                custom_msg = getattr(self.company_settings, "human_support_message", None)
+                if custom_msg:
+                    response_text = (
+                        f"{custom_msg}\n\n"
+                        f"👉 {support_link}\n\n"
+                        "Em instantes você será atendido! 🤝"
+                    )
+                else:
+                    response_text = (
+                        f"Com certeza, {user.name or 'Cliente'}! Já notifiquei nossa equipe de atendimento humano.\n\n"
+                        f"Se preferir falar diretamente agora, basta clicar no link:\n"
+                        f"👉 {support_link}\n\n"
+                        "Em instantes você será atendido! 🤝"
+                    )
                 self._record_chat(phone, "assistant", response_text, inbound.provider)
                 try:
                     await self._send_fractioned_messages(phone, response_text, provider_name=inbound.provider)

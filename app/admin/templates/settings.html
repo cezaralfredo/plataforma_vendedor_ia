@@ -369,6 +369,44 @@
                 </div>
             </div>
         </div>
+
+        <!-- Transbordo para Atendimento Humano & Suporte -->
+        <div class="pt-4 border-t border-slate-100">
+            <div class="mb-3">
+                <h4 class="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+                    <i class="fas fa-headset text-emerald-600"></i> Contato para Atendimento Humano (Transbordo & Suporte)
+                </h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                    Configuração do canal humano caso o cliente solicite falar com atendente ou caso o Orquestrador precise transferir a conversa.
+                </p>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">
+                        WhatsApp do Atendimento Humano / Suporte Geral
+                    </label>
+                    <input type="text" x-model="form.human_support_phone" placeholder="Ex: 5585999990000" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                    <p class="text-[11px] text-slate-400 mt-1">Número com DDI e DDD (ex: 5585999990000). Usado como contato central caso o cliente não possua vendedor ou filial atribuída.</p>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 text-xs mb-1">
+                        Nome da Equipe ou Atendente de Plantão
+                    </label>
+                    <input type="text" x-model="form.human_support_name" placeholder="Ex: Equipe de Atendimento / Gerência" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                    <p class="text-[11px] text-slate-400 mt-1">Nome exibido ao cliente e utilizado nas notificações de transferência.</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 text-xs mb-1">
+                        Mensagem Customizada de Transferência (Opcional)
+                    </label>
+                    <textarea x-model="form.human_support_message" rows="2" placeholder="Ex: Vou transferir você agora para um de nossos atendentes humanos especializados. Um instante!" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500"></textarea>
+                    <p class="text-[11px] text-slate-400 mt-1">Se preenchido, personaliza a mensagem enviada antes do link de contato.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 3. Módulo WhatsApp & Canais -->
@@ -571,6 +609,9 @@ function companySettingsManager() {
             ai_base_url: settings.ai_base_url || '',
             ai_temperature: settings.ai_temperature !== undefined ? Number(settings.ai_temperature) : 0.3,
             ai_system_prompt: settings.ai_system_prompt || '',
+            human_support_phone: settings.human_support_phone || '',
+            human_support_name: settings.human_support_name || 'Equipe de Atendimento',
+            human_support_message: settings.human_support_message || '',
             payment_required: settings.payment_required !== undefined ? !!settings.payment_required : true,
             default_gateway: settings.default_gateway || 'asaas',
             gateway_credentials: settings.gateway_credentials || {},

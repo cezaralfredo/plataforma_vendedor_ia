@@ -26,6 +26,8 @@ def test_company_settings_get_or_create_default(db_session: Session):
     assert settings.whatsapp_provider == "evolution"
     assert settings.tone == "casual"
     assert settings.commission_model == "percentage"
+    assert settings.human_support_phone is None
+    assert settings.human_support_name == "Equipe de Atendimento"
 
 
 def test_company_settings_update(db_session: Session):
@@ -38,6 +40,9 @@ def test_company_settings_update(db_session: Session):
             whatsapp_provider="meta",
             meta_phone_number_id="1029384756",
             tone="formal",
+            human_support_phone="5585999991234",
+            human_support_name="Plantão VIP",
+            human_support_message="Transferindo agora para nosso especialista VIP.",
         )
     )
 
@@ -47,6 +52,9 @@ def test_company_settings_update(db_session: Session):
     assert updated.whatsapp_provider == "meta"
     assert updated.meta_phone_number_id == "1029384756"
     assert updated.tone == "formal"
+    assert updated.human_support_phone == "5585999991234"
+    assert updated.human_support_name == "Plantão VIP"
+    assert updated.human_support_message == "Transferindo agora para nosso especialista VIP."
 
 
 def test_payment_gateway_factory():

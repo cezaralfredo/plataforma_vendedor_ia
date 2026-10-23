@@ -143,6 +143,18 @@ class AIAttendanceSettingsSchema(BaseModel):
         default=None,
         description="Prompt de sistema customizado para o assistente",
     )
+    human_support_phone: str | None = Field(
+        default=None,
+        description="Número de WhatsApp do suporte/atendimento humano (55XXXXXXXXXXX)",
+    )
+    human_support_name: str | None = Field(
+        default="Equipe de Atendimento",
+        description="Nome da equipe ou pessoa responsável pelo atendimento humano",
+    )
+    human_support_message: str | None = Field(
+        default=None,
+        description="Mensagem personalizada exibida ao transferir para atendimento humano",
+    )
 
 
 class CompanySettingsCreate(BaseModel):
@@ -177,6 +189,9 @@ class CompanySettingsCreate(BaseModel):
     ai_base_url: str | None = None
     ai_temperature: Decimal = Decimal("0.3")
     ai_system_prompt: str | None = None
+    human_support_phone: str | None = None
+    human_support_name: str | None = "Equipe de Atendimento"
+    human_support_message: str | None = None
     custom_settings: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -212,6 +227,9 @@ class CompanySettingsUpdate(BaseModel):
     ai_base_url: str | None = None
     ai_temperature: Decimal | None = None
     ai_system_prompt: str | None = None
+    human_support_phone: str | None = None
+    human_support_name: str | None = None
+    human_support_message: str | None = None
     custom_settings: dict[str, Any] | None = None
 
 
@@ -248,6 +266,9 @@ class CompanySettingsResponse(BaseModel):
     ai_base_url: str | None = None
     ai_temperature: Decimal = Decimal("0.3")
     ai_system_prompt: str | None = None
+    human_support_phone: str | None = None
+    human_support_name: str | None = "Equipe de Atendimento"
+    human_support_message: str | None = None
     custom_settings: dict[str, Any]
     created_at: datetime
     updated_at: datetime

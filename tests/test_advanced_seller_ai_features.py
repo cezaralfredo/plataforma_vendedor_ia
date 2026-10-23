@@ -360,3 +360,36 @@ async def test_delivery_and_recovery_uses_dynamic_company_name(
     recovery_service = SalesRecoveryService(db_session)
     assert recovery_service._get_company_name() == "Decor & Arte Brasil"
 
+
+@pytest.mark.asyncio
+async def test_support_subagent_falls_back_to_configured_company_human_support(
+    db_session: Session, sample_user: User
+):
+    sample_user.custom_fields = {}
+    db_session.commit()
+
+    mock_gateway = AsyncMock()
+    mock_gateway.send_text.return_value = AsyncMock(success=True)
+
+    settings = CompanySettings(
+        company_name="Anauê Móveis",
+        human_support_phone="5585977778888",
+        human_support_name="Suporte Central",
+        human_support_message="Nosso especialista já foi chamado para te atender.",
+    )
+    support = SupportSubagent(settings, db=db_session, user=sample_user, gateway=mock_gateway)
+    res = json.loads(
+        await support.execute_tool("acionar_atendente_humano", {"motivo": "Dúvida sobre frete interestadual"})
+    )
+
+    assert res["status"] == "sucesso"
+    assert res["vendedor_nome"] == "Suporte Central"
+    assert "5585977778888" in res["link_suporte"]
+    assert res["mensagem_customizada"] == "Nosso especialista já foi chamado para te atender."
+    assert "Nosso especialista já foi chamado para te atender" in res["instrucoes"]
+
+    # Gateway notifica o número configurado nas configurações da empresa
+    mock_gateway.send_text.assert_called_once()
+    assert mock_gateway.send_text.call_args[0][0] == "5585977778888"
+
+
