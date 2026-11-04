@@ -70,3 +70,7 @@ dist/
 build/
 uv.lock
 node_modules/
+
+# Static Uploads
+app/admin/static/uploads/products/*
+!app/admin/static/uploads/products/.gitkeep

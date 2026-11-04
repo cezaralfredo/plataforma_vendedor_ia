@@ -62,6 +62,16 @@ class WhatsAppGatewayService:
         caption: str | None = None,
         provider_name: str | None = None,
     ) -> SendMessageResult:
+        if image_url and image_url.startswith("/"):
+            import os
+            domain = os.getenv("DOMAIN", "").strip()
+            base = os.getenv("APP_BASE_URL") or os.getenv("BASE_URL")
+            if not base and domain:
+                protocol = "http" if ("localhost" in domain or "127.0.0.1" in domain) else "https"
+                base = f"{protocol}://{domain}"
+            if base:
+                image_url = f"{base.rstrip('/')}{image_url}"
+
         provider = self.get_provider(provider_name)
         result = await provider.send_image(phone, image_url, caption)
         if result.success and result.message_id:

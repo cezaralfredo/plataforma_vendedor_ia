@@ -86,9 +86,14 @@
                         <tr class="hover:bg-slate-50/60 transition-colors" :class="product.active ? '' : 'bg-slate-50/40 text-slate-400'">
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
-                                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
-                                        <i class="fas fa-box text-sm"></i>
-                                    </span>
+                                    <div class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50 overflow-hidden shadow-2xs">
+                                        <template x-if="product.image_url">
+                                            <img :src="product.image_url" alt="" class="h-full w-full object-cover" @error="$el.classList.add('hidden'); $el.nextElementSibling?.classList.remove('hidden')">
+                                        </template>
+                                        <span class="text-blue-600" :class="product.image_url ? 'hidden' : ''">
+                                            <i class="fas fa-box text-sm"></i>
+                                        </span>
+                                    </div>
                                     <div>
                                         <p class="font-semibold text-slate-900 text-sm" x-text="product.name"></p>
                                         <p class="text-[11px] text-slate-400" x-text="product.sku ? 'SKU: ' + product.sku : 'Sem código SKU'"></p>
@@ -191,6 +196,44 @@
                     <textarea x-model="form.description" rows="2" placeholder="Descreva os benefícios e características do produto para que a IA apresente ao cliente com precisão..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500"></textarea>
                 </div>
 
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Foto do Produto (para envio no WhatsApp e Catálogo)</label>
+                    <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                        <div class="flex items-center gap-3.5">
+                            <!-- Preview da Imagem -->
+                            <div class="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-2xs overflow-hidden">
+                                <template x-if="form.image_url">
+                                    <div class="relative h-full w-full group">
+                                        <img :src="form.image_url" alt="Preview" class="h-full w-full object-cover">
+                                        <button type="button" @click="form.image_url = ''" title="Remover imagem" class="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                                <template x-if="!form.image_url">
+                                    <div class="flex flex-col items-center justify-center text-slate-300">
+                                        <i class="fas fa-image text-lg"></i>
+                                        <span class="text-[9px] text-slate-400 mt-0.5">Sem foto</span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Controles de Upload e URL -->
+                            <div class="flex-1 min-w-0 space-y-1.5">
+                                <div class="flex items-center gap-2">
+                                    <input type="file" x-ref="imageFileInput" @change="uploadImageFile($event)" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" />
+                                    <button type="button" @click="$refs.imageFileInput.click()" :disabled="uploadingImage" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300/80 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-all disabled:opacity-50">
+                                        <i class="fas" :class="uploadingImage ? 'fa-circle-notch fa-spin text-blue-600' : 'fa-arrow-up-from-bracket text-slate-500'"></i>
+                                        <span x-text="uploadingImage ? 'Enviando...' : 'Carregar imagem do PC'"></span>
+                                    </button>
+                                    <span class="text-[11px] text-slate-400">ou informe a URL:</span>
+                                </div>
+                                <input type="url" x-model="form.image_url" placeholder="https://exemplo.com/foto.jpg ou /admin/static/..." class="w-full rounded-lg border border-slate-300/80 bg-white px-2.5 py-1 text-xs placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                     <button type="button" @click="modalOpen = false" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all">Cancelar</button>
                     <button type="submit" class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-medium text-white shadow-sm hover:bg-blue-700 transition-all">Salvar Produto</button>
@@ -251,6 +294,7 @@ function productCatalog() {
         selectedProduct: null,
         stockOperation: 'add',
         stockDelta: 1,
+        uploadingImage: false,
         form: {
             id: null,
             name: '',
@@ -259,6 +303,7 @@ function productCatalog() {
             price: '',
             stock_quantity: 0,
             weight_kg: '',
+            image_url: '',
             description: ''
         },
 
@@ -296,7 +341,7 @@ function productCatalog() {
         },
 
         openCreate() {
-            this.form = { id: null, name: '', category: '', sku: '', price: '', stock_quantity: 0, weight_kg: '', description: '' };
+            this.form = { id: null, name: '', category: '', sku: '', price: '', stock_quantity: 0, weight_kg: '', image_url: '', description: '' };
             this.modalOpen = true;
         },
 
@@ -309,6 +354,7 @@ function productCatalog() {
                 price: (p.price_cents / 100).toFixed(2),
                 stock_quantity: p.stock_quantity,
                 weight_kg: p.weight_kg !== null && p.weight_kg !== undefined ? p.weight_kg : '',
+                image_url: p.image_url || '',
                 description: p.description || ''
             };
             this.modalOpen = true;
@@ -330,6 +376,7 @@ function productCatalog() {
                 price_cents: priceCents,
                 stock_quantity: parseInt(this.form.stock_quantity) || 0,
                 weight_kg: this.form.weight_kg !== '' && this.form.weight_kg !== null ? parseFloat(this.form.weight_kg) : null,
+                image_url: this.form.image_url ? this.form.image_url.trim() : null,
                 description: this.form.description || null
             };
 
@@ -396,6 +443,38 @@ function productCatalog() {
                 this.showMessage('Estoque atualizado com sucesso!');
             } catch(e) {
                 this.showMessage(e.message, true);
+            }
+        },
+
+        async uploadImageFile(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) {
+                this.showMessage('A imagem selecionada excede o limite máximo de 5MB.', true);
+                event.target.value = '';
+                return;
+            }
+
+            this.uploadingImage = true;
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await adminFetch('/admin/api/products/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Falha ao enviar arquivo de imagem.');
+
+                this.form.image_url = data.url;
+                this.showMessage('Imagem enviada com sucesso!');
+            } catch(e) {
+                this.showMessage(e.message, true);
+            } finally {
+                this.uploadingImage = false;
+                event.target.value = '';
             }
         },
 

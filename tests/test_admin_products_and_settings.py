@@ -1,3 +1,6 @@
+import io
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -167,3 +170,82 @@ def test_admin_settings_update_persists_in_database(
     assert db_setting.company_name == "Studio & Barbearia Elite"
     assert db_setting.payment_required is False
     assert db_setting.default_gateway == "manual"
+
+
+def test_admin_product_image_upload_validations_and_lifecycle(
+    client: TestClient, db_session: Session
+):
+    login(client)
+    csrf = session_data(client)["csrf_token"]
+    headers = {"X-CSRF-Token": csrf}
+
+    # 1. Sem CSRF -> 403
+    dummy_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa76S\x9c\x00\x00\x00\x00IEND\xaeB`\x82"
+    res_no_csrf = client.post(
+        "/admin/api/products/upload-image",
+        files={"file": ("test.png", io.BytesIO(dummy_png), "image/png")},
+    )
+    assert res_no_csrf.status_code == 403
+
+    # 2. Extensão inválida -> 400
+    res_invalid_ext = client.post(
+        "/admin/api/products/upload-image",
+        headers=headers,
+        files={"file": ("test.txt", io.BytesIO(b"not an image"), "text/plain")},
+    )
+    assert res_invalid_ext.status_code == 400
+    assert "Formato de imagem inválido" in res_invalid_ext.json()["detail"]
+
+    # 3. Arquivo vazio -> 400
+    res_empty = client.post(
+        "/admin/api/products/upload-image",
+        headers=headers,
+        files={"file": ("empty.png", io.BytesIO(b""), "image/png")},
+    )
+    assert res_empty.status_code == 400
+
+    # 4. Upload com sucesso -> 200
+    res_upload = client.post(
+        "/admin/api/products/upload-image",
+        headers=headers,
+        files={"file": ("produto_foto.png", io.BytesIO(dummy_png), "image/png")},
+    )
+    assert res_upload.status_code == 200
+    upload_data = res_upload.json()
+    image_url = upload_data["url"]
+    filename = upload_data["filename"]
+    assert image_url.startswith("/admin/static/uploads/products/")
+    assert filename.endswith(".png")
+
+    # Verifica que o arquivo foi gravado no disco
+    saved_file = Path("app/admin/static/uploads/products") / filename
+    assert saved_file.exists()
+    assert saved_file.read_bytes() == dummy_png
+
+    # 5. Criar produto vinculando a imagem enviada
+    create_payload = {
+        "name": "Óleo para Barba Premium",
+        "description": "Com óleo de argan e jojoba",
+        "category": "Barba",
+        "price_cents": 3990,
+        "stock_quantity": 15,
+        "sku": "OLEO-BARBA-01",
+        "image_url": image_url,
+    }
+    res_create = client.post(
+        "/admin/api/products",
+        headers=headers,
+        json=create_payload,
+    )
+    assert res_create.status_code == 200
+    prod_data = res_create.json()
+    assert prod_data["image_url"] == image_url
+
+    # 6. Página de produtos renderiza a URL da foto no dataset e na página
+    res_page = client.get("/admin/products")
+    assert res_page.status_code == 200
+    assert image_url in res_page.text
+    assert "Carregar imagem do PC" in res_page.text
+
+    # Limpeza do arquivo de teste
+    saved_file.unlink(missing_ok=True)

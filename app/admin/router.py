@@ -1,6 +1,8 @@
 import hmac
 import secrets
+import uuid
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Literal
 from urllib.parse import parse_qs
 
@@ -471,6 +473,50 @@ async def api_toggle_product_active(product_id: int, db: Session = Depends(get_d
     db.commit()
     db.refresh(product)
     return jsonable_encoder(ProductResponse.model_validate(product))
+
+
+@router.post("/api/products/upload-image", dependencies=[Depends(require_admin_mutation)])
+async def api_upload_product_image(
+    file: UploadFile = File(...),
+):
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+    raw_ext = Path(file.filename or "").suffix.lower()
+    if raw_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de imagem inválido. Formatos suportados: JPG, PNG, WEBP e GIF.",
+        )
+
+    if file.content_type and file.content_type.lower() not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de conteúdo MIME inválido para imagem.",
+        )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Arquivo de imagem vazio.")
+
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="O arquivo excede o limite máximo permitido de 5MB.",
+        )
+
+    unique_filename = f"{uuid.uuid4().hex[:16]}{raw_ext}"
+    upload_dir = Path("app/admin/static/uploads/products")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = upload_dir / unique_filename
+    file_path.write_bytes(content)
+
+    return {
+        "url": f"/admin/static/uploads/products/{unique_filename}",
+        "filename": unique_filename,
+    }
 
 
 # -------------------------------------------------------------------------

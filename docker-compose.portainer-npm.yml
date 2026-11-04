@@ -73,6 +73,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - product_uploads:/app/app/admin/static/uploads/products
     expose:
       - "8000"
     networks:
@@ -90,6 +92,8 @@ services:
 volumes:
   agenda_pgdata:
     name: ${POSTGRES_VOLUME_NAME:-vendedor-online_agenda_pgdata}
+  product_uploads:
+    name: ${PRODUCT_UPLOADS_VOLUME_NAME:-vendedor-online_product_uploads}
 
 networks:
   agenda_internal:
