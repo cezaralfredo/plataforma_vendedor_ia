@@ -146,7 +146,14 @@ def test_admin_settings_update_persists_in_database(
         "tone": "formal",
         "require_cpf": True,
         "payment_required": False,
-        "default_gateway": "manual",
+        "default_gateway": "direct_pix",
+        "pix_key": "12.345.678/0001-90",
+        "pix_key_type": "cnpj",
+        "pix_merchant_name": "Studio & Barbearia Elite",
+        "pix_merchant_city": "Fortaleza",
+        "pix_bank_name": "Banco Inter",
+        "pix_copy_paste": "00020126580014br.gov.bcb.pix0136...",
+        "accepted_payment_methods": ["pix", "credit_card", "in_person"],
         "whatsapp_provider": "meta",
         "meta_phone_number_id": "9988776655",
         "commission_model": "percentage",
@@ -163,13 +170,26 @@ def test_admin_settings_update_persists_in_database(
     assert data["company_name"] == "Studio & Barbearia Elite"
     assert data["assistant_name"] == "Helena"
     assert data["payment_required"] is False
+    assert data["default_gateway"] == "direct_pix"
+    assert data["pix_key"] == "12.345.678/0001-90"
+    assert data["pix_merchant_name"] == "Studio & Barbearia Elite"
+    assert data["pix_merchant_city"] == "Fortaleza"
+    assert data["pix_bank_name"] == "Banco Inter"
+    assert data["pix_copy_paste"] == "00020126580014br.gov.bcb.pix0136..."
+    assert data["accepted_payment_methods"] == ["pix", "credit_card", "in_person"]
     assert data["whatsapp_provider"] == "meta"
 
     # Verifica persistência real no banco
     db_setting = db_session.query(CompanySettings).first()
     assert db_setting.company_name == "Studio & Barbearia Elite"
     assert db_setting.payment_required is False
-    assert db_setting.default_gateway == "manual"
+    assert db_setting.default_gateway == "direct_pix"
+    assert db_setting.pix_key == "12.345.678/0001-90"
+    assert db_setting.pix_merchant_name == "Studio & Barbearia Elite"
+    assert db_setting.pix_merchant_city == "Fortaleza"
+    assert db_setting.pix_bank_name == "Banco Inter"
+    assert db_setting.pix_copy_paste == "00020126580014br.gov.bcb.pix0136..."
+    assert db_setting.accepted_payment_methods == ["pix", "credit_card", "in_person"]
 
 
 def test_admin_product_image_upload_validations_and_lifecycle(

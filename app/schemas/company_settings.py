@@ -12,7 +12,7 @@ class FinancialSettingsSchema(BaseModel):
     )
     default_gateway: str = Field(
         default="asaas",
-        description="Gateway padrão ('asaas', 'mercadopago', 'stripe', 'pix_direto', 'manual', 'none')",
+        description="Gateway padrão ('asaas', 'mercadopago', 'stripe', 'direct_pix', 'inter', 'nubank', 'itau', 'bradesco', 'santander', 'manual', 'none')",
     )
     gateway_credentials: dict[str, Any] = Field(
         default_factory=dict,
@@ -20,7 +20,31 @@ class FinancialSettingsSchema(BaseModel):
     )
     accepted_payment_methods: list[str] = Field(
         default_factory=lambda: ["pix"],
-        description="Métodos aceitos: pix, credit_card, boleto, in_person",
+        description="Métodos aceitos: pix, credit_card, debit_card, boleto, in_person, cash, payment_link, bank_transfer",
+    )
+    pix_copy_paste: str | None = Field(
+        default=None,
+        description="Código PIX Copia e Cola estático ou gerado pelo banco",
+    )
+    pix_key: str | None = Field(
+        default=None,
+        description="Chave PIX da empresa (CPF, CNPJ, Celular, E-mail ou Aleatória)",
+    )
+    pix_key_type: str | None = Field(
+        default="cnpj",
+        description="Tipo da chave PIX ('cnpj', 'cpf', 'phone', 'email', 'random')",
+    )
+    pix_merchant_name: str | None = Field(
+        default=None,
+        description="Nome do beneficiário / titular da conta PIX",
+    )
+    pix_bank_name: str | None = Field(
+        default=None,
+        description="Banco / Instituição Financeira do titular do PIX",
+    )
+    pix_merchant_city: str | None = Field(
+        default="Brasil",
+        description="Cidade do beneficiário para padrão BRCode BACEN",
     )
 
 
@@ -163,6 +187,12 @@ class CompanySettingsCreate(BaseModel):
     default_gateway: str = "asaas"
     gateway_credentials: dict[str, Any] = Field(default_factory=dict)
     accepted_payment_methods: list[str] = Field(default_factory=lambda: ["pix"])
+    pix_copy_paste: str | None = None
+    pix_key: str | None = None
+    pix_key_type: str | None = "cnpj"
+    pix_merchant_name: str | None = None
+    pix_bank_name: str | None = None
+    pix_merchant_city: str | None = "Brasil"
     commission_model: str = "percentage"
     default_commission_rate: Decimal = Decimal("0.0")
     split_enabled: bool = False
@@ -201,6 +231,12 @@ class CompanySettingsUpdate(BaseModel):
     default_gateway: str | None = None
     gateway_credentials: dict[str, Any] | None = None
     accepted_payment_methods: list[str] | None = None
+    pix_copy_paste: str | None = None
+    pix_key: str | None = None
+    pix_key_type: str | None = None
+    pix_merchant_name: str | None = None
+    pix_bank_name: str | None = None
+    pix_merchant_city: str | None = None
     commission_model: str | None = None
     default_commission_rate: Decimal | None = None
     split_enabled: bool | None = None
@@ -240,6 +276,12 @@ class CompanySettingsResponse(BaseModel):
     default_gateway: str
     gateway_credentials: dict[str, Any]
     accepted_payment_methods: list[str]
+    pix_copy_paste: str | None = None
+    pix_key: str | None = None
+    pix_key_type: str | None = None
+    pix_merchant_name: str | None = None
+    pix_bank_name: str | None = None
+    pix_merchant_city: str | None = None
     commission_model: str
     default_commission_rate: Decimal
     split_enabled: bool
