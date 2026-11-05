@@ -46,7 +46,7 @@ services:
     image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_ia}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no Portainer}
       API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Defina ADMIN_API_KEY no Portainer}
@@ -75,6 +75,12 @@ services:
         condition: service_healthy
     volumes:
       - product_uploads:/app/app/admin/static/uploads/products
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://127.0.0.1:8000/ready || python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     expose:
       - "8000"
     networks:
@@ -83,7 +89,6 @@ services:
         aliases:
           - vendedor-ia
           - vendedor-api
-          - agenda-api
           - loja-api
           - loja-anauedesign
           - vendedor-anauedesign
@@ -91,9 +96,9 @@ services:
 
 volumes:
   agenda_pgdata:
-    name: ${POSTGRES_VOLUME_NAME:-vendedor-online_agenda_pgdata}
+    name: ${POSTGRES_VOLUME_NAME:-vendedor_ia_pgdata}
   product_uploads:
-    name: ${PRODUCT_UPLOADS_VOLUME_NAME:-vendedor-online_product_uploads}
+    name: ${PRODUCT_UPLOADS_VOLUME_NAME:-vendedor_ia_product_uploads}
 
 networks:
   agenda_internal:

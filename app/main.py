@@ -116,6 +116,10 @@ def create_app(
         db = session_factory()
         try:
             bootstrap_admin_account(db, app_settings)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
         application.state.expiration_task = asyncio.create_task(_expiration_worker())
