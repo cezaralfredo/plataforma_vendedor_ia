@@ -1,3 +1,5 @@
+import asyncio
+import base64
 import logging
 import re
 from typing import Any
@@ -249,3 +251,128 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 }
         except Exception as exc:
             return {"configured": True, "status": "unavailable", "detail": str(exc)}
+
+    async def get_qr_status(self) -> dict[str, Any]:
+        """Consulta status da sessão e retorna o QR Code em Base64 se aguardando pareamento."""
+        if not self.base_url:
+            return {"success": False, "error": "URL base do WAHA não configurada."}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(
+                    f"{self.base_url}/api/sessions/{self.session}",
+                    headers=self._headers(),
+                )
+
+                if res.status_code == 404:
+                    # Sessão não existe, cria e inicializa
+                    await client.post(
+                        f"{self.base_url}/api/sessions/",
+                        json={"name": self.session},
+                        headers=self._headers(),
+                    )
+                    await client.post(
+                        f"{self.base_url}/api/sessions/{self.session}/start",
+                        headers=self._headers(),
+                    )
+                    await asyncio.sleep(1.5)
+                    res = await client.get(
+                        f"{self.base_url}/api/sessions/{self.session}",
+                        headers=self._headers(),
+                    )
+
+                if res.status_code != 200:
+                    return {"success": False, "error": f"Erro do WAHA HTTP {res.status_code}"}
+
+                data = res.json()
+                status = data.get("status") or "UNKNOWN"
+                me = data.get("me")
+
+                if status in ("STOPPED", "FAILED"):
+                    try:
+                        await client.post(
+                            f"{self.base_url}/api/sessions/{self.session}/stop",
+                            headers=self._headers(),
+                            timeout=5.0,
+                        )
+                    except Exception:
+                        pass
+
+                    await client.post(
+                        f"{self.base_url}/api/sessions/{self.session}/start",
+                        headers=self._headers(),
+                        timeout=5.0,
+                    )
+                    await asyncio.sleep(2.0)
+                    res = await client.get(
+                        f"{self.base_url}/api/sessions/{self.session}",
+                        headers=self._headers(),
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        status = data.get("status") or "UNKNOWN"
+                        me = data.get("me")
+
+                qr_code = None
+                if status == "SCAN_QR_CODE":
+                    try:
+                        qr_res = await client.get(
+                            f"{self.base_url}/api/{self.session}/auth/qr",
+                            headers=self._headers(),
+                            timeout=5.0,
+                        )
+                        if qr_res.status_code == 200 and qr_res.content:
+                            b64 = base64.b64encode(qr_res.content).decode("ascii")
+                            qr_code = f"data:image/png;base64,{b64}"
+                    except Exception as qr_err:
+                        logger.warning("Falha ao obter imagem do QR Code: %s", qr_err)
+
+                return {
+                    "success": True,
+                    "status": status,
+                    "me": me,
+                    "qr_code": qr_code,
+                }
+        except Exception as exc:
+            logger.error("Erro ao consultar QR status do WAHA: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def restart_session(self) -> dict[str, Any]:
+        """Reinicia a sessão no WAHA para forçar novo QR Code."""
+        if not self.base_url:
+            return {"success": False, "error": "URL base do WAHA não configurada."}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                try:
+                    await client.post(
+                        f"{self.base_url}/api/sessions/{self.session}/stop",
+                        headers=self._headers(),
+                        timeout=5.0,
+                    )
+                except Exception:
+                    pass
+
+                res = await client.post(
+                    f"{self.base_url}/api/sessions/{self.session}/start",
+                    headers=self._headers(),
+                    timeout=5.0,
+                )
+                return {"success": res.status_code in (200, 201)}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    async def logout_session(self) -> dict[str, Any]:
+        """Desconecta a conta do WhatsApp no WAHA."""
+        if not self.base_url:
+            return {"success": False, "error": "URL base do WAHA não configurada."}
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    f"{self.base_url}/api/sessions/{self.session}/logout",
+                    headers=self._headers(),
+                )
+                return {"success": res.status_code in (200, 201, 204)}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}

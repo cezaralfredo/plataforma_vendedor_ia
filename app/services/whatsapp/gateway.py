@@ -90,3 +90,21 @@ class WhatsAppGatewayService:
             "active_provider": provider.name,
             "details": await provider.check_health(),
         }
+
+    async def get_qr_status(self) -> dict[str, Any]:
+        provider = self.get_provider("waha")
+        if hasattr(provider, "get_qr_status"):
+            return await provider.get_qr_status()
+        return {"success": False, "error": "Provedor WAHA não suporta QR Code."}
+
+    async def restart_session(self) -> dict[str, Any]:
+        provider = self.get_provider("waha")
+        if hasattr(provider, "restart_session"):
+            return await provider.restart_session()
+        return {"success": False, "error": "Provedor WAHA não suporta reinício de sessão."}
+
+    async def logout_session(self) -> dict[str, Any]:
+        provider = self.get_provider("waha")
+        if hasattr(provider, "logout_session"):
+            return await provider.logout_session()
+        return {"success": False, "error": "Provedor WAHA não suporta logout de sessão."}
