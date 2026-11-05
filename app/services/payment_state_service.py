@@ -26,6 +26,10 @@ def apply_payment_state(
     if new_status in {"received", "confirmed"}:
         if payment.received_at is None:
             payment.received_at = now
+        # Atualiza o status financeiro de entregas vinculadas à cobrança
+        for delivery in getattr(payment, "deliveries", []) or []:
+            delivery.payment_status = "pago"
+            delivery.updated_at = now
         if (
             appointment is not None
             and appointment.status in {"pending", "awaiting_payment"}
@@ -35,9 +39,17 @@ def apply_payment_state(
         return
 
     if new_status in {"overdue", "cancelled"}:
+        for delivery in getattr(payment, "deliveries", []) or []:
+            if delivery.delivery_status == "preparando":
+                delivery.payment_status = "cancelado"
+                delivery.delivery_status = "cancelado"
+                delivery.updated_at = now
         if appointment is not None and appointment.status in {"pending", "awaiting_payment"}:
             appointment.status = "cancelled"
         return
 
     if new_status == "refunded" and appointment is not None and appointment.status != "completed":
         appointment.status = "cancelled"
+        for delivery in getattr(payment, "deliveries", []) or []:
+            delivery.payment_status = "reembolsado"
+            delivery.updated_at = now

@@ -19,7 +19,7 @@ class CheckoutSubagent(BaseSubagent):
     """
     Subagente especialista em checkout, criação de pedidos e cobranças.
     Suporta pagamento antecipado (PIX online) e pagamento no ato da entrega (na_entrega).
-    Registra automaticamente o pedido na Logística e gera o código de despacho.
+    Registra automaticamente o pedido na Logística, debita o estoque e gera o código de despacho.
     """
 
     def __init__(
@@ -139,6 +139,21 @@ class CheckoutSubagent(BaseSubagent):
             return json.dumps({"erro": f"Produto #{produto_id} não está disponível."}, ensure_ascii=False)
 
         quantidade = max(1, int(arguments.get("quantidade") or 1))
+
+        # Validação de disponibilidade em estoque
+        if product.stock_quantity is not None and product.stock_quantity < quantidade:
+            return json.dumps({
+                "status": "estoque_insuficiente",
+                "produto_id": product.id,
+                "produto_nome": product.name,
+                "disponivel": product.stock_quantity,
+                "solicitado": quantidade,
+                "mensagem": (
+                    f"Desculpe, temos apenas {product.stock_quantity} unidade(s) de '{product.name}' "
+                    f"em estoque no momento. Deseja pedir essa quantidade?"
+                ),
+            }, ensure_ascii=False)
+
         total_cents = product.price_cents * quantidade
         momento = arguments.get("momento_pagamento") or "na_entrega"
         forma = arguments.get("forma_pagamento") or "pix"
@@ -219,6 +234,12 @@ class CheckoutSubagent(BaseSubagent):
         delivery = self.delivery_service.create_delivery(delivery_dto)
         order_code = delivery.get("order_code", "ENT-XXXX")
 
+        # Deduz do estoque
+        try:
+            self.product_service.adjust_stock(product.id, -quantidade)
+        except Exception as e:
+            logger.warning("Falha ao debitar estoque para pedido %s: %s", order_code, e)
+
         nome_lembrete = ""
         if (self.user.name or "").strip().lower() in ("cliente", "desconhecido", ""):
             nome_lembrete = " REGRA OBRIGATÓRIA: O nome do cliente ainda não foi identificado. Peça com gentileza o nome completo dele para colocar na etiqueta de entrega!"
@@ -276,6 +297,20 @@ class CheckoutSubagent(BaseSubagent):
         if not product or not product.active:
             return json.dumps({"erro": f"Produto #{produto_id} não está disponível."}, ensure_ascii=False)
 
+        # Validação de disponibilidade em estoque
+        if product.stock_quantity is not None and product.stock_quantity < quantidade:
+            return json.dumps({
+                "status": "estoque_insuficiente",
+                "produto_id": product.id,
+                "produto_nome": product.name,
+                "disponivel": product.stock_quantity,
+                "solicitado": quantidade,
+                "mensagem": (
+                    f"Desculpe, temos apenas {product.stock_quantity} unidade(s) de '{product.name}' "
+                    f"em estoque no momento. Deseja pedir essa quantidade?"
+                ),
+            }, ensure_ascii=False)
+
         total_cents = product.price_cents * quantidade
         desc = f"Pedido: {quantidade}x {product.name}"
         if observacao:
@@ -296,9 +331,10 @@ class CheckoutSubagent(BaseSubagent):
                 branch_id=branch_id,
             )
 
-            # Cria também a entrega pendente
+            # Cria também a entrega pendente vinculada à cobrança
+            order_code = None
             try:
-                self.delivery_service.create_delivery(
+                delivery_res = self.delivery_service.create_delivery(
                     DeliveryCreate(
                         user_id=self.user.id,
                         branch_id=branch_id,
@@ -313,8 +349,18 @@ class CheckoutSubagent(BaseSubagent):
                         delivery_address=self.user.full_address or self.user.address or "Endereço a confirmar",
                     )
                 )
+                if isinstance(delivery_res, dict):
+                    order_code = delivery_res.get("order_code")
+                elif hasattr(delivery_res, "order_code"):
+                    order_code = delivery_res.order_code
             except Exception as e:
                 logger.debug("Falha ao registrar entrega vinculada ao pagamento: %s", e)
+
+            # Deduz do estoque para a reserva da compra
+            try:
+                self.product_service.adjust_stock(product.id, -quantidade)
+            except Exception as e:
+                logger.warning("Falha ao debitar estoque após cobrança do produto #%s: %s", product.id, e)
 
             instrucoes = "Informe ao cliente o valor, o link do PIX e avise que a confirmação é automática após o pagamento."
             if (self.user.name or "").strip().lower() in ("cliente", "desconhecido", ""):
@@ -323,6 +369,7 @@ class CheckoutSubagent(BaseSubagent):
             return json.dumps({
                 "status": "sucesso",
                 "pedido_id": payment.id,
+                "codigo_pedido": order_code or f"PED-{payment.id}",
                 "produto_id": product.id,
                 "produto_nome": product.name,
                 "peso_total_kg": round(float(product.weight_kg) * quantidade, 3) if product.weight_kg is not None else None,

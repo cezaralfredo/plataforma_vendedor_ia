@@ -393,3 +393,133 @@ async def test_support_subagent_falls_back_to_configured_company_human_support(
     assert mock_gateway.send_text.call_args[0][0] == "5585977778888"
 
 
+@pytest.mark.asyncio
+async def test_checkout_subagent_stock_validation_and_decrement(
+    db_session: Session, sample_user: User, sample_product: Product
+):
+    checkout = CheckoutSubagent(db=db_session, user=sample_user)
+    initial_stock = sample_product.stock_quantity  # 10
+
+    # 1. Tentativa de compra com quantidade superior ao estoque disponível
+    res_fail = json.loads(
+        await checkout.execute_tool(
+            "criar_pedido_entrega",
+            {
+                "produto_id": sample_product.id,
+                "quantidade": 15,
+                "momento_pagamento": "na_entrega",
+                "forma_pagamento": "dinheiro",
+            },
+        )
+    )
+    assert res_fail["status"] == "estoque_insuficiente"
+    assert res_fail["disponivel"] == 10
+    assert res_fail["solicitado"] == 15
+
+    # Estoque permanece inalterado
+    db_session.refresh(sample_product)
+    assert sample_product.stock_quantity == initial_stock
+
+    # 2. Compra com quantidade válida debita o estoque
+    res_ok = json.loads(
+        await checkout.execute_tool(
+            "criar_pedido_entrega",
+            {
+                "produto_id": sample_product.id,
+                "quantidade": 3,
+                "momento_pagamento": "na_entrega",
+                "forma_pagamento": "pix",
+            },
+        )
+    )
+    assert res_ok["status"] == "sucesso"
+    db_session.refresh(sample_product)
+    assert sample_product.stock_quantity == initial_stock - 3  # 7
+
+
+@pytest.mark.asyncio
+async def test_payment_state_service_updates_delivery_payment_status(
+    db_session: Session, sample_user: User, sample_product: Product
+):
+    from datetime import UTC, datetime
+
+    from app.models.payment import Payment
+    from app.services.payment_state_service import apply_payment_state
+
+    payment = Payment(
+        user_id=sample_user.id,
+        amount_cents=sample_product.price_cents,
+        product_id=sample_product.id,
+        billing_type="pix",
+        status="pending",
+    )
+    db_session.add(payment)
+    db_session.commit()
+
+    delivery = Delivery(
+        order_code="ENT-9999",
+        user_id=sample_user.id,
+        payment_id=payment.id,
+        items_description=f"1x {sample_product.name}",
+        total_amount_cents=sample_product.price_cents,
+        payment_method="pix",
+        payment_timing="antecipado",
+        payment_status="pendente",
+        delivery_status="preparando",
+        delivery_address=sample_user.address,
+    )
+    db_session.add(delivery)
+    db_session.commit()
+
+    # Confirmação do pagamento recebido
+    apply_payment_state(payment, "received", datetime.now(UTC))
+    db_session.commit()
+    db_session.refresh(delivery)
+    assert delivery.payment_status == "pago"
+
+    # Cancelamento ou expiração do pagamento
+    apply_payment_state(payment, "overdue", datetime.now(UTC))
+    db_session.commit()
+    db_session.refresh(delivery)
+    assert delivery.payment_status == "cancelado"
+
+
+@pytest.mark.asyncio
+async def test_order_status_subagent_distinguishes_pending_pix_from_paid(
+    db_session: Session, sample_user: User
+):
+    delivery = Delivery(
+        order_code="ENT-1234",
+        user_id=sample_user.id,
+        items_description="1x Perfume Premium",
+        total_amount_cents=15000,
+        payment_method="pix",
+        payment_timing="antecipado",
+        payment_status="pendente",
+        delivery_status="preparando",
+        delivery_address="Rua Teste, 100",
+    )
+    db_session.add(delivery)
+    db_session.commit()
+
+    order_status = OrderStatusSubagent(db_session, sample_user)
+
+    # 1. Quando pendente, deve informar que aguarda pagamento PIX e NÃO "Pago com sucesso"
+    res_pending = json.loads(await order_status.execute_tool("consultar_status_pedido", {}))
+    assert res_pending["total_pedidos"] == 1
+    pedido = res_pending["pedidos"][0]
+    assert "Aguardando pagamento PIX" in pedido["pagamento_info"]
+    assert "Pago com sucesso" not in pedido["pagamento_info"]
+    assert "pedido_id" in pedido
+    assert "codigo" in pedido
+
+    # 2. Quando pago, deve exibir confirmação de pagamento
+    delivery.payment_status = "pago"
+    db_session.commit()
+
+    res_paid = json.loads(await order_status.execute_tool("consultar_status_pedido", {}))
+    pedido_pago = res_paid["pedidos"][0]
+    assert "Pago com sucesso ✅" in pedido_pago["pagamento_info"]
+
+
+

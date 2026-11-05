@@ -19,6 +19,7 @@ PAYMENT_TRANSLATIONS = {
     "confirmed": "Pago com sucesso / Confirmado ✅",
     "overdue": "Cobrança vencida ❌",
     "refunded": "Reembolsado ↩️",
+    "cancelled": "Cancelado ❌",
 }
 
 DELIVERY_TRANSLATIONS = {
@@ -88,42 +89,71 @@ class OrderStatusSubagent(BaseSubagent):
 
         results = []
 
-        # Formata entregas
+        # Formata entregas (garantindo chaves unificadas para o Orquestrador)
         for d in deliveries:
             del_status_text = DELIVERY_TRANSLATIONS.get(d.delivery_status, d.delivery_status)
-            timing_text = "Pago antecipadamente" if d.payment_timing == "antecipado" or d.payment_status == "pago" else f"Pagar na entrega: R$ {d.total_amount_cents / 100:.2f} ({d.payment_method})"
+            if d.payment_status == "pago":
+                timing_text = "Pago com sucesso ✅"
+            elif d.payment_timing == "antecipado":
+                timing_text = f"Aguardando pagamento PIX: R$ {d.total_amount_cents / 100:.2f} ⏳"
+            else:
+                timing_text = f"Pagar na entrega: R$ {d.total_amount_cents / 100:.2f} ({d.payment_method})"
+
+            invoice_link = None
+            if d.payment and d.payment.invoice_url:
+                invoice_link = d.payment.invoice_url
+
+            data_str = d.created_at.strftime("%d/%m/%Y às %H:%M") if d.created_at else ""
 
             results.append({
                 "tipo": "entrega",
+                "id": d.id,
+                "pedido_id": d.id,
                 "codigo": d.order_code,
+                "codigo_pedido": d.order_code,
                 "itens": d.items_description,
+                "descricao": d.items_description,
+                "valor_formatado": f"R$ {d.total_amount_cents / 100:.2f}",
+                "total_cents": d.total_amount_cents,
                 "status": d.delivery_status,
                 "status_legivel": del_status_text,
                 "status_entrega": d.delivery_status,
                 "status_entrega_legivel": del_status_text,
+                "status_pagamento": d.payment_status,
+                "status_pagamento_legivel": "Pago ✅" if d.payment_status == "pago" else "Pendente ⏳",
                 "endereco": d.delivery_address,
                 "entregador": d.delivery_driver_name or "A ser designado",
                 "despachado_em": d.dispatched_at.strftime("%d/%m/%Y às %H:%M") if d.dispatched_at else None,
                 "entregue_em": d.delivered_at.strftime("%d/%m/%Y às %H:%M") if d.delivered_at else None,
                 "pagamento_info": timing_text,
-                "data_pedido": d.created_at.strftime("%d/%m/%Y às %H:%M") if d.created_at else "",
+                "link_pagamento": invoice_link,
+                "data": data_str,
+                "data_pedido": data_str,
             })
 
         # Formata pagamentos avulsos
         for p in payments:
             pay_status_text = PAYMENT_TRANSLATIONS.get(p.status.lower(), p.status)
+            data_str = p.created_at.strftime("%d/%m/%Y às %H:%M") if p.created_at else ""
             results.append({
                 "tipo": "cobranca",
                 "id": p.id,
                 "pedido_id": p.id,
-                "descricao": p.description,
+                "codigo": f"COB-{p.id}",
+                "codigo_pedido": f"COB-{p.id}",
+                "descricao": p.description or "Cobrança de produto",
+                "itens": p.description or "Cobrança de produto",
                 "valor_formatado": f"R$ {p.amount_cents / 100:.2f}",
+                "total_cents": p.amount_cents,
                 "status": p.status,
                 "status_legivel": pay_status_text,
                 "status_pagamento": p.status,
                 "status_pagamento_legivel": pay_status_text,
+                "status_entrega": "cobranca",
+                "status_entrega_legivel": pay_status_text,
                 "link_pagamento": p.invoice_url,
-                "data": p.created_at.strftime("%d/%m/%Y às %H:%M") if p.created_at else "",
+                "data": data_str,
+                "data_pedido": data_str,
             })
 
         return json.dumps({

@@ -20,9 +20,30 @@ class TriageService:
     Implementa resiliência com fail-open e fallback automático para o Hermes LLM.
     """
 
-    def __init__(self, settings: Settings | None = None, http_client: httpx.AsyncClient | None = None):
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        db: Any = None,
+    ):
         self.settings = settings or default_settings
         self._client = http_client
+        self.db = db
+
+    def _get_human_support_url(self) -> str:
+        """Obtém a URL do WhatsApp de suporte humano a partir de CompanySettings ou fallback estático."""
+        if self.db:
+            try:
+                from app.models.company_settings import CompanySettings
+                s = self.db.query(CompanySettings).first()
+                if s and s.human_support_phone:
+                    clean_phone = "".join(filter(str.isdigit, s.human_support_phone))
+                    if len(clean_phone) in (10, 11) and not clean_phone.startswith("55"):
+                        clean_phone = "55" + clean_phone
+                    return f"https://wa.me/{clean_phone}"
+            except Exception as e:
+                logger.debug("Falha ao recuperar human_support_phone em TriageService: %s", e)
+        return HUMAN_SUPPORT_URL
 
     async def evaluate(self, message: str, phone: str | None = None) -> TriageResult:
         """
@@ -41,7 +62,7 @@ class TriageService:
             "Authorization": f"Bearer {self.settings.openrouter_api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://plataforma-atende-agenda.local",
-            "X-Title": "Plataforma Atende Agenda - Triage",
+            "X-Title": "Plataforma Vendedor IA - Triage",
         }
 
         try:
@@ -87,12 +108,15 @@ class TriageService:
                     "criteria": {
                         "falar_humano": "O usuário quer falar com um atendente humano, pessoa real, atendente ou suporte",
                         "confirmar_pix": "O usuário afirma que fez o pagamento, enviou o comprovante ou concluiu o PIX",
+                        "comprar_produto": "O usuário quer comprar um produto, fechar pedido ou encomendar itens",
+                        "consultar_catalogo": "O usuário quer ver produtos, catálogo, saber preços, modelos, tamanhos, cores ou estoque",
+                        "status_pedido": "O usuário quer saber o status, rastreamento ou andamento de um pedido ou entrega",
                         "novo_agendamento": "O usuário quer agendar, marcar um novo horário ou perguntar sobre agendamento de serviço",
                         "reagendamento": "O usuário quer mudar, trocar ou adiar o horário de um agendamento",
                         "cancelamento": "O usuário quer cancelar uma reserva ou horário marcado",
                         "consulta_agenda": "O usuário quer saber se tem horário marcado ou consultar seus agendamentos",
                         "saudacao": "O usuário apenas cumprimentou ou agradeceu (olá, bom dia, obrigado, etc.)",
-                        "duvida": "O usuário tem dúvidas gerais sobre serviços, localização, endereço ou preços",
+                        "duvida": "O usuário tem dúvidas gerais sobre produtos, serviços, localização, endereço ou catálogo",
                     },
                 },
                 "is_human_handoff": {
@@ -148,9 +172,10 @@ class TriageService:
 
         if is_human >= 0.80 or intent == "falar_humano":
             action = "fast_handoff_human"
+            support_url = self._get_human_support_url()
             fast_response = (
-                f"Com certeza! Para falar diretamente com o nosso atendimento humano / administrador, "
-                f"basta clicar no link: {HUMAN_SUPPORT_URL} . Qualquer dúvida, continuo por aqui à disposição!"
+                f"Com certeza! Para falar diretamente com o nosso atendimento humano / suporte, "
+                f"basta clicar no link: {support_url} . Qualquer dúvida, continuo por aqui à disposição!"
             )
         elif is_payment >= 0.75 or intent == "confirmar_pix":
             action = "fast_check_pix"
@@ -160,7 +185,7 @@ class TriageService:
             )
         elif intent == "saudacao" and intent_conf >= 0.85 and len(message.split()) <= 4:
             action = "fast_greeting"
-            fast_response = "Olá! Seja muito bem-vindo à nossa plataforma de agendamento. Como posso ajudar você hoje?"
+            fast_response = "Olá! Seja muito bem-vindo à nossa loja! Como posso ajudar você hoje?"
         else:
             action = "route_to_llm"
             fast_response = None

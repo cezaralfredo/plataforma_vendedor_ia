@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.models.delivery import Delivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.webhook_event import WebhookEvent
@@ -120,6 +121,13 @@ async def asaas_webhook(
             elif payment.product_id:
                 # Venda direta de produto via WhatsApp
                 logger.info("Payment %s (%s) confirmed for product %s", payment.id, payment.asaas_payment_id, payment.product_id)
+
+                # Garante atualização do status da entrega vinculada
+                linked_deliveries = db.query(Delivery).filter(Delivery.payment_id == payment.id).all()
+                for deliv in linked_deliveries:
+                    deliv.payment_status = "pago"
+                    deliv.updated_at = datetime.now(UTC)
+
                 user = payment.user
                 client_phone = getattr(user, "whatsapp_number", None) or getattr(user, "phone", None)
                 if client_phone:
@@ -151,4 +159,3 @@ async def asaas_webhook(
         await notification_service.dispatch_payment_confirmed(delivery_id)
 
     return {"status": "ok"}
-

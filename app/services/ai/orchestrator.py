@@ -82,13 +82,11 @@ class SalesOrchestrator:
                 self._tool_map[tool_def.name] = sa
                 self._all_tools.append(tool_def)
 
-
     def _build_system_prompt(self) -> str:
         return SalesPromptEngine.build_system_prompt(
             company_settings=self.company_settings,
             user=self.user,
         )
-
 
     async def _execute_tool_call(self, tool_call: ToolCall) -> str:
         subagent = self._tool_map.get(tool_call.name)
@@ -188,8 +186,14 @@ class SalesOrchestrator:
             if data.get("status") == "sucesso" and data.get("pedidos"):
                 lines = [f"📋 *Seus Pedidos Recentes - {customer_name}:*\n"]
                 for p in data["pedidos"]:
-                    lines.append(f"• *Pedido #{p['pedido_id']}* ({p['data']}): {p['valor_formatado']}\n  Status: {p['status_legivel']}")
-                    if p.get("link_pagamento") and "aguardando" in p["status_legivel"].lower():
+                    cod = p.get("codigo") or p.get("codigo_pedido") or f"#{p.get('pedido_id', p.get('id', ''))}"
+                    data_str = p.get("data") or p.get("data_pedido") or ""
+                    data_part = f" ({data_str})" if data_str else ""
+                    val_str = p.get("valor_formatado") or ""
+                    val_part = f": {val_str}" if val_str else ""
+                    status_part = p.get("status_legivel") or p.get("status") or ""
+                    lines.append(f"• *Pedido {cod}*{data_part}{val_part}\n  Status: {status_part}")
+                    if p.get("link_pagamento") and ("aguardando" in str(p.get("status_legivel", "")).lower() or "pendente" in str(p.get("status_pagamento", "")).lower()):
                         lines.append(f"  Link PIX: {p['link_pagamento']}")
                 return "\n".join(lines)
             return f"Olá, {customer_name}! No momento não encontrei pedidos pendentes em seu nome."
@@ -221,15 +225,23 @@ class SalesOrchestrator:
                 checkout_data = json.loads(checkout_res)
                 if checkout_data.get("status") == "sucesso":
                     peso_str = f" | Peso: {checkout_data['peso_total_kg']:.3f} kg" if checkout_data.get("peso_total_kg") else ""
+                    if checkout_data.get("pedido_id") and checkout_data.get("codigo_pedido"):
+                        cod_str = f"#{checkout_data['pedido_id']} ({checkout_data['codigo_pedido']})"
+                    elif checkout_data.get("pedido_id"):
+                        cod_str = f"#{checkout_data['pedido_id']}"
+                    else:
+                        cod_str = f"#{checkout_data.get('codigo_pedido', '')}"
                     return (
                         f"🎉 Excelente escolha, {customer_name}!\n\n"
-                        f"📦 *Pedido #{checkout_data['pedido_id']} Criado:*\n"
+                        f"📦 *Pedido {cod_str} Criado:*\n"
                         f"• *Item:* {checkout_data['produto_nome']}{peso_str}\n"
                         f"• *Total:* {checkout_data['valor_total_formatado']}\n\n"
                         f"💳 *Efetue o pagamento PIX no link seguro:*\n"
                         f"{checkout_data['link_pagamento']}\n\n"
                         f"Assim que o pagamento for concluído, seu pedido será confirmado automaticamente! 🚀"
                     )
+                elif checkout_data.get("status") == "estoque_insuficiente":
+                    return f"Desculpe, {customer_name}! {checkout_data.get('erro', 'Estoque indisponível no momento.')}"
 
         # 4. Consulta de Catálogo
         cat_res = await self.catalog_subagent.execute_tool("consultar_catalogo", {})
