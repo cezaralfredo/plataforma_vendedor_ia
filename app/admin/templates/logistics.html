@@ -206,16 +206,32 @@
 
                             <!-- Pagamento -->
                             <td class="py-3.5 px-4 align-top whitespace-nowrap">
-                                <template x-if="item.payment_timing === 'antecipado' || item.payment_status === 'pago'">
-                                    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
-                                        <i class="fas fa-check text-[10px]"></i> Pago Antecipado
-                                    </span>
+                                <template x-if="item.payment_timing === 'antecipado'">
+                                    <div>
+                                        <template x-if="item.payment_status === 'pago'">
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                                                <i class="fas fa-check text-[10px]"></i> Pago Antecipado
+                                            </span>
+                                        </template>
+                                        <template x-if="item.payment_status !== 'pago'">
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 border border-blue-200">
+                                                <i class="fas fa-clock text-[10px]"></i> PIX / Pgto Pendente
+                                            </span>
+                                        </template>
+                                    </div>
                                 </template>
-                                <template x-if="item.payment_timing === 'na_entrega' && item.payment_status !== 'pago'">
+                                <template x-if="item.payment_timing === 'na_entrega'">
                                     <div class="space-y-1">
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 border border-amber-300">
-                                            <i class="fas fa-hand-holding-usd text-[10px]"></i> Cobrar na Entrega
-                                        </span>
+                                        <template x-if="item.payment_status === 'pago'">
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                                                <i class="fas fa-check text-[10px]"></i> Pago na Entrega
+                                            </span>
+                                        </template>
+                                        <template x-if="item.payment_status !== 'pago'">
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 border border-amber-300">
+                                                <i class="fas fa-hand-holding-usd text-[10px]"></i> Cobrar na Entrega
+                                            </span>
+                                        </template>
                                         <p class="text-xs font-bold text-amber-900" x-text="formatCurrency(item.total_amount_cents)"></p>
                                         <p class="text-[10px] text-slate-500 uppercase tracking-wider" x-text="item.payment_method"></p>
                                     </div>
@@ -378,7 +394,7 @@
                             class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500">
                         <option value="">Selecione um cliente...</option>
                         <template x-for="c in clientsList" :key="c.id">
-                            <option :value="c.id" x-text="c.name + ' - ' + (c.whatsapp_number || c.phone)"></option>
+                            <option :value="String(c.id)" x-text="(c.name || 'Cliente') + ' - ' + (c.whatsapp_number || c.phone || 'Sem telefone')"></option>
                         </template>
                     </select>
                 </div>
@@ -457,9 +473,22 @@
                                :class="form.payment_timing === 'antecipado' ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20' : 'border-slate-200 bg-white'">
                             <input type="radio" value="antecipado" x-model="form.payment_timing" class="text-emerald-600" />
                             <div>
-                                <p class="text-xs font-bold text-slate-900">Pago Antecipado</p>
-                                <p class="text-[10px] text-slate-500">O cliente já efetuou o pagamento antes do despacho.</p>
+                                <p class="text-xs font-bold text-slate-900">Pagamento Antecipado</p>
+                                <p class="text-[10px] text-slate-500">PIX online ou transferência antes do despacho.</p>
                             </div>
+                        </label>
+                    </div>
+
+                    <!-- Status do Pagamento (Pago vs Pendente) -->
+                    <div class="flex items-center gap-4 pt-1 px-1">
+                        <span class="text-xs font-medium text-slate-700">Status do Pagamento:</span>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs">
+                            <input type="radio" value="pendente" x-model="form.payment_status" class="text-blue-600" />
+                            <span class="text-slate-700 font-medium">Pendente</span>
+                        </label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs">
+                            <input type="radio" value="pago" x-model="form.payment_status" class="text-emerald-600" />
+                            <span class="text-emerald-700 font-semibold">Pago / Confirmado</span>
                         </label>
                     </div>
                 </div>
@@ -584,13 +613,20 @@ function logisticsPage() {
         async loadAuxData() {
             try {
                 const [rClients, rBranches, rSellers] = await Promise.all([
-                    fetch('/admin/api/clients?per_page=100'),
+                    fetch('/admin/api/clients?page_size=100'),
                     fetch('/admin/api/branches'),
                     fetch('/admin/api/sellers')
                 ]);
                 if (rClients.ok) {
                     const data = await rClients.json();
-                    this.clientsList = data.items || [];
+                    const list = data.data || data.items || (Array.isArray(data) ? data : []);
+                    const existingIds = new Set(this.clientsList.map(c => String(c.id)));
+                    for (const item of list) {
+                        if (!existingIds.has(String(item.id))) {
+                            this.clientsList.push(item);
+                            existingIds.add(String(item.id));
+                        }
+                    }
                 }
                 if (rBranches.ok) this.branchesList = await rBranches.json();
                 if (rSellers.ok) this.sellersList = await rSellers.json();
@@ -641,18 +677,30 @@ function logisticsPage() {
 
         openEditModal(item) {
             this.isEditing = true;
+            if (item.user_id) {
+                const uidStr = String(item.user_id);
+                const found = this.clientsList.find(c => String(c.id) === uidStr);
+                if (!found) {
+                    this.clientsList.unshift({
+                        id: item.user_id,
+                        name: item.user_name || `Cliente #${item.user_id}`,
+                        whatsapp_number: item.user_whatsapp || item.user_phone || '',
+                        phone: item.user_phone || ''
+                    });
+                }
+            }
             this.form = {
                 id: item.id,
-                user_id: item.user_id,
-                branch_id: item.branch_id || '',
-                seller_id: item.seller_id || '',
-                items_description: item.items_description,
+                user_id: item.user_id ? String(item.user_id) : '',
+                branch_id: item.branch_id ? String(item.branch_id) : '',
+                seller_id: item.seller_id ? String(item.seller_id) : '',
+                items_description: item.items_description || '',
                 total_amount_reais: (item.total_amount_cents / 100).toFixed(2),
                 payment_method: item.payment_method || 'pix',
                 payment_timing: item.payment_timing || 'na_entrega',
                 payment_status: item.payment_status || 'pendente',
                 delivery_status: item.delivery_status || 'preparando',
-                delivery_address: item.delivery_address,
+                delivery_address: item.delivery_address || '',
                 delivery_driver_name: item.delivery_driver_name || '',
                 notes: item.notes || ''
             };
@@ -671,7 +719,7 @@ function logisticsPage() {
                     total_amount_cents: totalCents,
                     payment_method: this.form.payment_method,
                     payment_timing: this.form.payment_timing,
-                    payment_status: this.form.payment_timing === 'antecipado' ? 'pago' : this.form.payment_status,
+                    payment_status: this.form.payment_status || 'pendente',
                     delivery_status: this.form.delivery_status,
                     delivery_address: this.form.delivery_address,
                     delivery_driver_name: this.form.delivery_driver_name || null,
@@ -707,9 +755,16 @@ function logisticsPage() {
             this.selectedDeliveryDriver = item.delivery_driver_name || '';
 
             const totalFormatted = this.formatCurrency(item.total_amount_cents);
-            let paymentText = item.payment_timing === 'antecipado' || item.payment_status === 'pago'
-                ? '✅ *Pagamento Antecipado (Já Liquidado)*'
-                : `💵 *Pagar na Entrega: ${totalFormatted}* (${item.payment_method.toUpperCase()})`;
+            let paymentText = '';
+            if (item.payment_status === 'pago') {
+                paymentText = item.payment_timing === 'antecipado'
+                    ? '✅ *Pagamento Antecipado (Já Liquidado)*'
+                    : '✅ *Pago no Local*';
+            } else if (item.payment_timing === 'antecipado') {
+                paymentText = `⏳ *Pagamento Antecipado (Aguardando PIX/Confirmação): ${totalFormatted}*`;
+            } else {
+                paymentText = `💵 *Pagar na Entrega: ${totalFormatted}* (${(item.payment_method || 'PIX').toUpperCase()})`;
+            }
 
             const driverLine = this.selectedDeliveryDriver ? `\n🛵 *Entregador:* ${this.selectedDeliveryDriver}` : '';
 
