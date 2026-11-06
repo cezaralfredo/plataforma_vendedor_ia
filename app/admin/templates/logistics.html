@@ -257,9 +257,18 @@
                                         </span>
                                     </template>
                                     <template x-if="item.delivery_status === 'cancelado'">
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                                            Cancelado
-                                        </span>
+                                        <div class="space-y-1.5">
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 border border-rose-200">
+                                                <i class="fas fa-times-circle text-[10px]"></i> Cancelado
+                                            </span>
+                                            <div>
+                                                <button type="button" @click="deleteDelivery(item)"
+                                                        title="Excluir pedido cancelado definitivamente"
+                                                        class="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 px-2 py-0.5 rounded border border-rose-200 hover:border-rose-600 transition-colors shadow-2xs">
+                                                    <i class="fas fa-trash-alt text-[9px]"></i> Apagar Pedido
+                                                </button>
+                                            </div>
+                                        </div>
                                     </template>
 
                                     <!-- Indicador se o cliente já foi avisado via WhatsApp -->
@@ -294,6 +303,13 @@
                                                 class="text-xs font-medium text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors">
                                             <i class="fas fa-edit"></i>
                                         </button>
+
+                                        <template x-if="item.delivery_status === 'cancelado'">
+                                            <button type="button" @click="deleteDelivery(item)" title="Apagar Pedido Cancelado"
+                                                    class="text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg border border-rose-200 transition-colors">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </template>
                                     </div>
                                 </div>
                             </td>
@@ -517,16 +533,26 @@
                            class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                    <button type="button" @click="showCreateModal = false"
-                            class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all">
-                        Cancelar
-                    </button>
-                    <button type="submit" :disabled="saving"
-                            class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm transition-all flex items-center gap-2">
-                        <i class="fas fa-save" :class="{ 'fa-spin': saving }"></i>
-                        <span x-text="saving ? 'Salvando...' : 'Salvar Despacho'"></span>
-                    </button>
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                    <div>
+                        <template x-if="isEditing && form.delivery_status === 'cancelado'">
+                            <button type="button" @click="deleteDelivery({ id: form.id, order_code: 'Pedido #' + form.id }); showCreateModal = false;"
+                                    class="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-all flex items-center gap-1.5">
+                                <i class="fas fa-trash-alt text-xs"></i> Apagar Pedido Cancelado
+                            </button>
+                        </template>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="showCreateModal = false"
+                                class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+                            Cancelar
+                        </button>
+                        <button type="submit" :disabled="saving"
+                                class="rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm transition-all flex items-center gap-2">
+                            <i class="fas fa-save" :class="{ 'fa-spin': saving }"></i>
+                            <span x-text="saving ? 'Salvando...' : 'Salvar Despacho'"></span>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -808,6 +834,27 @@ function logisticsPage() {
                 Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
             } finally {
                 this.sendingNotification = false;
+            }
+        },
+
+        async deleteDelivery(item) {
+            const code = item.order_code || `Pedido #${item.id}`;
+            if (!confirm(`Deseja realmente apagar o pedido cancelado ${code}? Esta ação removerá o pedido definitivamente da logística.`)) {
+                return;
+            }
+            try {
+                const res = await fetch(`/admin/api/deliveries/${item.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Falha ao apagar pedido.');
+                }
+                Alpine.store('adminUi').setNotice({ message: `Pedido ${code} apagado com sucesso!`, type: 'success' });
+                await this.loadData();
+            } catch (e) {
+                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
             }
         },
 

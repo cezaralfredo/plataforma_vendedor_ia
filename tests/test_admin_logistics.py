@@ -112,14 +112,27 @@ def test_logistics_page_and_apis(anonymous_client: TestClient, db_session):
     assert "a caminho" in notify_data["message"].lower()
     assert notify_data["delivery"]["delivery_status"] == "a_caminho"
 
-    # 8. Marcar como entregue
+    # 8. Marcar como cancelado
     patch_resp = client.patch(
         f"/admin/api/deliveries/{delivery_id}/status",
-        json={"delivery_status": "entregue", "payment_status": "pago"},
+        json={"delivery_status": "cancelado", "payment_status": "pendente"},
         headers=_admin_headers(),
     )
     assert patch_resp.status_code == 200
     updated = patch_resp.json()
-    assert updated["delivery_status"] == "entregue"
-    assert updated["payment_status"] == "pago"
-    assert updated["delivered_at"] is not None
+    assert updated["delivery_status"] == "cancelado"
+
+    # 9. Excluir pedido de entrega cancelado
+    del_resp = client.delete(
+        f"/admin/api/deliveries/{delivery_id}",
+        headers=_admin_headers(),
+    )
+    assert del_resp.status_code == 200
+    assert del_resp.json()["status"] == "ok"
+
+    # 10. Confirmar que não existe mais
+    get_resp = client.get(
+        f"/admin/api/deliveries/{delivery_id}",
+        headers=_admin_headers(),
+    )
+    assert get_resp.status_code == 404

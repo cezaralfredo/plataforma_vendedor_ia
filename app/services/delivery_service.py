@@ -191,6 +191,14 @@ class DeliveryService:
         self.db.refresh(delivery)
         return self._format_delivery_dict(delivery)
 
+    def delete_delivery(self, delivery_id: int) -> bool:
+        delivery = self.db.get(Delivery, delivery_id)
+        if not delivery:
+            return False
+        self.db.delete(delivery)
+        self.db.commit()
+        return True
+
     async def notify_dispatch_via_whatsapp(
         self, delivery_id: int, custom_message: str | None = None
     ) -> dict[str, Any]:

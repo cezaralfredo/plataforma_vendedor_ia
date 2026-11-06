@@ -736,6 +736,15 @@ async def api_notify_delivery_dispatch(
         raise HTTPException(status_code=500, detail=f"Erro ao processar notificação WhatsApp: {e}")
 
 
+@router.delete("/api/deliveries/{delivery_id}", dependencies=[Depends(require_admin_mutation)])
+async def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db)):
+    service = DeliveryService(db)
+    success = service.delete_delivery(delivery_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Pedido de entrega não encontrado")
+    return {"status": "ok", "message": f"Pedido #{delivery_id} excluído com sucesso"}
+
+
 # ==========================================================
 # Recuperação Automática de Vendas & Follow-up
 # ==========================================================
