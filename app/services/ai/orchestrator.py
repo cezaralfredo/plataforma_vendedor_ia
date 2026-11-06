@@ -255,7 +255,8 @@ class SalesOrchestrator:
         lines = [f"🛍️ *Catálogo de Produtos - {company_name}*\n"]
         for p in products:
             peso_str = f" | Peso: {p['peso_kg']:.3f} kg" if p.get("peso_kg") else ""
-            lines.append(f"• *#{p['id']} - {p['nome']}*: {p['preco_reais']}{peso_str}")
+            cat_part = f" ({p['categoria']})" if p.get("categoria") else ""
+            lines.append(f"• *#{p['id']} - {p['nome']}{cat_part}*: {p['preco_reais']}{peso_str}")
 
         lines.append("\nPara comprar qualquer produto, basta me responder dizendo o *nome* ou *número* dele que eu gero seu PIX!")
         return "\n".join(lines)

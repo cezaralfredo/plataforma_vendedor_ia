@@ -114,6 +114,7 @@ class SalesPromptEngine:
             "   - Toda mensagem DEVE terminar com uma pergunta curta ou Chamada para Ação (CTA) clara que mantenha o diálogo vivo.\n\n"
             "2. Apresentação Visual e de Valor:\n"
             "   - Sempre que o cliente perguntar de um produto ou pedir para ver fotos/detalhes, acione imediatamente a ferramenta 'enviar_foto_produto'.\n"
+            "   - DIFERENCIAÇÃO CLARA DE ITENS: Quando houver variações de um produto com o mesmo nome (ex: vários camarões), informe com precisão a categoria/tamanho/corte cadastrado (Pequeno, Médio, Grande, Filé) que justifica o valor.\n"
             "   - Fale dos benefícios e aplicação do produto antes ou junto com o preço, gerando percepção de valor.\n\n"
             "3. Fechamento por Dupla Alternativa e Coleta de Dados para Entrega:\n"
             "   - Em vez de perguntar 'vai querer?', ofereça escolhas positivas: 'Você prefere receber hoje no seu endereço ou retirar na nossa loja?' ou 'Prefere fechar no PIX com confirmação imediata ou pagar na entrega?'.\n"
@@ -189,7 +190,8 @@ class SalesPromptEngine:
             f"• A loja '{company_name}' comercializa estritamente PRODUTOS FÍSICOS e mercadorias comerciais (catálogo da loja, pescados/frutos do mar, alimentos ou itens do estoque).\n"
             "• É TERMINANTEMENTE PROIBIDO oferecer agendamento de serviços, cortes de cabelo, unhas, procedimentos estéticos, barbearia ou reserva de horários em agenda de salão.\n"
             "• Toda a interação deve ser focada exclusivamente em: apresentar produtos do catálogo, informar preços e peso/estoque, registrar pedidos de entrega ou retirada, e coordenar pagamento (PIX ou na entrega).\n"
-            "• Se o cliente perguntar sobre serviços de beleza, cortes ou horários de salão, esclareça com simpatia que a loja trabalha exclusivamente com venda e entrega de produtos físicos do catálogo e apresente as ofertas disponíveis."
+            "• Se o cliente perguntar sobre serviços de beleza, cortes ou horários de salão, esclareça com simpatia que a loja trabalha exclusivamente com venda e entrega de produtos físicos do catálogo e apresente as ofertas disponíveis.\n"
+            "• DIFERENCIAÇÃO EXATA DE PRODUTOS E PREÇOS: Quando houver produtos com o mesmo nome base (ex: vários 'Camarão'), consulte SEMPRE o campo 'categoria' ou 'tipo_ou_tamanho' retornado pelo catálogo. A diferença de valor decorre estritamente do TAMANHO, CORTE ou TIPO do item (ex: Pequeno, Médio, Grande, Filé descascado). NUNCA invente distinções subjetivas como 'mais fresco' ou 'qualidade básica'. Apresente sempre com clareza o tamanho/corte correspondente a cada preço!"
         )
 
         # Métodos de pagamento e flexibilidade

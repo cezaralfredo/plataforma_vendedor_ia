@@ -310,3 +310,46 @@ async def test_sales_orchestrator_deterministic_fallback(db_session: Session):
     res_humano = await orchestrator.process_message("quero falar com um atendente humano", history=[])
     assert "notifiquei nossa equipe" in res_humano
     assert "wa.me" in res_humano
+
+
+@pytest.mark.asyncio
+async def test_catalog_subagent_differentiates_products_by_category_and_size(db_session: Session):
+    """Testa se variações de produtos com mesmo nome (ex: Camarão) são diferenciadas com categoria, corte e nota explicativa."""
+    p1 = Product(name="Camarão", category="Pequeno", price_cents=1500, weight_kg=Decimal("1.000"), stock_quantity=100, active=True)
+    p2 = Product(name="Camarão", category="Médio", price_cents=2500, weight_kg=Decimal("1.000"), stock_quantity=100, active=True)
+    p3 = Product(name="Camarão", category="Grande", price_cents=3500, weight_kg=Decimal("1.000"), stock_quantity=100, active=True)
+    p4 = Product(name="Camarão", category="Filé", price_cents=6500, weight_kg=Decimal("1.000"), stock_quantity=100, active=True)
+    p5 = Product(name="Cará", category="Tilápia", price_cents=1300, weight_kg=Decimal("1.000"), stock_quantity=100, active=True)
+    db_session.add_all([p1, p2, p3, p4, p5])
+    db_session.commit()
+
+    agent = CatalogSubagent(db_session)
+
+    # 1. Consulta geral deve retornar categoria, nome_completo e nota para o agente
+    res = await agent.execute_tool("consultar_catalogo", {})
+    data = json.loads(res)
+    assert data["status"] == "sucesso"
+    assert data["total"] == 5
+    assert "nota_para_o_agente" in data
+    assert "Filé" in data["nota_para_o_agente"] or "tamanho" in data["nota_para_o_agente"]
+
+    camaroes = [p for p in data["produtos"] if p["nome"] == "Camarão"]
+    assert len(camaroes) == 4
+    categorias = {c["categoria"] for c in camaroes}
+    assert categorias == {"Pequeno", "Médio", "Grande", "Filé"}
+    assert all("nome_completo" in c for c in camaroes)
+    assert any(c["nome_completo"] == "Camarão (Filé)" for c in camaroes)
+
+    # 2. Busca por termo na categoria deve encontrar o produto específico mesmo que o nome seja apenas 'Camarão'
+    res_file = await agent.execute_tool("consultar_catalogo", {"termo_busca": "filé"})
+    data_file = json.loads(res_file)
+    assert data_file["status"] == "sucesso"
+    assert data_file["total"] == 1
+    assert data_file["produtos"][0]["categoria"] == "Filé"
+    assert data_file["produtos"][0]["preco_reais"] == "R$ 65.00"
+
+    res_pequeno = await agent.execute_tool("consultar_catalogo", {"termo_busca": "pequeno"})
+    data_peq = json.loads(res_pequeno)
+    assert data_peq["total"] == 1
+    assert data_peq["produtos"][0]["categoria"] == "Pequeno"
+    assert data_peq["produtos"][0]["preco_reais"] == "R$ 15.00"

@@ -195,13 +195,15 @@ class CheckoutSubagent(BaseSubagent):
         payment_id = None
         invoice_url = None
 
+        prod_label = f"{product.name} ({product.category})" if product.category else product.name
+
         if momento == "antecipado":
             try:
                 payment = await self.payment_service.create_direct_charge(
                     user_id=self.user.id,
                     amount_cents=total_cents,
                     product_id=product.id,
-                    description=f"{quantidade}x {product.name}",
+                    description=f"{quantidade}x {prod_label}",
                     billing_type="PIX",
                     seller_id=seller_id,
                     branch_id=branch_id,
@@ -212,7 +214,7 @@ class CheckoutSubagent(BaseSubagent):
                 logger.warning("Falha ao gerar cobrança antecipada no checkout: %s", e)
 
         # Cadastra o pedido diretamente no controle de Logística
-        desc_itens = f"{quantidade}x {product.name}"
+        desc_itens = f"{quantidade}x {prod_label}"
         if product.sku:
             desc_itens += f" (SKU: {product.sku})"
 
@@ -312,7 +314,8 @@ class CheckoutSubagent(BaseSubagent):
             }, ensure_ascii=False)
 
         total_cents = product.price_cents * quantidade
-        desc = f"Pedido: {quantidade}x {product.name}"
+        prod_label = f"{product.name} ({product.category})" if product.category else product.name
+        desc = f"Pedido: {quantidade}x {prod_label}"
         if observacao:
             desc += f" ({observacao})"
 
@@ -340,7 +343,7 @@ class CheckoutSubagent(BaseSubagent):
                         branch_id=branch_id,
                         seller_id=seller_id,
                         payment_id=payment.id,
-                        items_description=f"{quantidade}x {product.name}",
+                        items_description=f"{quantidade}x {prod_label}",
                         total_amount_cents=total_cents,
                         payment_method="pix",
                         payment_timing="antecipado",

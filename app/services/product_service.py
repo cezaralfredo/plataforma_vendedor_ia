@@ -51,6 +51,7 @@ class ProductService:
             search_pattern = f"%{search.strip().lower()}%"
             q = q.filter(
                 (func.lower(Product.name).like(search_pattern))
+                | (func.lower(Product.category).like(search_pattern))
                 | (func.lower(Product.description).like(search_pattern))
             )
         return q.order_by(Product.category, Product.name).all()
