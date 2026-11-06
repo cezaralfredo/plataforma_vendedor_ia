@@ -1,11 +1,7 @@
 import logging
-from datetime import datetime as dt_cls
-from datetime import timedelta
 
-import httpx
 from sqlalchemy.orm import Session, joinedload
 
-from app.config import settings
 from app.models.appointment import Appointment
 from app.schemas.appointment import AppointmentCreate
 from app.schemas.user import UserCreate, UserUpdate
