@@ -2,6 +2,33 @@
 # Não publique portas públicas: no NPM, crie um Proxy Host para vendedor-ia:8000.
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
+  waha:
+    image: devlikeapro/waha:noweb-arm-2026.7.2
+    restart: unless-stopped
+    ports:
+      - "${WAHA_PORT:-3000}:3000"
+    environment:
+      WAHA_ZIP_LOGS: "true"
+      WAHA_LOG_FORMAT: "JSON"
+      WAHA_PRINT_QR: "false"
+      WAHA_DASHBOARD_ENABLED: "true"
+      WAHA_DASHBOARD_USERNAME: "admin"
+      WAHA_DASHBOARD_PASSWORD: "admin"
+      WAHA_API_KEY: ${WAHA_API_KEY:-waha_anaue_secret_2026}
+      WHATSAPP_HOOK_URL: http://api:8000/api/webhooks/whatsapp/waha
+      WHATSAPP_HOOK_EVENTS: message
+      WHATSAPP_RESTART_ALL_SESSIONS: "true"
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+    volumes:
+      - waha_sessions:/app/.sessions
+    networks:
+      agenda_internal:
+        aliases:
+          - waha
+      npm:
+        aliases:
+          - vendedor-ia-waha
+
   mcp-gateway:
     image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_ia}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
     restart: unless-stopped
@@ -69,7 +96,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      WAHA_BASE_URL: ${WAHA_BASE_URL:-http://agenda_waha:3000}
+      WAHA_BASE_URL: ${WAHA_BASE_URL:-http://waha:3000}
       WAHA_SESSION: ${WAHA_SESSION:-default}
       WAHA_API_KEY: ${WAHA_API_KEY:-waha_anaue_secret_2026}
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-waha}
@@ -77,6 +104,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      waha:
+        condition: service_started
     volumes:
       - product_uploads:/app/app/admin/static/uploads/products
     healthcheck:
@@ -89,15 +118,13 @@ services:
       - "8000"
     networks:
       agenda_internal:
+        aliases:
+          - api
       npm:
         aliases:
           - vendedor-ia
           - vendedor-api
           - agenda-api
-          - api
-          - loja-api
-          - loja-anauedesign
-          - vendedor-anauedesign
       mcp_internal:
 
 volumes:
@@ -105,6 +132,9 @@ volumes:
     name: ${POSTGRES_VOLUME_NAME:-vendedor_ia_pgdata}
   product_uploads:
     name: ${PRODUCT_UPLOADS_VOLUME_NAME:-vendedor_ia_product_uploads}
+  waha_sessions:
+    name: ${WAHA_VOLUME_NAME:-vendedor_online_waha_sessions}
+    external: true
 
 networks:
   agenda_internal:
