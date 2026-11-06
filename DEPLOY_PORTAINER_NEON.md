@@ -19,8 +19,8 @@ Cadastre os valores obrigatórios: `IMAGE_TAG`, `MCP_GATEWAY_IMAGE_TAG`, `DATABA
 
 Quando necessário, ajuste os valores opcionais: `REGISTRY`, `GITHUB_REPOSITORY`, `APP_NAME`, `APP_TIMEZONE`, `ASAAS_BASE_URL` e `NPM_NETWORK`.
 
-**MCP Gateway (para Hermes externo):**
-- `MCP_GATEWAY_KEY=chave-forte-para-gateway-hermes`
+**MCP Gateway (opcional para consumo externo):**
+- `MCP_GATEWAY_KEY=chave-forte-para-gateway`
 - `MCP_GATEWAY_IMAGE_TAG=sha-da-mesma-publicacao-da-api`
 
 O Docker Standalone não protege variáveis de ambiente como Docker secrets: seus valores permanecem visíveis para administradores do Portainer e por inspeção do container. Controle o acesso administrativo e faça a rotação de credenciais após a mudança.
@@ -42,19 +42,7 @@ O Docker Standalone não protege variáveis de ambiente como Docker secrets: seu
    - Uma chamada JSON-RPC `tools/list` no domínio MCP, usando `X-Gateway-Key`.
    - Autenticação da API, MCP, pagamentos e webhooks antes de encerrar a mudança.
 
-## Hermes + MCP Gateway
 
-1. Configure `~/.hermes/config.yaml` baseado em `hermes/config.yaml.example`:
-   ```yaml
-   gateway:
-     base_url: "https://mcp.seudominio.com"
-     headers:
-       X-Gateway-Key: "mesmo-valor-do-MCP_GATEWAY_KEY"
-   ```
-
-2. Perfis Hermes em `hermes/profiles/` já usam toolset `gateway` (não `mcp_tools`).
-
-3. Execute: `hermes run --profile orquestrador`
 
 ## Rollback
 

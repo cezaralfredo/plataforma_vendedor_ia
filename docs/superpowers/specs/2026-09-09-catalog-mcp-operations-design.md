@@ -3,7 +3,7 @@
 ## Objetivo
 
 Tornar o catálogo único de serviços compatível com todas as integrações da
-plataforma e tornar o caminho Hermes → MCP Gateway → API reproduzível,
+plataforma e tornar o caminho Orquestrador_IA → MCP Gateway → API reproduzível,
 versionado e observável em produção.
 
 ## Decisões
@@ -41,9 +41,9 @@ serviço de catálogo sem campos legados e uma oferta correspondente.
 
 ### Gateway MCP publicado
 
-O gateway é o único endpoint exposto ao Hermes. Ele valida
+O gateway é o único endpoint exposto ao Orquestrador_IA. Ele valida
 `X-Gateway-Key` e injeta o Bearer interno da API. A API não precisa ser usada
-como endpoint MCP externo do Hermes.
+como endpoint MCP externo do Orquestrador_IA.
 
 A automação deve construir, testar e publicar `mcp_gateway/Dockerfile` em
 `ghcr.io/<repositório>-mcp-gateway`, usando tags por SHA e `latest` apenas na
@@ -76,7 +76,7 @@ Profissional + preço/duração/comissão → professional_services
                          ↓
 API / MCP listam somente ofertas ativas
                          ↓
-Hermes → MCP Gateway (X-Gateway-Key) → API (/mcp com Bearer interno)
+Orquestrador_IA → MCP Gateway (X-Gateway-Key) → API (/mcp com Bearer interno)
 ```
 
 ## Tratamento de erros

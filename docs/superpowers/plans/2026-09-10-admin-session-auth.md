@@ -155,4 +155,4 @@ Após os commits e antes de abrir o Pull Request:
 1. Revisar o diff garantindo que não há nenhum segredo, cookie ou valor de senha em arquivo versionado ou em logs de teste.
 2. Abrir Pull Request contra `codex/admin-management`, associando esta especificação e o plano.
 3. Após aprovação e merge, publicar a imagem rastreável e atualizar a stack no Portainer com os quatro valores secretos. Não alterar `ADMIN_SESSION_SECRET` em rollback.
-4. No domínio da empresa, validar `/admin/login`, login, leitura de dashboard, operação mutante com CSRF, troca de senha, logout e login com a nova senha. Confirmar que `/mcp` continua respondendo normalmente ao Hermes.
+4. No domínio da empresa, validar `/admin/login`, login, leitura de dashboard, operação mutante com CSRF, troca de senha, logout e login com a nova senha. Confirmar que `/mcp` continua respondendo normalmente ao Orquestrador_IA.

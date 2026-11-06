@@ -13,13 +13,14 @@
          ▼
 [ Nginx Proxy Manager (NPM) ] ──── SSL Terminado
          │ (HTTP rede interna 'npm')
+         │
+         ▼
+[ vendedor-ia : 8000 ]
+(FastAPI - Loja, Painel Admin & Orquestrador Python)
+         │
          ├─────────────────────────────────────────┐
          ▼                                         ▼
-[ vendedor-ia : 8000 ]                    [ n8n : 5678 ]
-(FastAPI - Loja & Painel Admin)     (Orquestrador Omnichannel IA)
-         │                                         │
-         ▼                                         ▼
-[ PostgreSQL : 5432 ]                  [ Evolution / Meta API ]
+[ PostgreSQL : 5432 ]                      [ WAHA WhatsApp ]
 ```
 
 * **Nenhuma porta 80/443 exposta na aplicação:** As portas públicas pertencem exclusivamente ao NPM.
@@ -91,17 +92,7 @@ Após subir a stack no Portainer, acesse o painel do seu NPM (`http://seu-ip:81`
 
 ---
 
-### Proxy Host 2: n8n (Orquestrador WhatsApp IA - opcional)
 
-Se utilizar o n8n para a orquestração da Evolution API / Meta:
-1. **Domain Names:** `n8n.anauedesign.com.br`
-2. **Scheme:** `http`
-3. **Forward Hostname / IP:** `n8n`
-4. **Forward Port:** `5678`
-5. **Websockets Support:** [x] Marcado
-6. **SSL:** Solicite certificado Let's Encrypt com Force SSL.
-
----
 
 ## 4. Testes de Validação Pós-Deploy
 

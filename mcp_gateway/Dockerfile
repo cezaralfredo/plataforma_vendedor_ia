@@ -1,5 +1,5 @@
 # =============================================================================
-# MCP Gateway - Lightweight proxy for Hermes -> API MCP communication
+# MCP Gateway - Lightweight proxy for API MCP communication
 # =============================================================================
 
 FROM python:3.12-slim AS builder

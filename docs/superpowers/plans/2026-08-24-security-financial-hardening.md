@@ -388,7 +388,7 @@ git commit -m "fix: make payment webhooks transactional"
 - Modify: `app/admin/router.py`
 - Modify: `app/admin/service.py`
 - Modify: `app/admin/schemas.py`
-- Modify: `hermes/profiles/financeiro.yaml`
+- Modify: `app/services/payment_service.py`
 - Create: `tests/test_admin_payments.py`
 
 **Interfaces:**
@@ -434,6 +434,6 @@ Run: `ruff check app tests`
 - [ ] **Step 5: Commit**
 
 ```text
-git add app/services/payment_service.py app/admin app/services/payment_state_service.py hermes/profiles/financeiro.yaml tests
+git add app/services/payment_service.py app/admin app/services/payment_state_service.py app/services/payment_service.py tests
 git commit -m "fix: synchronize admin payment operations with Asaas"
 ```

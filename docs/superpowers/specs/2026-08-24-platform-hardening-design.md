@@ -67,7 +67,7 @@ Integration failures are logged with identifiers but never API keys or complete 
 
 The Asaas client implements the documented full-refund endpoint `POST /payments/{asaas_payment_id}/refund`. The admin refund action becomes asynchronous and calls Asaas first. Local status changes to `refunded` only after a successful upstream response. A completed appointment remains completed; any other linked appointment becomes cancelled after a successful refund.
 
-The manual refresh action calls the existing payment status service instead of returning an instruction string. Frequent Hermes polling is removed; webhooks are the primary synchronization mechanism and manual refresh remains available for reconciliation.
+The manual refresh action calls the existing payment status service instead of returning an instruction string. Frequent Orquestrador_IA polling is removed; webhooks are the primary synchronization mechanism and manual refresh remains available for reconciliation.
 
 ### Webhook processing
 

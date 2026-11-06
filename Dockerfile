@@ -41,7 +41,7 @@ RUN find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
     && find . -type f -name "*.pyc" -delete \
     && find . -type f -name "*.pyo" -delete \
     && find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true \
-    && rm -rf .git .pytest_cache tests/ hermes/ alembic/versions/*.pyc .env* README.md plano-de-implementacao.md
+    && rm -rf .git .pytest_cache tests/ alembic/versions/*.pyc .env* README.md plano-de-implementacao.md
 
 # ---- Runtime Stage ----
 FROM python:3.11-slim AS runtime

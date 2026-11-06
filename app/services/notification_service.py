@@ -48,7 +48,7 @@ def format_payment_confirmation_message(appointment: Appointment | None, payment
 
 
 def build_payment_notification_payload(appointment: Appointment | None, payment: Payment) -> dict[str, Any]:
-    """Monta payload padronizado para envio ao n8n ou webhook."""
+    """Monta payload padronizado para envio via webhook de notificação."""
     user = (appointment.user if appointment and getattr(appointment, "user", None) else getattr(payment, "user", None))
     product = getattr(payment, "product", None)
 
@@ -94,12 +94,8 @@ class NotificationService:
         self.db = db
 
     def get_effective_webhook_url(self) -> str:
-        """O n8n é o único orquestrador de entregas assíncronas da Agenda.
-
-        O Hermes mantém a inteligência e o transporte nativo do WhatsApp, mas
-        não expõe um webhook de entrega compatível com a API da Agenda.
-        """
-        return getattr(settings, "n8n_webhook_url", "")
+        """Retorna o webhook configurado para entregas assíncronas de notificações de pagamento."""
+        return getattr(settings, "notification_webhook_url", "")
 
     def queue_payment_confirmed(self, appointment_id: int, payment_id: int) -> NotificationDelivery:
         """Registra a confirmação em uma outbox idempotente na mesma transação do pagamento."""
@@ -125,7 +121,7 @@ class NotificationService:
         return delivery
 
     def recover_unnotified_payment_confirmations(self, limit: int = 100) -> int:
-        """Recupera confirmações já registradas antes de uma indisponibilidade do n8n."""
+        """Recupera confirmações já registradas antes de indisponibilidade de entrega."""
         appointments = (
             self.db.query(Appointment)
             .join(Payment, Payment.appointment_id == Appointment.id)
@@ -191,7 +187,7 @@ class NotificationService:
         return payload
 
     async def dispatch_payment_confirmed(self, delivery_id: int) -> bool:
-        """Acorda o n8n, sem confundir aceitação do webhook com entrega da mensagem."""
+        """Dispara notificação de pagamento confirmado, sem confundir aceitação do webhook com entrega da mensagem."""
         delivery = self.db.get(NotificationDelivery, delivery_id)
         if not delivery or delivery.status == "sent":
             return False
@@ -227,7 +223,7 @@ class NotificationService:
             )
             return False
 
-        # Somente o identificador interno é enviado ao gatilho. O n8n busca os
+        # Somente o identificador interno é enviado ao gatilho. O webhook busca os
         # dados completos autenticado, evitando expor dados do cliente em logs.
         payload = {"delivery_id": delivery.id, "event": delivery.event}
         headers = {"Content-Type": "application/json"}

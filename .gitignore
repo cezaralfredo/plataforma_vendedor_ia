@@ -18,7 +18,6 @@ env/
 .env.*
 !.env.example
 !.env.prod.example
-!.env.hermes.example
 
 # Database
 *.db
@@ -54,8 +53,6 @@ docs/_build/
 # Opencode
 .opencode/
 
-# Hermes (configuração local)
-hermes/.hermes/
 
 # Alembic compiled
 alembic/versions/*.pyc

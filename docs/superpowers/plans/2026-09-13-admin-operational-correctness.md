@@ -147,7 +147,7 @@ git commit -m "fix(admin): distinguish loading failure and empty data"
 **Interfaces:**
 - Produces: `GET /admin/api/system-status` returning `api`, `database`, `asaas` and `mcp` objects.
 - `asaas` reports configuration and environment inferred from the configured base URL; it does not claim remote availability without a remote probe.
-- `mcp` reports `endpoint_enabled`; it does not claim Hermes is connected.
+- `mcp` reports `endpoint_enabled`; it does not claim Orquestrador_IA is connected.
 
 - [ ] **Step 1: Write failing status semantics tests**
 
@@ -166,7 +166,7 @@ Expected: FAIL with 404 for `/admin/api/system-status`.
 
 - [ ] **Step 3: Implement truthful status reporting**
 
-Run a lightweight `SELECT 1` for the database, derive the Asaas mode from `settings.asaas_base_url`, and report only that the MCP endpoint is enabled. Replace static claims such as `Hermes/MCP Disponível` with the returned semantics.
+Run a lightweight `SELECT 1` for the database, derive the Asaas mode from `settings.asaas_base_url`, and report only that the MCP endpoint is enabled. Replace static claims such as `Orquestrador_IAMCP Disponível` with the returned semantics.
 
 - [ ] **Step 4: Verify status and dashboard tests**
 

@@ -1,6 +1,6 @@
 # Deploy no Portainer - Guia Completo
 
-> Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também as imagens `-backup` e `-mcp-gateway` quando usar Hermes. API e métricas usam Bearer; o painel usa Basic.
+> Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também as imagens `-backup` e `-mcp-gateway` para alta disponibilidade. API e métricas usam Bearer; o painel usa Basic.
 
 > **Arquitetura**: Traefik (SSL auto) + PostgreSQL + API (FastAPI) + Backup + Watchtower
 > **Registry**: GHCR (GitHub Container Registry) via GitHub Actions
@@ -138,9 +138,7 @@ curl https://api.seudominio.com/ready
 # Login: admin / suasenhaforte
 ```
 
-Para a topologia Hermes, publique o gateway como imagem versionada, aponte o
-subdomínio MCP para `mcp-gateway:8080` e valide `https://mcp.seudominio.com/ready`
-antes de liberar agentes. Faça um teste de restauração de backup em ambiente
+Publique o MCP gateway como imagem versionada se desejar expor as tools MCP externamente, aponte o subdomínio MCP para `mcp-gateway:8080` e valide `https://mcp.seudominio.com/ready`. Faça um teste de restauração de backup em ambiente
 isolado periodicamente.
 
 ### 5.2 Verificar SSL

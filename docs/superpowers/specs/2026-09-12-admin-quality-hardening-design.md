@@ -22,7 +22,7 @@ O trabalho preservará as regras já aprovadas:
 ### Dashboard
 
 - Os indicadores e a lista de profissionais dependem de carregamento assíncrono, mas aparecem vazios antes da resposta.
-- O texto "Sistema online" e os estados de API, PostgreSQL, Asaas e Hermes são apresentados como valores estáticos e podem transmitir uma condição que não foi realmente verificada.
+- O texto "Sistema online" e os estados de API, PostgreSQL, Asaas e Orquestrador_IA são apresentados como valores estáticos e podem transmitir uma condição que não foi realmente verificada.
 - Falhas de carregamento aparecem apenas no console, sem orientação para o administrador.
 
 ### Agendamentos
@@ -178,4 +178,4 @@ O ambiente local possui Python 3.14 e não consegue carregar a versão atual do 
 - Reescrita do painel como SPA.
 - Mudança de provedor de pagamentos.
 - Exclusão automática de dados existentes identificados como teste, duplicados ou incompletos.
-- Alteração do protocolo MCP ou da integração do Hermes.
+- Alteração do protocolo MCP ou da integração do Orquestrador_IA.

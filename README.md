@@ -66,14 +66,14 @@ Plataforma completa de **Vendas e Atendimento Automatizado com Inteligência Art
   - `meus_agendamentos` — lista agendamentos de um cliente
 - Autenticação via Bearer Token (`API_KEY`)
 
-### Hermes (Agentes de IA)
-- Configuração para orquestração de agentes via **Hermes**
-- Perfis pré-definidos:
-  - **Agendador** — gestão de reservas
-  - **Financeiro** — pagamentos e cobranças
-  - **Notificador** — comunicações (WhatsApp, etc.)
-  - **Orquestrador** — coordenação geral
-- Integração nativa com MCP da API
+### Agentes de IA Nativos em Python
+- Arquitetura 100% nativa em Python (`SalesOrchestrator`)
+- Subagentes especializados:
+  - **CatalogSubagent** — catálogo inteligente, categorias, gramaturas e precificação em tempo real
+  - **CheckoutSubagent** — geração de PIX via Asaas, QR Code e validação de pedidos
+  - **PaymentWatcher** — conciliação assíncrona e notificações imediatas
+  - **TriageService** — triagem ultrarrápida via TypeSafe Jev
+- Integração direta com WhatsApp (WAHA / Evolution)
 
 ---
 
@@ -86,7 +86,7 @@ Plataforma completa de **Vendas e Atendimento Automatizado com Inteligência Art
 | Banco | PostgreSQL 16 |
 | Migrações | Alembic |
 | Pagamentos | Asaas API (sandbox/produção) |
-| IA/Agentes | MCP (Model Context Protocol) + Hermes |
+| IA/Agentes | Orquestrador Nativo em Python + Subagentes + MCP |
 | Testes | pytest |
 | Container | Docker Compose |
 
@@ -146,9 +146,6 @@ plataforma_atende_agenda/
 │       ├── service_service.py
 │       └── user_service.py
 ├── alembic/              # Migrações de banco
-├── hermes/               # Configuração agentes IA
-│   ├── config.yaml
-│   └── profiles/
 ├── tests/                # Testes automatizados
 ├── docker-compose.yml    # PostgreSQL
 ├── requirements.txt
@@ -329,47 +326,21 @@ pytest tests/ -v
 | `marcar_notificado` | Marca agendamento como notificado |
 | `meus_agendamentos` | Lista agendamentos de um cliente |
 
-### Hermes (Orquestração de Agentes)
+### Orquestração de Agentes Nativos em Python
 
-**Arquitetura com MCP Gateway (Recomendado para Produção):**
+**Arquitetura Nativa (100% Python Assíncrono):**
 
 ```
-Hermes (host/VM) ──► MCP Gateway (Docker) ──► API (Docker)
-     │                    │                      │
-     │ gateway toolset    │ FastAPI proxy        │ /mcp endpoint
-     │                    │ injeta API_KEY       │
-     ▼                    ▼                      ▼
-  Profis YAML         http://mcp-gateway:8080  PostgreSQL
+WhatsApp (WAHA) ──► Webhook (/api/v1/whatsapp/webhook) ──► SalesOrchestrator (Python)
+                                                                 │
+                                     ┌───────────────────────────┼───────────────────────────┐
+                                     ▼                           ▼                           ▼
+                             CatalogSubagent             CheckoutSubagent            PaymentWatcher
+                             (Produtos & Estoque)        (Asaas Cobranças & PIX)     (Polling & Recibo)
 ```
 
-O **MCP Gateway** isola o Hermes do ambiente interno da API:
-- Hermes usa apenas o toolset `gateway` (HTTP nativo)
-- Gateway injeta `Authorization: Bearer <API_KEY>` automaticamente
-- Gateway valida `X-Gateway-Key` para autenticação Hermes→Gateway
-- Elimina conflitos de namespace, auth e estado entre Hermes e API
-
-```bash
-# 1. Configure ~/.hermes/config.yaml (baseado em hermes/config.yaml.example)
-# 2. Defina MCP_GATEWAY_KEY no Portainer (variável da stack)
-# 3. No NPM, crie Proxy Host para mcp-gateway:8080
-# 4. Execute agente
-hermes run --profile agendador
-```
-
-Perfis disponíveis em `hermes/profiles/` (usam `gateway` toolset):
-- `agendador.yaml`
-- `financeiro.yaml`
-- `notificador.yaml`
-- `orquestrador.yaml`
-
-Configuração do Gateway em `hermes/config.yaml.example`:
-```yaml
-gateway:
-  base_url: "https://mcp.seudominio.com"
-  timeout: 30
-  headers:
-    X-Gateway-Key: "${MCP_GATEWAY_KEY}"
-```
+- **Sem intermediários pesados:** toda a orquestração e gerenciamento de estado é feita diretamente pelo runtime Python do FastAPI.
+- **MCP Gateway opcional:** permite que ferramentas externas consumam as capabilities do sistema de forma padronizada.
 
 ---
 
@@ -395,7 +366,7 @@ WebhookEvent (tabela de idempotência para webhooks)
 - Em produção, a documentação interativa é desativada e `/metrics` também exige Bearer. `/health` indica vida do processo e `/ready` confirma acesso ao PostgreSQL.
 - O sandbox atual do Asaas é `https://api-sandbox.asaas.com/v3` e a produção usa `https://api.asaas.com/v3`. Clientes e cobranças usam referências externas estáveis para reconciliação.
 - Horários sem offset são interpretados em `APP_TIMEZONE=America/Sao_Paulo`; reservas não pagas vencidas liberam automaticamente o slot.
-- Em produção, o Hermes usa exclusivamente o domínio do MCP Gateway com `X-Gateway-Key`; o gateway injeta o Bearer interno da API e `/ready` confirma o upstream.
+- Em produção, o MCP Gateway pode ser usado para expor ferramentas MCP com autenticação via `X-Gateway-Key`.
 - A CI executa testes no PostgreSQL, migrações, Ruff e MyPy antes de publicar as imagens principal, `-backup` e `-mcp-gateway`. A migração aborta se já existirem agendamentos ativos sobrepostos.
 - Após cada publicação, valide `/ready` da API, `/ready` do gateway, `tools/list` pelo gateway e o backup mais recente. Faça um teste de restauração periodicamente em ambiente isolado.
 

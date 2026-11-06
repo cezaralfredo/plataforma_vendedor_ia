@@ -17,7 +17,7 @@ class TriageService:
     """
     Serviço de Triagem de Nível 1 com TypeSafe Jev (OpenRouter Decisions API).
     Avalia a mensagem em paralelo através de perguntas atômicas estruturadas (Choice, Noul, Score).
-    Implementa resiliência com fail-open e fallback automático para o Hermes LLM.
+    Implementa resiliência com fail-open e fallback automático para o Orquestrador LLM em Python.
     """
 
     def __init__(

@@ -59,8 +59,6 @@ plano-de-implementacao.md
 # Tests (opcional - remover se quiser rodar testes na imagem)
 tests/
 
-# Hermes
-hermes/
 
 # Alembic versions (manter apenas se precisar rodar migrações na imagem)
 # alembic/versions/
