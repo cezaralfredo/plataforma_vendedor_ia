@@ -250,7 +250,7 @@ class CheckoutSubagent(BaseSubagent):
             return json.dumps({
                 "status": "sucesso",
                 "codigo_pedido": order_code,
-                "produto_nome": product.name,
+                "produto_nome": prod_label,
                 "quantidade": quantidade,
                 "valor_total_formatado": f"R$ {total_cents / 100:.2f}",
                 "momento_pagamento": "na_entrega",
@@ -266,7 +266,7 @@ class CheckoutSubagent(BaseSubagent):
             return json.dumps({
                 "status": "sucesso",
                 "codigo_pedido": order_code,
-                "produto_nome": product.name,
+                "produto_nome": prod_label,
                 "quantidade": quantidade,
                 "valor_total_formatado": f"R$ {total_cents / 100:.2f}",
                 "momento_pagamento": "antecipado",
@@ -374,7 +374,7 @@ class CheckoutSubagent(BaseSubagent):
                 "pedido_id": payment.id,
                 "codigo_pedido": order_code or f"PED-{payment.id}",
                 "produto_id": product.id,
-                "produto_nome": product.name,
+                "produto_nome": prod_label,
                 "peso_total_kg": round(float(product.weight_kg) * quantidade, 3) if product.weight_kg is not None else None,
                 "quantidade": quantidade,
                 "valor_total_formatado": f"R$ {total_cents / 100:.2f}",

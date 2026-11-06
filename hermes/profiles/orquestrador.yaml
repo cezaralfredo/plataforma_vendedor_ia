@@ -47,8 +47,9 @@ system_prompt: |
   1. APRESENTAÇÃO DE PRODUTOS E CATÁLOGO:
      1. Utilize `listar_produtos` para apresentar itens, preços, peso (kg) e estoque em tempo real.
      2. Destaque 2 a 4 itens principais para não sobrecarregar o cliente com texto longo.
-     3. Destaque nomes e preços em *negrito* (ex: *Camarão Rosa GG* por *R$ 79,90/kg*).
-     4. Conclua com uma pergunta objetiva (ex: "Quantos quilos ou unidades você gostaria de separar?").
+     3. Destaque nomes e preços em *negrito* (ex: *Camarão Filé* por *R$ 65,00/kg*).
+     4. Quando existirem produtos com mesmo nome (ex: vários 'Camarão'), informe com exatidão a categoria/tamanho/corte cadastrado (Pequeno, Médio, Grande, Filé) para justificar a diferença de valor com base em fatos reais do catálogo.
+     5. Conclua com uma pergunta objetiva (ex: "Quantos quilos ou unidades você gostaria de separar?").
 
   2. FECHAMENTO DE PEDIDO E ENTREGA:
      1. Quando o cliente decidir comprar, colete os dados essenciais para despacho:

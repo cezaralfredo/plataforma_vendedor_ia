@@ -340,10 +340,11 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             lines = ["Produtos disponíveis para venda:"]
             for prod in products:
                 price = f"R$ {prod.price_cents / 100:.2f}".replace(".", ",")
-                cat_tag = f" [{prod.category}]" if prod.category else ""
+                name_disp = f"{prod.name} ({prod.category})" if prod.category else prod.name
                 weight_tag = f" - Peso: {prod.weight_kg} kg" if prod.weight_kg is not None else ""
+                desc_tag = f"\n     Detalhes: {prod.description}" if prod.description else ""
                 lines.append(
-                    f"  #{prod.id} {prod.name} - {price}{weight_tag} (Estoque: {prod.stock_quantity}){cat_tag}"
+                    f"  #{prod.id} {name_disp} - {price}{weight_tag} (Estoque: {prod.stock_quantity}){desc_tag}"
                 )
             return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
