@@ -2,7 +2,7 @@ import hmac
 import logging
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -20,6 +20,7 @@ router = APIRouter(
 
 
 @router.get("/meta")
+@router.get("/meta/")
 async def verify_meta_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
@@ -41,9 +42,9 @@ async def verify_meta_webhook(
 
 
 @router.post("/meta")
+@router.post("/meta/")
 async def handle_meta_webhook(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Webhook para mensagens recebidas da Meta Cloud API Oficial."""
@@ -56,15 +57,18 @@ async def handle_meta_webhook(
             return {"status": "ok", "detail": "duplicate_ignored"}
 
         seller_ai = SellerAIService(db)
-        background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
+        try:
+            await seller_ai.handle_inbound_message(inbound)
+        except Exception as exc:
+            logger.exception("Erro ao processar mensagem da Meta Cloud API: %s", exc)
 
     return {"status": "ok"}
 
 
 @router.post("/waha")
+@router.post("/waha/")
 async def handle_waha_webhook(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Webhook para mensagens recebidas do WAHA (WhatsApp HTTP API)."""
@@ -77,15 +81,18 @@ async def handle_waha_webhook(
             return {"status": "ok", "detail": "duplicate_ignored"}
 
         seller_ai = SellerAIService(db)
-        background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
+        try:
+            await seller_ai.handle_inbound_message(inbound)
+        except Exception as exc:
+            logger.exception("Erro ao processar mensagem do WAHA (%s): %s", inbound.message_id, exc)
 
     return {"status": "ok"}
 
 
 @router.post("/evolution")
+@router.post("/evolution/")
 async def handle_evolution_webhook(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Webhook para mensagens recebidas da Evolution API."""
@@ -98,15 +105,18 @@ async def handle_evolution_webhook(
             return {"status": "ok", "detail": "duplicate_ignored"}
 
         seller_ai = SellerAIService(db)
-        background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
+        try:
+            await seller_ai.handle_inbound_message(inbound)
+        except Exception as exc:
+            logger.exception("Erro ao processar mensagem da Evolution API (%s): %s", inbound.message_id, exc)
 
     return {"status": "ok"}
 
 
 @router.post("/inbound")
+@router.post("/inbound/")
 async def handle_generic_inbound_webhook(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Webhook genérico que utiliza o provedor ativo configurado na empresa."""
@@ -114,12 +124,23 @@ async def handle_generic_inbound_webhook(
     active_provider = gateway.settings.whatsapp_provider or "evolution"
     inbound = gateway.parse_inbound(active_provider, payload)
 
+    # Fallback de parser caso o payload seja de outro formato conhecido
+    if not inbound:
+        for alt_provider in ("waha", "evolution", "meta"):
+            if alt_provider != active_provider:
+                inbound = gateway.parse_inbound(alt_provider, payload)
+                if inbound:
+                    break
+
     if inbound:
         deduplicator = InboundDeduplicator.get_instance()
         if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
             return {"status": "ok", "provider": active_provider, "detail": "duplicate_ignored"}
 
         seller_ai = SellerAIService(db)
-        background_tasks.add_task(seller_ai.handle_inbound_message, inbound)
+        try:
+            await seller_ai.handle_inbound_message(inbound)
+        except Exception as exc:
+            logger.exception("Erro ao processar mensagem genérica inbound (%s): %s", inbound.message_id, exc)
 
     return {"status": "ok", "provider": active_provider}

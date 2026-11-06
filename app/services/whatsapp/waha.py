@@ -137,12 +137,29 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 error=str(exc),
             )
 
+    @staticmethod
+    def _default_webhook_config() -> dict[str, Any]:
+        import os
+
+        webhook_url = (
+            os.getenv("WAHA_WEBHOOK_URL")
+            or "http://vendedor-ia:8000/api/webhooks/whatsapp/waha"
+        )
+        return {
+            "webhooks": [
+                {
+                    "url": webhook_url,
+                    "events": ["message", "message.any"],
+                }
+            ]
+        }
+
     def parse_inbound_webhook(self, payload: dict[str, Any]) -> InboundMessage | None:
-        """Processa webhook do WAHA (evento 'message' ou 'message.any')."""
+        """Processa webhook do WAHA (evento 'message', 'message.any' ou 'message.create')."""
         event = payload.get("event")
         msg_data = payload.get("payload") or payload
 
-        if event and event not in ("message", "message.any"):
+        if event and event not in ("message", "message.any", "message.create"):
             return None
 
         is_from_me = bool(msg_data.get("fromMe", False))
@@ -265,10 +282,13 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 )
 
                 if res.status_code == 404:
-                    # Sessão não existe, cria e inicializa
+                    # Sessão não existe, cria e inicializa com webhook do Vendedor IA
                     await client.post(
                         f"{self.base_url}/api/sessions/",
-                        json={"name": self.session},
+                        json={
+                            "name": self.session,
+                            "config": self._default_webhook_config(),
+                        },
                         headers=self._headers(),
                     )
                     await client.post(
@@ -355,6 +375,7 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
 
                 res = await client.post(
                     f"{self.base_url}/api/sessions/{self.session}/start",
+                    json={"config": self._default_webhook_config()},
                     headers=self._headers(),
                     timeout=5.0,
                 )

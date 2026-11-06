@@ -125,3 +125,41 @@ def test_waha_webhook_duplicate_is_ignored(anonymous_client: TestClient):
         # O agente NÃO deve ter sido chamado novamente!
         assert mock_handle.call_count == 1
 
+
+def test_waha_webhook_full_flow_sends_reply(anonymous_client: TestClient, db_session: Session):
+    from app.models.product import Product
+    from app.services.whatsapp.base import SendMessageResult
+
+    prod = Product(
+        name="Luminária Rústica",
+        price_cents=15000,
+        stock_quantity=5,
+        active=True,
+    )
+    db_session.add(prod)
+    db_session.commit()
+
+    payload = {
+        "event": "message",
+        "session": "default",
+        "payload": {
+            "id": "waha-full-flow-msg-1",
+            "from": "5585991112222@c.us",
+            "fromMe": False,
+            "body": "Olá, gostaria de ver os produtos",
+            "_data": {"notifyName": "Mariana"},
+        },
+    }
+
+    mock_send = AsyncMock(return_value=SendMessageResult(success=True, provider="waha", message_id="sent-123"))
+
+    with patch("app.services.whatsapp.waha.WahaWhatsAppProvider.send_text", mock_send):
+        response = anonymous_client.post("/api/webhooks/whatsapp/waha", json=payload)
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+        assert mock_send.call_count >= 1
+        called_phone, called_text = mock_send.call_args[0]
+        assert "5585991112222" in called_phone
+        assert "Luminária Rústica" in called_text
+
+

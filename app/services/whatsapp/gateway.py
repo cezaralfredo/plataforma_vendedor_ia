@@ -24,13 +24,22 @@ class WhatsAppGatewayService:
         self.settings: CompanySettings = CompanySettingsService(db).get_or_create_default()
 
     def get_provider(self, provider_name: str | None = None) -> BaseWhatsAppProvider:
+        import os
+
         name = (provider_name or self.settings.whatsapp_provider or "evolution").lower()
 
         if name == "waha":
+            waha_url = (
+                self.settings.waha_base_url
+                or os.getenv("WAHA_BASE_URL")
+                or "http://waha:3000"
+            )
+            session = self.settings.waha_session or os.getenv("WAHA_SESSION") or "default"
+            api_key = self.settings.waha_api_key or os.getenv("WAHA_API_KEY") or ""
             return WahaWhatsAppProvider(
-                base_url=self.settings.waha_base_url,
-                session=self.settings.waha_session,
-                api_key=self.settings.waha_api_key,
+                base_url=waha_url,
+                session=session,
+                api_key=api_key,
             )
         elif name == "meta":
             return MetaWhatsAppProvider(
@@ -40,10 +49,17 @@ class WhatsAppGatewayService:
                 verify_token=self.settings.meta_verify_token,
             )
         else:  # default to evolution
+            evo_url = (
+                self.settings.evolution_base_url
+                or os.getenv("EVOLUTION_BASE_URL")
+                or "http://evolution:8080"
+            )
+            instance = self.settings.evolution_instance or os.getenv("EVOLUTION_INSTANCE") or "default"
+            api_key = self.settings.evolution_api_key or os.getenv("EVOLUTION_API_KEY") or ""
             return EvolutionWhatsAppProvider(
-                base_url=self.settings.evolution_base_url,
-                instance=self.settings.evolution_instance,
-                api_key=self.settings.evolution_api_key,
+                base_url=evo_url,
+                instance=instance,
+                api_key=api_key,
             )
 
     async def send_text(

@@ -246,7 +246,14 @@ class SellerAIService:
             if i > 0:
                 await asyncio.sleep(1.0)
             try:
-                await self.gateway.send_text(phone, chunk, provider_name=provider_name)
+                res = await self.gateway.send_text(phone, chunk, provider_name=provider_name)
+                if not res.success:
+                    logger.error(
+                        "Falha ao despachar mensagem via WhatsApp Gateway (provedor=%s, fone=%s): %s",
+                        provider_name,
+                        phone,
+                        res.error,
+                    )
             except Exception as exc:
                 logger.error("Erro ao despachar bloco %d de mensagem via WhatsApp (%s): %s", i + 1, provider_name, exc)
 
@@ -333,13 +340,18 @@ class SellerAIService:
         custom_fields = dict(user.custom_fields or {})
         ai_paused_until_str = custom_fields.get("ai_paused_until")
         if ai_paused_until_str:
-            # Permite ao cliente reativar a IA caso envie comandos de retomada
+            # Permite ao cliente reativar a IA caso envie comandos de retomada ou cumprimentos/inquéritos
             lowered = text.lower()
-            if any(w in lowered for w in ["voltar para o bot", "retomar ia", "falar com robô", "reiniciar ia", "menu"]):
+            resume_triggers = [
+                "voltar para o bot", "retomar ia", "falar com robô", "falar com robo", "reiniciar ia", "menu",
+                "#ia", "#bot", "#ativar", "#robo", "oi", "olá", "ola", "bom dia", "boa tarde", "boa noite",
+                "produtos", "catalogo", "catálogo", "comprar", "preço", "preco", "valor", "ajuda", "cardápio", "cardapio"
+            ]
+            if any(w in lowered for w in resume_triggers):
                 custom_fields.pop("ai_paused_until", None)
                 user.custom_fields = custom_fields
                 self.db.commit()
-                logger.info("Atendimento por IA retomado para o cliente %s pelo comando do usuário.", phone)
+                logger.info("Atendimento por IA retomado para o cliente %s pelo comando/mensagem do usuário: '%s'", phone, text)
             else:
                 try:
                     paused_until = datetime.fromisoformat(ai_paused_until_str)
