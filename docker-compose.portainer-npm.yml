@@ -25,9 +25,6 @@ services:
       agenda_internal:
         aliases:
           - waha
-      npm:
-        aliases:
-          - vendedor-ia-waha
 
   mcp-gateway:
     image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_vendedor_ia}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
