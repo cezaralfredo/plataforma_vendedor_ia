@@ -678,12 +678,65 @@
                             <p class="text-[11px] text-slate-600 mt-1" x-text="whatsappConnectedPhone ? 'Número conectado: +' + whatsappConnectedPhone : 'Conecte o WhatsApp escaneando o QR Code diretamente pela tela.'"></p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                        <button type="button" @click="syncWebhook()" :disabled="syncingWebhook" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer">
+                            <i class="fas" :class="syncingWebhook ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                            <span>Sincronizar Webhook</span>
+                        </button>
                         <button type="button" @click="openQrModal()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer">
                             <i class="fas fa-qrcode"></i>
                             <span x-text="whatsappStatus === 'WORKING' ? 'Gerenciar Conexão' : 'Escanear QR Code'"></span>
                         </button>
                     </div>
+                </div>
+
+                <!-- Webhook Banner Informativo -->
+                <div class="rounded-xl bg-emerald-50/70 border border-emerald-200 p-3.5 text-xs text-emerald-900 space-y-1.5">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <span class="font-bold flex items-center gap-1.5">
+                            <i class="fas fa-satellite-dish text-emerald-600"></i> Webhook de Retorno do Vendedor IA
+                        </span>
+                        <span class="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">
+                            Eventos: message, message.any
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-600">
+                        Endpoint de recepção direta na rede Docker: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-200 select-all">http://vendedor-ia:8000/api/webhooks/whatsapp/waha</code>
+                    </p>
+                </div>
+
+                <!-- Campos de Configuração do WAHA -->
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">URL Base do WAHA</label>
+                        <input type="text" x-model="form.waha_base_url" placeholder="Ex: http://agenda_waha:3000" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                        <p class="text-[10px] text-slate-500 mt-1">Docker: http://agenda_waha:3000</p>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">Nome da Sessão</label>
+                        <input type="text" x-model="form.waha_session" placeholder="Ex: default" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                        <p class="text-[10px] text-slate-500 mt-1">Padrão: default</p>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 text-xs mb-1">API Key do WAHA</label>
+                        <input type="password" x-model="form.waha_api_key" placeholder="waha_anaue_secret_2026" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                        <p class="text-[10px] text-slate-500 mt-1">Opcional se desabilitada no container</p>
+                    </div>
+                </div>
+
+                <!-- Teste de Envio Rápido -->
+                <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                    <h5 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-paper-plane text-emerald-600"></i> Teste de Envio Rápido via WhatsApp
+                    </h5>
+                    <div class="flex flex-col sm:flex-row items-center gap-2">
+                        <input type="text" x-model="testPhone" placeholder="Seu WhatsApp para teste (Ex: 5511999998888)" class="flex-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                        <button type="button" @click="sendTestMessage()" :disabled="sendingTest || !testPhone" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer">
+                            <i class="fas" :class="sendingTest ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
+                            <span>Testar Envio</span>
+                        </button>
+                    </div>
+                    <p x-show="testResult" class="text-xs font-medium" :class="testResultSuccess ? 'text-emerald-700' : 'text-rose-600'" x-text="testResult"></p>
                 </div>
             </div>
 
@@ -906,6 +959,11 @@ function companySettingsManager() {
         qrLoading: false,
         showQrModal: false,
         qrPollTimer: null,
+        syncingWebhook: false,
+        testPhone: '',
+        sendingTest: false,
+        testResult: '',
+        testResultSuccess: false,
 
         get whatsappStatusLabel() {
             const map = {
@@ -952,11 +1010,11 @@ function companySettingsManager() {
             human_support_phone: settings.human_support_phone || '',
             human_support_name: settings.human_support_name || 'Equipe de Atendimento',
             human_support_message: settings.human_support_message || '',
-            whatsapp_provider: settings.whatsapp_provider || 'evolution',
+            whatsapp_provider: settings.whatsapp_provider || 'waha',
             evolution_base_url: settings.evolution_base_url || '',
             evolution_instance: settings.evolution_instance || '',
             evolution_api_key: settings.evolution_api_key || '',
-            waha_base_url: settings.waha_base_url || '',
+            waha_base_url: settings.waha_base_url || 'http://agenda_waha:3000',
             waha_session: settings.waha_session || 'default',
             waha_api_key: settings.waha_api_key || '',
             meta_phone_number_id: settings.meta_phone_number_id || '',
@@ -1096,7 +1154,7 @@ function companySettingsManager() {
                 this.form.gateway_credentials.merchant_city = this.form.pix_merchant_city;
                 this.form.gateway_credentials.bank_name = this.form.pix_bank_name;
 
-                if (!this.form.waha_base_url) this.form.waha_base_url = 'http://waha:3000';
+                if (!this.form.waha_base_url) this.form.waha_base_url = 'http://agenda_waha:3000';
                 if (!this.form.waha_session) this.form.waha_session = 'default';
                 if (!this.form.waha_api_key) this.form.waha_api_key = 'waha_anaue_secret_2026';
 
@@ -1202,6 +1260,57 @@ function companySettingsManager() {
             } catch (err) {
                 console.error(err);
                 this.qrLoading = false;
+            }
+        },
+
+        async syncWebhook() {
+            this.syncingWebhook = true;
+            try {
+                const res = await fetch('/admin/api/whatsapp/sync-webhook', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': '{{ request.state.admin_context.csrf_token }}'
+                    }
+                });
+                const data = await res.json();
+                if (data.configured) {
+                    this.showMessage(data.synced ? 'Webhook sincronizado com sucesso na sessão WAHA!' : 'Webhook já estava ativo e sincronizado!');
+                } else {
+                    this.showMessage('Erro ao sincronizar webhook: ' + (data.error || 'Falha no WAHA'), true);
+                }
+            } catch (err) {
+                this.showMessage('Erro de rede ao sincronizar webhook: ' + err.message, true);
+            } finally {
+                this.syncingWebhook = false;
+            }
+        },
+
+        async sendTestMessage() {
+            if (!this.testPhone) return;
+            this.sendingTest = true;
+            this.testResult = '';
+            try {
+                const res = await fetch('/admin/api/whatsapp/test-send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': '{{ request.state.admin_context.csrf_token }}'
+                    },
+                    body: JSON.stringify({ phone: this.testPhone, text: '🧪 Teste de conectividade do Vendedor IA via WAHA: Mensagem enviada com sucesso!' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.testResultSuccess = true;
+                    this.testResult = '✅ Mensagem enviada com sucesso! ID: ' + (data.message_id || 'OK');
+                } else {
+                    this.testResultSuccess = false;
+                    this.testResult = '❌ Falha no envio: ' + (data.error || 'Erro desconhecido');
+                }
+            } catch (err) {
+                this.testResultSuccess = false;
+                this.testResult = '❌ Erro de conexão: ' + err.message;
+            } finally {
+                this.sendingTest = false;
             }
         }
     };

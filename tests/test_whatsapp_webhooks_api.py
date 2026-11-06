@@ -163,3 +163,62 @@ def test_waha_webhook_full_flow_sends_reply(anonymous_client: TestClient, db_ses
         assert "Luminária Rústica" in called_text
 
 
+def test_waha_webhook_alias_without_api_prefix_succeeds(anonymous_client: TestClient, db_session: Session):
+    payload = {
+        "event": "message",
+        "session": "default",
+        "payload": {
+            "id": "alias-msg-999",
+            "from": "5585993334444@c.us",
+            "fromMe": False,
+            "body": "Teste rota alias sem /api",
+            "_data": {"notifyName": "Alias Test"},
+        },
+    }
+
+    mock_handle = AsyncMock(return_value="Olá!")
+    with patch("app.services.seller_ai_service.SellerAIService.handle_inbound_message", mock_handle):
+        response = anonymous_client.post("/webhooks/whatsapp/waha", json=payload)
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+        assert mock_handle.call_count == 1
+
+
+def test_admin_whatsapp_sync_webhook(client: TestClient):
+    from tests.test_admin_login_flow import login, session_data
+
+    login(client)
+    csrf = session_data(client)["csrf_token"]
+    headers = {"X-CSRF-Token": csrf}
+
+    with patch("app.services.whatsapp.waha.WahaWhatsAppProvider.ensure_session_webhook", new_callable=AsyncMock) as mock_sync:
+        mock_sync.return_value = {"configured": True, "synced": True, "webhook_url": "http://vendedor-ia:8000/api/webhooks/whatsapp/waha"}
+        response = client.post("/admin/api/whatsapp/sync-webhook", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["configured"] is True
+        assert data["synced"] is True
+
+
+def test_admin_whatsapp_test_send(client: TestClient):
+    from app.services.whatsapp.base import SendMessageResult
+    from tests.test_admin_login_flow import login, session_data
+
+    login(client)
+    csrf = session_data(client)["csrf_token"]
+    headers = {"X-CSRF-Token": csrf}
+
+    mock_send = AsyncMock(return_value=SendMessageResult(success=True, provider="waha", message_id="test-msg-1"))
+    with patch("app.services.whatsapp.gateway.WhatsAppGatewayService.send_text", mock_send):
+        response = client.post(
+            "/admin/api/whatsapp/test-send",
+            json={"phone": "5511999998888", "text": "Teste de envio"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["message_id"] == "test-msg-1"
+
+
+

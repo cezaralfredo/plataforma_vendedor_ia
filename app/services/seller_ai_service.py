@@ -242,6 +242,13 @@ class SellerAIService:
         if not chunks:
             return
 
+        logger.info(
+            "Despachando resposta (%d blocos) para %s via provedor '%s'",
+            len(chunks),
+            phone,
+            provider_name,
+        )
+
         for i, chunk in enumerate(chunks):
             if i > 0:
                 await asyncio.sleep(1.0)
@@ -249,10 +256,21 @@ class SellerAIService:
                 res = await self.gateway.send_text(phone, chunk, provider_name=provider_name)
                 if not res.success:
                     logger.error(
-                        "Falha ao despachar mensagem via WhatsApp Gateway (provedor=%s, fone=%s): %s",
+                        "Falha ao despachar bloco %d/%d via WhatsApp Gateway (provedor=%s, fone=%s): %s",
+                        i + 1,
+                        len(chunks),
                         provider_name,
                         phone,
                         res.error,
+                    )
+                else:
+                    logger.info(
+                        "Bloco %d/%d despachado com sucesso via %s para %s (msg_id=%s)",
+                        i + 1,
+                        len(chunks),
+                        provider_name,
+                        phone,
+                        res.message_id,
                     )
             except Exception as exc:
                 logger.error("Erro ao despachar bloco %d de mensagem via WhatsApp (%s): %s", i + 1, provider_name, exc)

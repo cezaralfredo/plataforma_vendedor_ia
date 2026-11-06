@@ -14,13 +14,18 @@ services:
       - WAHA_DASHBOARD_ENABLED=true
       - WAHA_DASHBOARD_USERNAME=admin
       - WAHA_DASHBOARD_PASSWORD=admin
+      - WAHA_API_KEY=${WAHA_API_KEY:-waha_anaue_secret_2026}
       # Webhook de retorno para a API do Vendedor IA
       - WHATSAPP_HOOK_URL=http://vendedor-ia:8000/api/webhooks/whatsapp/waha
-      - WHATSAPP_HOOK_EVENTS=message
+      - WHATSAPP_HOOK_EVENTS=message,message.any
     volumes:
       - waha_sessions:/app/.sessions
     networks:
-      - npm_network
+      npm_network:
+        aliases:
+          - waha
+          - agenda_waha
+          - agenda-waha
 
 volumes:
   waha_sessions:

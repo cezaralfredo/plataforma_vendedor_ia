@@ -3,7 +3,7 @@ import secrets
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -812,6 +812,36 @@ async def api_whatsapp_logout(db: Session = Depends(get_db)):
     gateway = WhatsAppGatewayService(db)
     result = await gateway.logout_session()
     return jsonable_encoder(result)
+
+
+@router.post("/api/whatsapp/sync-webhook", dependencies=[Depends(require_admin_mutation)])
+async def api_whatsapp_sync_webhook(db: Session = Depends(get_db)):
+    """Sincroniza forçadamente o webhook da plataforma na sessão ativa do WAHA."""
+    from app.services.whatsapp.gateway import WhatsAppGatewayService
+
+    gateway = WhatsAppGatewayService(db)
+    result = await gateway.sync_waha_webhook()
+    return jsonable_encoder(result)
+
+
+@router.post("/api/whatsapp/test-send", dependencies=[Depends(require_admin_mutation)])
+async def api_whatsapp_test_send(payload: dict[str, Any], db: Session = Depends(get_db)):
+    """Envia uma mensagem de teste para verificar a conectividade do WhatsApp."""
+    phone = str(payload.get("phone") or "").strip()
+    text = str(payload.get("text") or "Olá! Mensagem de teste de envio do Vendedor IA.").strip()
+    if not phone:
+        raise HTTPException(status_code=400, detail="Número de telefone obrigatório para teste.")
+
+    from app.services.whatsapp.gateway import WhatsAppGatewayService
+
+    gateway = WhatsAppGatewayService(db)
+    result = await gateway.send_text(phone, text)
+    return {
+        "success": result.success,
+        "message_id": result.message_id,
+        "provider": result.provider,
+        "error": result.error,
+    }
 
 
 

@@ -72,19 +72,41 @@ async def handle_waha_webhook(
     db: Session = Depends(get_db),
 ):
     """Webhook para mensagens recebidas do WAHA (WhatsApp HTTP API)."""
+    event = payload.get("event")
+    logger.info("WAHA webhook recebido: event=%s", event)
+
     gateway = WhatsAppGatewayService(db)
     inbound = gateway.parse_inbound("waha", payload)
 
-    if inbound:
-        deduplicator = InboundDeduplicator.get_instance()
-        if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
-            return {"status": "ok", "detail": "duplicate_ignored"}
+    if not inbound:
+        logger.debug("WAHA webhook ignorado (não gerou mensagem de entrada elegível)")
+        return {"status": "ok", "detail": "ignored_non_message"}
 
-        seller_ai = SellerAIService(db)
-        try:
-            await seller_ai.handle_inbound_message(inbound)
-        except Exception as exc:
-            logger.exception("Erro ao processar mensagem do WAHA (%s): %s", inbound.message_id, exc)
+    deduplicator = InboundDeduplicator.get_instance()
+    if not deduplicator.try_acquire(db, inbound.message_id, inbound.provider, inbound.sender_phone):
+        logger.info(
+            "WAHA webhook ignorado por deduplicação: msg_id=%s, fone=%s",
+            inbound.message_id,
+            inbound.sender_phone,
+        )
+        return {"status": "ok", "detail": "duplicate_ignored"}
+
+    logger.info(
+        "WAHA mensagem aceita para processamento: de=%s (%s), texto='%s'",
+        inbound.sender_phone,
+        inbound.sender_name,
+        inbound.text[:120],
+    )
+    seller_ai = SellerAIService(db)
+    try:
+        reply = await seller_ai.handle_inbound_message(inbound)
+        logger.info(
+            "WAHA resposta concluída para %s (tamanho=%d)",
+            inbound.sender_phone,
+            len(reply) if reply else 0,
+        )
+    except Exception as exc:
+        logger.exception("Erro ao processar mensagem do WAHA (%s): %s", inbound.message_id, exc)
 
     return {"status": "ok"}
 

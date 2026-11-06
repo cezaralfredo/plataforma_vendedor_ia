@@ -69,6 +69,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      WAHA_BASE_URL: ${WAHA_BASE_URL:-http://agenda_waha:3000}
+      WAHA_SESSION: ${WAHA_SESSION:-default}
+      WAHA_API_KEY: ${WAHA_API_KEY:-waha_anaue_secret_2026}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-waha}
       SEED_DATA: "false"
     depends_on:
       postgres:
@@ -89,6 +93,8 @@ services:
         aliases:
           - vendedor-ia
           - vendedor-api
+          - agenda-api
+          - api
           - loja-api
           - loja-anauedesign
           - vendedor-anauedesign

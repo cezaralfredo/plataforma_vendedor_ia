@@ -26,13 +26,18 @@ class WhatsAppGatewayService:
     def get_provider(self, provider_name: str | None = None) -> BaseWhatsAppProvider:
         import os
 
-        name = (provider_name or self.settings.whatsapp_provider or "evolution").lower()
+        name = (
+            provider_name
+            or os.getenv("WHATSAPP_PROVIDER")
+            or self.settings.whatsapp_provider
+            or "waha"
+        ).lower()
 
         if name == "waha":
             waha_url = (
                 self.settings.waha_base_url
                 or os.getenv("WAHA_BASE_URL")
-                or "http://waha:3000"
+                or "http://agenda_waha:3000"
             )
             session = self.settings.waha_session or os.getenv("WAHA_SESSION") or "default"
             api_key = self.settings.waha_api_key or os.getenv("WAHA_API_KEY") or ""
@@ -124,3 +129,9 @@ class WhatsAppGatewayService:
         if hasattr(provider, "logout_session"):
             return await provider.logout_session()
         return {"success": False, "error": "Provedor WAHA não suporta logout de sessão."}
+
+    async def sync_waha_webhook(self) -> dict[str, Any]:
+        provider = self.get_provider("waha")
+        if hasattr(provider, "ensure_session_webhook"):
+            return await provider.ensure_session_webhook()
+        return {"configured": False, "error": "Provedor WAHA não suporta sincronização de webhook."}

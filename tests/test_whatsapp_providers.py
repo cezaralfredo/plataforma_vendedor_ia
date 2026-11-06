@@ -237,3 +237,61 @@ def test_waha_parse_inbound_with_pure_lid():
     assert provider._format_chat_id("102228962623501") == "102228962623501@lid"
     assert provider._format_chat_id("5585999998888") == "5585999998888@c.us"
 
+
+@pytest.mark.asyncio
+async def test_waha_ensure_session_webhook_syncs_missing():
+    provider = WahaWhatsAppProvider(base_url="http://agenda_waha:3000")
+
+    mock_get_resp = MagicMock()
+    mock_get_resp.status_code = 200
+    mock_get_resp.json.return_value = {
+        "name": "default",
+        "status": "WORKING",
+        "config": {"webhooks": []},
+    }
+
+    mock_put_resp = MagicMock()
+    mock_put_resp.status_code = 200
+    mock_put_resp.json.return_value = {"success": True}
+
+    client = MagicMock()
+    client.get = AsyncMock(return_value=mock_get_resp)
+    client.put = AsyncMock(return_value=mock_put_resp)
+
+    res = await provider.ensure_session_webhook(client=client)
+    assert res["configured"] is True
+    assert res.get("synced") is True
+    assert client.put.call_count == 1
+    put_call_args = client.put.call_args
+    assert "http://vendedor-ia:8000/api/webhooks/whatsapp/waha" in str(put_call_args)
+
+
+@pytest.mark.asyncio
+async def test_waha_ensure_session_webhook_skips_when_already_synced():
+    provider = WahaWhatsAppProvider(base_url="http://agenda_waha:3000")
+
+    mock_get_resp = MagicMock()
+    mock_get_resp.status_code = 200
+    mock_get_resp.json.return_value = {
+        "name": "default",
+        "status": "WORKING",
+        "config": {
+            "webhooks": [
+                {
+                    "url": "http://vendedor-ia:8000/api/webhooks/whatsapp/waha",
+                    "events": ["message", "message.any"],
+                }
+            ]
+        },
+    }
+
+    client = MagicMock()
+    client.get = AsyncMock(return_value=mock_get_resp)
+    client.put = AsyncMock()
+
+    res = await provider.ensure_session_webhook(client=client)
+    assert res["configured"] is True
+    assert res.get("already_synced") is True
+    assert client.put.call_count == 0
+
+

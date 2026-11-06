@@ -169,34 +169,31 @@ async def asaas_webhook(
 @router.post("/whatsapp/waha/")
 async def webhook_whatsapp_waha_alias(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     from app.api.whatsapp_webhooks import handle_waha_webhook
 
-    return await handle_waha_webhook(payload, background_tasks, db)
+    return await handle_waha_webhook(payload, db)
 
 
 @router.post("/whatsapp/evolution")
 @router.post("/whatsapp/evolution/")
 async def webhook_whatsapp_evolution_alias(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     from app.api.whatsapp_webhooks import handle_evolution_webhook
 
-    return await handle_evolution_webhook(payload, background_tasks, db)
+    return await handle_evolution_webhook(payload, db)
 
 
 @router.post("/whatsapp/inbound")
 @router.post("/whatsapp/inbound/")
 async def webhook_whatsapp_inbound_alias(
     payload: dict[str, Any],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     from app.api.whatsapp_webhooks import handle_generic_inbound_webhook
 
-    return await handle_generic_inbound_webhook(payload, background_tasks, db)
+    return await handle_generic_inbound_webhook(payload, db)
 

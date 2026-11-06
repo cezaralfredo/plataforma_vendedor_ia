@@ -14,6 +14,8 @@ class CompanySettingsService:
 
     def get_or_create_default(self) -> CompanySettings:
         """Retorna a configuração da empresa (singleton/primeiro registro) ou cria com padrões."""
+        import os
+
         settings = self.db.query(CompanySettings).first()
         if not settings:
             settings = CompanySettings(
@@ -25,7 +27,7 @@ class CompanySettingsService:
                 commission_model="percentage",
                 default_commission_rate=0.0,
                 split_enabled=False,
-                whatsapp_provider="evolution",
+                whatsapp_provider=os.getenv("WHATSAPP_PROVIDER", "evolution"),
                 assistant_name="Assistente",
                 tone="casual",
                 require_cpf=False,
