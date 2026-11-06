@@ -150,3 +150,24 @@ def test_build_system_prompt_demands_customer_name_when_generic():
     assert "NOME COMPLETO do cliente" in prompt
     assert "OBRIGATÓRIO SOLICITAR O NOME COMPLETO DO CLIENTE" in prompt
 
+
+
+def test_build_system_prompt_includes_retail_scope_and_sanitizes_legacy_salon_instructions():
+    """Valida a inclusão de guardrail estrito de produtos físicos e sanitização de instruções legadas."""
+    settings = CompanySettings(
+        company_name="Frutos do Mar &Cia",
+        assistant_name="Marina",
+        ai_system_prompt="Agendamento de serviços de cabelo e unhas na promoção de terça-feira.",
+    )
+    user = User(name="Ana Luiza", phone="5585999993333")
+
+    prompt = SalesPromptEngine.build_system_prompt(settings, user)
+
+    # Deve conter diretriz de escopo de produtos físicos
+    assert "DIRETRIZ CRÍTICA DE ESCOPO E IDENTIDADE DA LOJA (PRODUTOS FÍSICOS)" in prompt
+    assert "É TERMINANTEMENTE PROIBIDO oferecer agendamento de serviços, cortes de cabelo, unhas" in prompt
+
+    # Deve ter higienizado o ai_system_prompt que continha cabelo/unhas
+    assert "cabelo" not in prompt.split("INSTRUÇÕES ESPECÍFICAS DA LOJA")[1].lower()
+    assert "unhas" not in prompt.split("INSTRUÇÕES ESPECÍFICAS DA LOJA")[1].lower()
+    assert "catálogo de produtos" in prompt

@@ -27,6 +27,7 @@ from app.mcp.router import router as mcp_router
 from app.repositories.appointment_repo import AppointmentRepository
 from app.security import require_api_key
 from app.seller import router as seller_router
+from app.services.company_settings_service import CompanySettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,7 @@ def create_app(
         db = session_factory()
         try:
             bootstrap_admin_account(db, app_settings)
+            CompanySettingsService(db).sanitize_legacy_salon_data()
             db.commit()
         except Exception:
             db.rollback()

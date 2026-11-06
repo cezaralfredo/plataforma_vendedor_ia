@@ -12,7 +12,11 @@ from app.models.user import User
 from app.schemas.user import UserCreate
 from app.services.ai.orchestrator import SalesOrchestrator
 from app.services.ai.subagents.support_subagent import SupportSubagent
-from app.services.company_settings_service import CompanySettingsService
+from app.services.company_settings_service import (
+    CompanySettingsService,
+    get_clean_product_welcome_message,
+    is_legacy_salon_text,
+)
 from app.services.delivery_service import DeliveryService
 from app.services.payment_service import PaymentService
 from app.services.product_service import ProductService
@@ -466,6 +470,13 @@ class SellerAIService:
                 if len(history) <= 1:
                     company_name = self.company_settings.company_name or "Nossa Loja"
                     welcome = self.company_settings.welcome_message
+                    if welcome and is_legacy_salon_text(welcome):
+                        welcome = get_clean_product_welcome_message(company_name)
+                        self.company_settings.welcome_message = welcome
+                        try:
+                            self.db.commit()
+                        except Exception:
+                            self.db.rollback()
                     if welcome and welcome.strip():
                         response_text = welcome.strip()
                     else:

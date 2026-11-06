@@ -70,13 +70,13 @@ def mock_openrouter_pix():
 
 
 @pytest.fixture
-def mock_openrouter_booking():
+def mock_openrouter_purchase():
     return {
         "model": "typesafe/jev-1.13-20260917",
         "answers": {
             "intent": {
                 "type": "choice",
-                "choice": "novo_agendamento",
+                "choice": "comprar_produto",
                 "confidence": 0.99,
             },
             "is_human_handoff": {
@@ -141,20 +141,20 @@ async def test_triage_pix_payment_fast_path(mock_openrouter_pix):
 
 
 @pytest.mark.asyncio
-async def test_triage_booking_routes_to_llm(mock_openrouter_booking):
+async def test_triage_purchase_routes_to_llm(mock_openrouter_purchase):
     settings = Settings(openrouter_api_key="test-key", triage_enabled=True)
     mock_client = AsyncMock()
     mock_client.post.return_value = httpx.Response(
         200,
-        json=mock_openrouter_booking,
+        json=mock_openrouter_purchase,
         request=httpx.Request("POST", "https://openrouter.ai/api/alpha/decisions"),
     )
 
     service = TriageService(settings=settings, http_client=mock_client)
-    result = await service.evaluate("Gostaria de agendar um corte amanhã às 15h com a Carla")
+    result = await service.evaluate("Gostaria de comprar 2kg de camarão fresco")
 
     assert result.recommended_action == "route_to_llm"
-    assert result.intent == "novo_agendamento"
+    assert result.intent == "comprar_produto"
     assert result.fast_response_text is None
     assert result.is_fallback is False
 

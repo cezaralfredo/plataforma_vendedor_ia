@@ -182,11 +182,11 @@ async def test_seller_ai_fast_greeting_initial_message_via_jev(db_session: Sessi
     """Testa saudação rápida inicial via Jev com mensagem da loja e 0 tokens de LLM."""
     settings = db_session.query(CompanySettings).first()
     if not settings:
-        settings = CompanySettings(company_name="Barbearia Imperial", welcome_message="Bem-vindo à Barbearia Imperial! ✂️")
+        settings = CompanySettings(company_name="Peixaria Maresias", welcome_message="Bem-vindo à Peixaria Maresias! 🐟")
         db_session.add(settings)
     else:
-        settings.company_name = "Barbearia Imperial"
-        settings.welcome_message = "Bem-vindo à Barbearia Imperial! ✂️"
+        settings.company_name = "Peixaria Maresias"
+        settings.welcome_message = "Bem-vindo à Peixaria Maresias! 🐟"
     db_session.commit()
 
     user = User(name="Gabriel", phone="5585988884444")
@@ -224,6 +224,78 @@ async def test_seller_ai_fast_greeting_initial_message_via_jev(db_session: Sessi
 
         response = await service.handle_inbound_message(inbound)
 
-        assert "Bem-vindo à Barbearia Imperial! ✂️" in response
+        assert "Bem-vindo à Peixaria Maresias! 🐟" in response
+        mock_send.assert_called_once()
+        mock_orchestrator.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_seller_ai_fast_greeting_sanitizes_legacy_salon_message(db_session: Session):
+    """Testa que mensagem residual de salão/barbearia é higienizada automaticamente para produtos."""
+    settings = db_session.query(CompanySettings).first()
+    legacy_text = (
+        "Olá! Seja muito bem-vindo(a) ao Frutos do Mar &Cia! ✨\n\n"
+        "Sou sua consultora virtual. Como posso te ajudar hoje?\n"
+        "* Agendamento de Serviços (Cabelo, Unhas, Estética)\n"
+        "* Linha de Produtos Profissionais\n"
+        "* Informações sobre Horários e Preços"
+    )
+    if not settings:
+        settings = CompanySettings(company_name="Frutos do Mar &Cia", welcome_message=legacy_text)
+        db_session.add(settings)
+    else:
+        settings.company_name = "Frutos do Mar &Cia"
+        settings.welcome_message = legacy_text
+    db_session.commit()
+
+    user = User(name="Mariana", phone="5585977771111")
+    db_session.add(user)
+    db_session.commit()
+
+    service = SellerAIService(db_session)
+    inbound = InboundMessage(
+        provider="waha",
+        sender_phone=user.phone,
+        sender_name="Mariana",
+        text="Olá boa tarde",
+        message_id="msg-jev-legacy-sanitize",
+    )
+
+    mock_triage = TriageResult(
+        intent="saudacao",
+        intent_confidence=0.99,
+        is_human_handoff=0.0,
+        is_payment_claim=0.0,
+        frustration_score=0.0,
+        frustration_level="calmo",
+        recommended_action="fast_greeting",
+        fast_response_text="Olá!",
+        model_used="typesafe/jev-1.13",
+        cost_usd=0.0001,
+        is_fallback=False,
+    )
+
+    with patch.object(service.triage_service, "evaluate", new_callable=AsyncMock) as mock_eval, \
+         patch.object(service.gateway, "send_text", new_callable=AsyncMock) as mock_send, \
+         patch("app.services.seller_ai_service.SalesOrchestrator") as mock_orchestrator:
+
+        mock_eval.return_value = mock_triage
+
+        response = await service.handle_inbound_message(inbound)
+
+        # Não deve conter termos legados de salão
+        assert "Cabelo" not in response
+        assert "Unhas" not in response
+        assert "Estética" not in response
+        assert "Agendamento" not in response
+
+        # Deve conter termos de produtos/catálogo
+        assert "Frutos do Mar &Cia" in response
+        assert "Produtos e Catálogo" in response or "Catálogo" in response
+
+        # Verifica se o banco foi higienizado
+        db_session.refresh(settings)
+        assert "Cabelo" not in settings.welcome_message
+        assert "Produtos" in settings.welcome_message
         mock_send.assert_called_once()
         mock_orchestrator.assert_not_called()

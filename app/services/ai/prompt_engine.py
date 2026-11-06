@@ -183,6 +183,15 @@ class SalesPromptEngine:
         elif branch_name:
             context_lines.append(f"Atendimento vinculado à filial '{branch_name}'.")
 
+        # Diretriz Estrita de Escopo da Loja de Produtos Físicos
+        retail_scope_guardrail = (
+            "DIRETRIZ CRÍTICA DE ESCOPO E IDENTIDADE DA LOJA (PRODUTOS FÍSICOS):\n"
+            f"• A loja '{company_name}' comercializa estritamente PRODUTOS FÍSICOS e mercadorias comerciais (catálogo da loja, pescados/frutos do mar, alimentos ou itens do estoque).\n"
+            "• É TERMINANTEMENTE PROIBIDO oferecer agendamento de serviços, cortes de cabelo, unhas, procedimentos estéticos, barbearia ou reserva de horários em agenda de salão.\n"
+            "• Toda a interação deve ser focada exclusivamente em: apresentar produtos do catálogo, informar preços e peso/estoque, registrar pedidos de entrega ou retirada, e coordenar pagamento (PIX ou na entrega).\n"
+            "• Se o cliente perguntar sobre serviços de beleza, cortes ou horários de salão, esclareça com simpatia que a loja trabalha exclusivamente com venda e entrega de produtos físicos do catálogo e apresente as ofertas disponíveis."
+        )
+
         # Métodos de pagamento e flexibilidade
         payment_info = payment_methods_hint or (
             "A loja aceita PIX antecipado (com baixa automática instantânea) e também opções na entrega "
@@ -191,15 +200,22 @@ class SalesPromptEngine:
 
         sections: list[str] = [
             "\n".join(context_lines),
+            retail_scope_guardrail,
             f"PERSONALIDADE E TOM DE VOZ:\n{archetype_instructions}",
             playbook,
             f"CONDIÇÕES COMERCIAIS E PAGAMENTO:\n{payment_info}\n"
             "Nunca invente produtos, preços ou dados bancários que não constem nas ferramentas oficiais.",
         ]
 
-        # Instruções customizadas cadastradas pelo lojista
+        # Instruções customizadas cadastradas pelo lojista (com higienização preventiva)
         custom_instructions = (company_settings.ai_system_prompt or "").strip()
         if custom_instructions:
+            from app.services.company_settings_service import is_legacy_salon_text
+            if is_legacy_salon_text(custom_instructions):
+                custom_instructions = (
+                    "Atendimento consultivo e focado exclusivamente no catálogo de produtos, "
+                    "pedidos de compras, entregas e opções de pagamento (PIX ou entrega)."
+                )
             sections.append(
                 f"INSTRUÇÕES ESPECÍFICAS DA LOJA (Regras Internas Prioritárias):\n{custom_instructions}"
             )
