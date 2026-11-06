@@ -200,9 +200,41 @@ class SalesPromptEngine:
             "(dinheiro, PIX ou cartão na maquininha do entregador)."
         )
 
+        # Canal Oficial de Atendimento Humano & Suporte (Transbordo)
+        human_support_phone = (
+            getattr(company_settings, "human_support_phone", None) or "5585996277707"
+        ).strip()
+        human_support_name = (
+            getattr(company_settings, "human_support_name", None) or "Equipe Anauê"
+        ).strip()
+        custom_transfer_msg = (
+            getattr(company_settings, "human_support_message", None) or ""
+        ).strip()
+
+        clean_support_digits = "".join(filter(str.isdigit, human_support_phone))
+        if len(clean_support_digits) in (10, 11) and not clean_support_digits.startswith("55"):
+            clean_support_digits = "55" + clean_support_digits
+        human_wa_link = f"https://wa.me/{clean_support_digits}"
+
+        human_support_block = (
+            "CANAL OFICIAL DE ATENDIMENTO HUMANO E SUPORTE DA LOJA:\n"
+            f"• Atendente / Equipe Responsável: {human_support_name}\n"
+            f"• WhatsApp de Atendimento Humano / Suporte: {human_support_phone}\n"
+            f"• Link Direto para WhatsApp: {human_wa_link}\n"
+        )
+        if custom_transfer_msg:
+            human_support_block += f"• Mensagem de Transferência Customizada: \"{custom_transfer_msg}\"\n"
+
+        human_support_block += (
+            "\nREGRAS CRÍTICAS DE CANCELAMENTO E CONTATO:\n"
+            f"1. FORNECIMENTO DE CONTATO: Se o cliente pedir o número de contato, WhatsApp da equipe, atendente humano ou suporte, forneça SEMPRE o telefone {human_support_phone} ({human_support_name}) e o link direto {human_wa_link}. É TERMINANTEMENTE PROIBIDO dizer 'não consigo fornecer contatos diretos'!\n"
+            "2. CANCELAMENTO DE PEDIDOS: Você TEM total autonomia para cancelar pedidos em aberto/preparação. Ao ser solicitado o cancelamento de um pedido pelo cliente, acione IMEDIATAMENTE a ferramenta 'cancelar_pedido'. Se o cancelamento for concluído, tranquilize o cliente confirmando que o pedido e a cobrança foram cancelados e nada será entregue/cobrado."
+        )
+
         sections: list[str] = [
             "\n".join(context_lines),
             retail_scope_guardrail,
+            human_support_block,
             f"PERSONALIDADE E TOM DE VOZ:\n{archetype_instructions}",
             playbook,
             f"CONDIÇÕES COMERCIAIS E PAGAMENTO:\n{payment_info}\n"

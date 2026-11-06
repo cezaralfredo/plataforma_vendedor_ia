@@ -32,13 +32,14 @@ DELIVERY_TRANSLATIONS = {
 
 class OrderStatusSubagent(BaseSubagent):
     """
-    Subagente especialista em consulta de status de pedidos, rastreamento de entregas
-    e confirmação de pagamentos.
+    Subagente especialista em consulta de status de pedidos, rastreamento de entregas,
+    confirmação de pagamentos e cancelamento autônomo de pedidos em aberto.
     """
 
-    def __init__(self, db: Session, user: User):
+    def __init__(self, db: Session, user: User, company_settings: Any = None):
         self.db = db
         self.user = user
+        self.company_settings = company_settings
 
     def get_tools(self) -> list[ToolDefinition]:
         return [
@@ -55,12 +56,149 @@ class OrderStatusSubagent(BaseSubagent):
                     },
                 },
             ),
+            ToolDefinition(
+                name="cancelar_pedido",
+                description="Cancela um pedido/entrega pendente ou cobrança em aberto do cliente. Se o pedido já estiver a caminho ou entregue, informa a situação e transfere para atendimento humano.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "codigo_pedido": {
+                            "type": "string",
+                            "description": "Código do pedido (ex: ENT-0001 ou #1). Opcional: se omitido, localiza o pedido em aberto mais recente do cliente.",
+                        },
+                        "motivo": {
+                            "type": "string",
+                            "description": "Motivo do cancelamento informado pelo cliente.",
+                        },
+                    },
+                },
+            ),
         ]
 
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
-        if tool_name != "consultar_status_pedido":
+        if tool_name == "consultar_status_pedido":
+            return await self._consultar_status_pedido(arguments)
+        elif tool_name == "cancelar_pedido":
+            return await self._cancelar_pedido(arguments)
+        else:
             return json.dumps({"erro": f"Ferramenta desconhecida: {tool_name}"}, ensure_ascii=False)
 
+    async def _cancelar_pedido(self, arguments: dict[str, Any]) -> str:
+        codigo_arg = (arguments.get("codigo_pedido") or "").strip().upper()
+        digits = "".join(filter(str.isdigit, codigo_arg))
+        motivo = (arguments.get("motivo") or "Solicitado pelo cliente no WhatsApp").strip()
+
+        # Busca entrega do cliente (específica por código ou a mais recente que não esteja já cancelada)
+        query = self.db.query(Delivery).filter(Delivery.user_id == self.user.id)
+        if codigo_arg:
+            del_filters = [Delivery.order_code == codigo_arg]
+            if digits:
+                del_filters.append(Delivery.order_code == f"ENT-{int(digits):04d}")
+                del_filters.append(Delivery.id == int(digits))
+            query = query.filter(or_(*del_filters))
+        else:
+            query = query.filter(Delivery.delivery_status != "cancelado")
+
+        delivery = query.order_by(Delivery.created_at.desc()).first()
+
+        # Configurações de suporte para contato
+        human_phone = "5585996277707"
+        human_name = "Equipe Anauê"
+        if self.company_settings:
+            human_phone = getattr(self.company_settings, "human_support_phone", None) or human_phone
+            human_name = getattr(self.company_settings, "human_support_name", None) or human_name
+        clean_phone = "".join(filter(str.isdigit, human_phone))
+        if len(clean_phone) in (10, 11) and not clean_phone.startswith("55"):
+            clean_phone = "55" + clean_phone
+        support_link = f"https://wa.me/{clean_phone}"
+
+        if delivery:
+            if delivery.delivery_status == "a_caminho":
+                return json.dumps({
+                    "status": "em_rota",
+                    "codigo_pedido": delivery.order_code,
+                    "mensagem": (
+                        f"O pedido {delivery.order_code} já foi despachado e está a caminho do seu endereço! "
+                        f"Por conta disso, não consigo cancelá-lo automaticamente pelo sistema. "
+                        f"Por favor, fale com a {human_name} no WhatsApp ({support_link}) para orientações sobre devolução."
+                    ),
+                    "link_suporte": support_link,
+                }, ensure_ascii=False)
+
+            if delivery.delivery_status == "entregue":
+                return json.dumps({
+                    "status": "ja_entregue",
+                    "codigo_pedido": delivery.order_code,
+                    "mensagem": f"O pedido {delivery.order_code} já consta como entregue.",
+                    "link_suporte": support_link,
+                }, ensure_ascii=False)
+
+            # Pedido em preparação ou pendente -> Cancelar com segurança
+            delivery.delivery_status = "cancelado"
+            note_entry = f"Cancelado a pedido do cliente no WhatsApp ({motivo})"
+            delivery.notes = f"{delivery.notes} | {note_entry}".strip(" |") if delivery.notes else note_entry
+
+            # Cancela pagamento associado se houver
+            if delivery.payment_id:
+                pay = self.db.get(Payment, delivery.payment_id)
+                if pay and pay.status in ("pending", "awaiting_payment"):
+                    pay.status = "cancelled"
+
+            # Cancela pagamentos pendentes do usuário para evitar cobrança pendente
+            pending_pays = (
+                self.db.query(Payment)
+                .filter(Payment.user_id == self.user.id, Payment.status == "pending")
+                .all()
+            )
+            for p in pending_pays:
+                p.status = "cancelled"
+
+            self.db.commit()
+
+            valor_str = f"R$ {delivery.total_amount_cents / 100:.2f}".replace(".", ",")
+            return json.dumps({
+                "status": "sucesso",
+                "pedido_cancelado": delivery.order_code,
+                "itens": delivery.items_description,
+                "valor_formatado": valor_str,
+                "mensagem": f"Seu pedido *{delivery.order_code}* ({delivery.items_description}) no valor de *{valor_str}* foi CANCELADO com sucesso!",
+                "instrucoes": (
+                    "Confirme o cancelamento com carinho e tranquilidade para o cliente. "
+                    "Explique que o pedido não será enviado e nada será cobrado. "
+                    "Pergunte com gentileza se você pode ajudar com mais alguma coisa ou com outro produto do catálogo."
+                ),
+            }, ensure_ascii=False)
+
+        # Se não encontrou entrega, verifica se havia pagamento pendente avulso
+        pending_payment = (
+            self.db.query(Payment)
+            .filter(Payment.user_id == self.user.id, Payment.status == "pending")
+            .order_by(Payment.created_at.desc())
+            .first()
+        )
+        if pending_payment:
+            pending_payment.status = "cancelled"
+            self.db.commit()
+            valor_str = f"R$ {pending_payment.amount_cents / 100:.2f}".replace(".", ",")
+            return json.dumps({
+                "status": "sucesso",
+                "pedido_cancelado": f"COB-{pending_payment.id}",
+                "valor_formatado": valor_str,
+                "mensagem": f"A cobrança pendente #{pending_payment.id} no valor de *{valor_str}* foi CANCELADA com sucesso!",
+                "instrucoes": "Confirme que a cobrança foi cancelada e não precisa ser paga.",
+            }, ensure_ascii=False)
+
+        return json.dumps({
+            "status": "sem_pedidos_cancelaveis",
+            "mensagem": "Não localizei nenhum pedido em aberto ou cobrança pendente em seu nome para cancelamento no momento.",
+            "instrucoes": (
+                f"Informe gentilmente ao cliente que não há pedidos em aberto aguardando envio em seu nome. "
+                f"Se ele tiver dúvidas ou se referir a outro pedido, informe que a {human_name} pode ajudar pelo WhatsApp: {support_link}"
+            ),
+            "link_suporte": support_link,
+        }, ensure_ascii=False)
+
+    async def _consultar_status_pedido(self, arguments: dict[str, Any]) -> str:
         codigo_arg = (arguments.get("codigo_pedido") or "").strip().upper()
         digits = "".join(filter(str.isdigit, codigo_arg))
 

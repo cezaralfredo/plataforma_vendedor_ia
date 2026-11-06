@@ -106,7 +106,7 @@ class TriageService:
                     "type": "choice",
                     "instructions": "Qual é a intenção principal do usuário nesta mensagem?",
                     "criteria": {
-                        "falar_humano": "O usuário quer falar com um atendente humano, suporte ou pessoa real",
+                        "falar_humano": "O usuário quer falar com um atendente humano, suporte, vendedor, pessoa real ou pede o telefone/contato da loja",
                         "confirmar_pix": "O usuário afirma que fez o pagamento, enviou o comprovante ou concluiu o PIX",
                         "comprar_produto": "O usuário quer comprar um produto, fechar pedido ou encomendar itens",
                         "consultar_catalogo": "O usuário quer ver produtos, catálogo, saber preços, peso, modelos ou estoque",
@@ -118,7 +118,7 @@ class TriageService:
                 },
                 "is_human_handoff": {
                     "type": "noul",
-                    "instructions": "O usuário está solicitando falar com um atendente humano, suporte ou pessoa real?",
+                    "instructions": "O usuário está solicitando falar com um atendente humano, suporte, vendedor ou pedindo o número de contato da loja?",
                 },
                 "is_payment_claim": {
                     "type": "noul",

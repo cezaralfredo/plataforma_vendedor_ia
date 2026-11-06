@@ -353,3 +353,106 @@ async def test_catalog_subagent_differentiates_products_by_category_and_size(db_
     assert data_peq["total"] == 1
     assert data_peq["produtos"][0]["categoria"] == "Pequeno"
     assert data_peq["produtos"][0]["preco_reais"] == "R$ 15.00"
+
+
+@pytest.mark.asyncio
+async def test_order_status_subagent_cancelar_pedido_success(db_session: Session):
+    """Testa cancelamento autônomo de pedido pendente/em preparação e sua respectiva cobrança."""
+    user = User(name="Carlos Pedidos", phone="5585988887777")
+    db_session.add(user)
+    db_session.commit()
+
+    from app.models.delivery import Delivery
+    delivery = Delivery(
+        order_code="ENT-9999",
+        user_id=user.id,
+        items_description="1x Camarão (Grande)",
+        total_amount_cents=3500,
+        payment_method="pix",
+        payment_timing="antecipado",
+        payment_status="pendente",
+        delivery_status="preparando",
+        delivery_address="Rua dos Testes, 123",
+    )
+    db_session.add(delivery)
+    payment = Payment(
+        user_id=user.id,
+        amount_cents=3500,
+        status="pending",
+        description="Pedido ENT-9999",
+    )
+    db_session.add(payment)
+    db_session.commit()
+
+    delivery.payment_id = payment.id
+    db_session.commit()
+
+    settings = CompanySettings(
+        company_name="Anauê Pescados",
+        human_support_phone="5585996277707",
+        human_support_name="Equipe Anauê",
+    )
+
+    agent = OrderStatusSubagent(db_session, user, company_settings=settings)
+    res = await agent.execute_tool("cancelar_pedido", {"codigo_pedido": "ENT-9999", "motivo": "Desistência"})
+    data = json.loads(res)
+
+    assert data["status"] == "sucesso"
+    assert data["pedido_cancelado"] == "ENT-9999"
+    assert "CANCELADO com sucesso" in data["mensagem"]
+
+    # Verifica persistência no banco
+    db_session.refresh(delivery)
+    db_session.refresh(payment)
+    assert delivery.delivery_status == "cancelado"
+    assert payment.status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_sales_orchestrator_handles_contact_and_cancellation_requests(db_session: Session):
+    """Testa se o orquestrador responde com contato direto e cancelamento em vez de dizer que não tem contato."""
+    user = User(name="Cezar Alfredo", phone="5585996277707")
+    db_session.add(user)
+    db_session.commit()
+
+    from app.models.delivery import Delivery
+    delivery = Delivery(
+        order_code="ENT-0001",
+        user_id=user.id,
+        items_description="1x Camarão (Pequeno)",
+        total_amount_cents=1500,
+        payment_method="pix",
+        payment_timing="na_entrega",
+        payment_status="pendente",
+        delivery_status="preparando",
+        delivery_address="Av Beira Mar, 100",
+    )
+    db_session.add(delivery)
+    db_session.commit()
+
+    settings = CompanySettings(
+        company_name="Anauê",
+        human_support_phone="5585996277707",
+        human_support_name="Equipe Anauê",
+        ai_provider="openai",
+        ai_api_key="",  # Força fallback
+    )
+
+    orchestrator = SalesOrchestrator(
+        db=db_session,
+        user=user,
+        company_settings=settings,
+        llm_client=None,
+    )
+
+    # 1. Pergunta de cancelamento: deve cancelar o pedido
+    resp_cancela = await orchestrator.process_message("Posso cancelar meu pedido?", history=[])
+    assert "CANCELADO com sucesso" in resp_cancela or "cancelado" in resp_cancela.lower()
+    assert "ENT-0001" in resp_cancela
+
+    # 2. Pergunta de contato: deve passar o WhatsApp e o link do suporte
+    resp_contato = await orchestrator.process_message("Entendi, pode me passar o contato?", history=[])
+    assert "5585996277707" in resp_contato
+    assert "Equipe Anauê" in resp_contato
+    assert "wa.me/5585996277707" in resp_contato
+    assert "não consigo fornecer contatos diretos" not in resp_contato

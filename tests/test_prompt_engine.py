@@ -171,3 +171,24 @@ def test_build_system_prompt_includes_retail_scope_and_sanitizes_legacy_salon_in
     assert "cabelo" not in prompt.split("INSTRUÇÕES ESPECÍFICAS DA LOJA")[1].lower()
     assert "unhas" not in prompt.split("INSTRUÇÕES ESPECÍFICAS DA LOJA")[1].lower()
     assert "catálogo de produtos" in prompt
+
+
+def test_build_system_prompt_includes_human_support_and_cancellation_rules():
+    """Valida a injeção do canal oficial de atendimento humano e regras estritas de cancelamento no prompt."""
+    settings = CompanySettings(
+        company_name="Anauê Pescados",
+        assistant_name="Marina",
+        human_support_phone="5585996277707",
+        human_support_name="Equipe Anauê",
+        human_support_message="Olá! Estou transferindo seu atendimento para a nossa equipe especializada.",
+    )
+    user = User(name="Cezar Alfredo", phone="5585996277707")
+
+    prompt = SalesPromptEngine.build_system_prompt(settings, user)
+
+    assert "CANAL OFICIAL DE ATENDIMENTO HUMANO E SUPORTE DA LOJA" in prompt
+    assert "Equipe Anauê" in prompt
+    assert "5585996277707" in prompt
+    assert "https://wa.me/5585996277707" in prompt
+    assert "É TERMINANTEMENTE PROIBIDO dizer 'não consigo fornecer contatos diretos'!" in prompt
+    assert "cancelar_pedido" in prompt

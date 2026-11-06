@@ -62,7 +62,7 @@ class SalesOrchestrator:
             product_service=product_service,
             delivery_service=delivery_service,
         )
-        self.order_status_subagent = OrderStatusSubagent(db, user)
+        self.order_status_subagent = OrderStatusSubagent(db, user, company_settings=company_settings)
         self.support_subagent = SupportSubagent(company_settings, db=db, user=user, gateway=gateway)
 
         # Registro de ferramentas mapeadas para os respectivos subagentes
@@ -168,15 +168,46 @@ class SalesOrchestrator:
         lowered = user_message.lower().strip()
         customer_name = self.user.name or "Cliente"
 
-        # 1. Atendimento Humano
-        if any(w in lowered for w in ["atendente", "humano", "pessoa", "suporte", "ajuda humana"]):
+        # 1. Cancelamento de Pedido
+        if any(w in lowered for w in ["cancelar", "cancelamento", "cancela", "desistir", "anular"]):
+            res = await self.order_status_subagent.execute_tool("cancelar_pedido", {"motivo": lowered})
+            data = json.loads(res)
+            if data.get("status") == "sucesso":
+                return (
+                    f"Perfeito, {customer_name}! {data.get('mensagem')}\n\n"
+                    "O seu pedido não será cobrado nem enviado. Se precisar de mais alguma coisa ou quiser fazer um novo pedido, estou à disposição! 😊"
+                )
+            elif data.get("status") == "em_rota":
+                link_sup = data.get("link_suporte") or f"https://wa.me/{self._get_clean_support_phone()}"
+                return (
+                    f"Olá, {customer_name}! {data.get('mensagem')}\n\n"
+                    f"Para verificar com nossa equipe, você pode falar diretamente com {self._get_support_name()}:\n"
+                    f"👉 {link_sup}"
+                )
+            else:
+                link_sup = data.get("link_suporte") or f"https://wa.me/{self._get_clean_support_phone()}"
+                return (
+                    f"Olá, {customer_name}! Não localizei nenhum pedido em aberto em seu nome para cancelamento no momento.\n\n"
+                    f"Caso precise de ajuda com algum pedido anterior, nossa equipe de suporte está à disposição:\n"
+                    f"👉 {link_sup} ({self._get_support_name()})"
+                )
+
+        # 2. Atendimento Humano / Solicitação de Contato
+        if any(w in lowered for w in [
+            "atendente", "humano", "pessoa", "suporte", "ajuda humana", "contato",
+            "telefone", "passar o contato", "número", "numero", "falar com alguém", "falar com alguem"
+        ]):
             res = await self.support_subagent.execute_tool("acionar_atendente_humano", {"motivo": lowered})
             data = json.loads(res)
+            support_name = data.get("vendedor_nome") or self._get_support_name()
+            support_link = data.get("link_suporte") or f"https://wa.me/{self._get_clean_support_phone()}"
+            support_phone = getattr(self.company_settings, "human_support_phone", None) or "5585996277707"
             return (
-                f"Com certeza, {customer_name}! Já notifiquei nossa equipe.\n\n"
+                f"Com certeza, {customer_name}! Já notifiquei nossa equipe de atendimento humano e um atendente assumirá a conversa.\n\n"
                 f"Se preferir falar diretamente agora com um atendente, basta clicar:\n"
-                f"👉 {data.get('link_suporte')}\n\n"
-                "Em instantes você será atendido!"
+                f"👉 {support_link}\n\n"
+                f"📱 *WhatsApp de Suporte / Atendente:* {support_phone} ({support_name})\n\n"
+                "Em instantes você será atendido! 🤝"
             )
 
         # 2. Status de Pedidos

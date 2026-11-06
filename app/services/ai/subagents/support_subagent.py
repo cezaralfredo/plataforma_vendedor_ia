@@ -31,7 +31,7 @@ class SupportSubagent(BaseSubagent):
         return [
             ToolDefinition(
                 name="acionar_atendente_humano",
-                description="Aciona a equipe de suporte e notifica o vendedor responsável no WhatsApp para assumir o atendimento humano.",
+                description="Aciona o suporte humano, passa o contato oficial do WhatsApp da loja/vendedor para o cliente e pausa a IA temporariamente.",
                 parameters={
                     "type": "object",
                     "properties": {
@@ -142,8 +142,9 @@ class SupportSubagent(BaseSubagent):
             else None
         )
         instructions = (
-            f"Informe ao cliente com carinho que o atendente/vendedor(a) {seller_name} já foi acionado(a) "
-            "no WhatsApp e assumirá a conversa em instantes para ajudá-lo(a)."
+            f"Informe ao cliente com máxima gentileza que o contato direto da {seller_name} é {raw_support_phone} "
+            f"e forneça o link direto para WhatsApp: {support_link}. "
+            f"Explique que o atendente/vendedor(a) {seller_name} já foi acionado(a) no WhatsApp e assumirá a conversa em instantes."
         )
         if custom_support_msg:
             instructions += f" Mensagem adicional da empresa: '{custom_support_msg}'."
@@ -152,6 +153,7 @@ class SupportSubagent(BaseSubagent):
             "status": "sucesso",
             "vendedor_notificado": seller_notified,
             "vendedor_nome": seller_name,
+            "telefone_suporte": raw_support_phone,
             "link_suporte": support_link,
             "mensagem_customizada": custom_support_msg,
             "instrucoes": instructions,

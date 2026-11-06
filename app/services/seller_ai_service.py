@@ -420,10 +420,13 @@ class SellerAIService:
                         "Em instantes você será atendido! 🤝"
                     )
                 else:
+                    support_phone = getattr(self.company_settings, "human_support_phone", None) or "5585996277707"
+                    support_name = getattr(self.company_settings, "human_support_name", None) or "Equipe Anauê"
                     response_text = (
-                        f"Com certeza, {user.name or 'Cliente'}! Já notifiquei nossa equipe de atendimento humano.\n\n"
-                        f"Se preferir falar diretamente agora, basta clicar no link:\n"
+                        f"Com certeza, {user.name or 'Cliente'}! Já notifiquei nossa equipe de atendimento humano ({support_name}).\n\n"
+                        f"Se preferir falar diretamente agora com um atendente, basta clicar:\n"
                         f"👉 {support_link}\n\n"
+                        f"📱 *WhatsApp de Suporte / Atendente:* {support_phone}\n\n"
                         "Em instantes você será atendido! 🤝"
                     )
                 self._record_chat(phone, "assistant", response_text, inbound.provider)
