@@ -975,6 +975,11 @@ class AdminService:
             .order_by(Appointment.start_time.asc())
         )
 
+        def _safe_csv_cell(value: object) -> object:
+            if isinstance(value, str) and value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+                return "'" + value
+            return value
+
         for row in query.all():
             apt = row.Appointment
             price_reais = ""
@@ -987,17 +992,17 @@ class AdminService:
                 apt.start_time.strftime("%d/%m/%Y %H:%M") if apt.start_time else "",
                 apt.end_time.strftime("%d/%m/%Y %H:%M") if apt.end_time else "",
                 apt.status,
-                row.client_name or "",
-                row.client_phone or "",
-                row.client_email or "",
-                row.professional_name or "",
-                row.service_name or "",
+                _safe_csv_cell(row.client_name or ""),
+                _safe_csv_cell(row.client_phone or ""),
+                _safe_csv_cell(row.client_email or ""),
+                _safe_csv_cell(row.professional_name or ""),
+                _safe_csv_cell(row.service_name or ""),
                 price_reais,
                 row.payment_id or "",
                 row.payment_status or "",
-                row.asaas_id or "",
+                _safe_csv_cell(row.asaas_id or ""),
                 row.payment_received_at.strftime("%d/%m/%Y %H:%M") if row.payment_received_at else "",
-                (apt.notes or "").replace("\n", " "),
+                _safe_csv_cell((apt.notes or "").replace("\n", " ")),
             ])
 
         return output.getvalue()

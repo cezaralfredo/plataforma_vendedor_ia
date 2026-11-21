@@ -26,11 +26,11 @@ class MercadoPagoGateway(BasePaymentGateway):
         self.access_token = access_token or ""
         self.public_key = public_key or ""
 
-    def _get_headers(self) -> dict[str, str]:
+    def _get_headers(self, idempotency_key: str | None = None) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
-            "X-Idempotency-Key": str(uuid.uuid4()),
+            "X-Idempotency-Key": idempotency_key or str(uuid.uuid4()),
         }
 
     async def create_charge(
@@ -80,7 +80,7 @@ class MercadoPagoGateway(BasePaymentGateway):
             async with httpx.AsyncClient(timeout=15.0) as client:
                 res = await client.post(
                     f"{MP_API_BASE}/payments",
-                    headers=self._get_headers(),
+                    headers=self._get_headers(idempotency_key=f"charge:{ext_ref}"),
                     json=payload,
                 )
                 res.raise_for_status()
@@ -96,10 +96,14 @@ class MercadoPagoGateway(BasePaymentGateway):
 
             status_map = {
                 "approved": "received",
+                "authorized": "confirmed",
                 "in_process": "pending",
+                "in_mediation": "pending",
                 "pending": "pending",
                 "rejected": "cancelled",
+                "cancelled": "cancelled",
                 "refunded": "refunded",
+                "charged_back": "refunded",
             }
             mapped_status = status_map.get(data.get("status"), "pending")
 
@@ -130,10 +134,14 @@ class MercadoPagoGateway(BasePaymentGateway):
             raw_status = data.get("status", "pending")
             status_map = {
                 "approved": "received",
+                "authorized": "confirmed",
                 "in_process": "pending",
+                "in_mediation": "pending",
                 "pending": "pending",
                 "rejected": "cancelled",
+                "cancelled": "cancelled",
                 "refunded": "refunded",
+                "charged_back": "refunded",
             }
             return {
                 "gateway_payment_id": str(data.get("id")),
@@ -143,14 +151,14 @@ class MercadoPagoGateway(BasePaymentGateway):
             }
         except Exception as exc:
             logger.error("Erro ao consultar status no Mercado Pago (%s): %s", gateway_payment_id, exc)
-            return {"gateway_payment_id": gateway_payment_id, "status": "pending", "error": str(exc)}
+            raise
 
     async def refund(self, gateway_payment_id: str, reason: str | None = None) -> dict[str, Any]:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(
                     f"{MP_API_BASE}/payments/{gateway_payment_id}/refunds",
-                    headers=self._get_headers(),
+                    headers=self._get_headers(idempotency_key=f"refund:{gateway_payment_id}"),
                 )
                 res.raise_for_status()
                 data = res.json()

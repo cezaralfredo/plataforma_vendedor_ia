@@ -13,7 +13,12 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.admin.auth_service import authenticate_admin, change_admin_password, verify_password
+from app.admin.auth_service import (
+    authenticate_admin,
+    change_admin_password,
+    record_failed_login,
+    verify_password,
+)
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
@@ -108,15 +113,32 @@ async def recover(request: Request, db: Session = Depends(get_db)):
     expected_key = request.app.state.settings.admin_recovery_key
     key_matches = hmac.compare_digest(form.get("recovery_key", "").encode(), expected_key.encode())
     account = db.get(AdminAccount, 1, populate_existing=True)
+    now = datetime.now(UTC)
+
+    is_locked = False
+    if account is not None and account.locked_until is not None:
+        locked_until = account.locked_until
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=UTC)
+        is_locked = locked_until > now
+
+    username_matches = (
+        account is not None
+        and hmac.compare_digest(account.username.encode(), form.get("username", "").encode())
+    )
     new_password = form.get("new_password", "")
     if (
-        not expected_key
+        is_locked
+        or not expected_key
         or not key_matches
         or account is None
-        or account.username != form.get("username", "")
+        or not username_matches
         or len(new_password) < 12
         or new_password != form.get("confirm_password", "")
     ):
+        if account is not None and not is_locked and (not key_matches or not username_matches):
+            record_failed_login(account, now)
+            db.commit()
         return templates.TemplateResponse(
             request=request, name="recover.html", status_code=400,
             context={"error": "Não foi possível recuperar o acesso. Confira os dados e tente novamente."},
@@ -496,7 +518,7 @@ async def api_upload_product_image(
             detail="Tipo de conteúdo MIME inválido para imagem.",
         )
 
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE + 1)
     if not content:
         raise HTTPException(status_code=400, detail="Arquivo de imagem vazio.")
 
@@ -504,6 +526,19 @@ async def api_upload_product_image(
         raise HTTPException(
             status_code=400,
             detail="O arquivo excede o limite máximo permitido de 5MB.",
+        )
+
+    # Validação por magic bytes para impedir upload de arquivos não-imagem renomeados
+    is_valid_image_magic = (
+        content.startswith(b"\x89PNG\r\n\x1a\n")
+        or content.startswith(b"\xff\xd8\xff")
+        or content.startswith((b"GIF87a", b"GIF89a"))
+        or (len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP")
+    )
+    if not is_valid_image_magic:
+        raise HTTPException(
+            status_code=400,
+            detail="Conteúdo do arquivo não corresponde a uma imagem válida (PNG, JPG, WEBP ou GIF).",
         )
 
     unique_filename = f"{uuid.uuid4().hex[:16]}{raw_ext}"
@@ -925,11 +960,16 @@ async def api_import_clients_csv(
     import_batch_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
+    max_csv_bytes = 5 * 1024 * 1024  # 5 MB
     try:
-        content_bytes = await file.read()
+        content_bytes = await file.read(max_csv_bytes + 1)
+        if len(content_bytes) > max_csv_bytes:
+            raise HTTPException(status_code=413, detail="Arquivo CSV excede o limite máximo de 5 MB.")
         csv_text = content_bytes.decode("utf-8-sig", errors="replace")
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Erro ao ler arquivo CSV: {exc}") from exc
+        raise HTTPException(status_code=400, detail="Erro ao ler arquivo CSV enviado.") from exc
 
     return ClientImportService(db).import_csv_content(
         csv_text=csv_text,
@@ -1139,7 +1179,7 @@ async def maintenance_page(request: Request):
 )
 async def api_maintenance_preview(
     cutoff_date: str | None = None,
-    months: int | None = None,
+    months: int | None = Query(default=None, ge=1, le=120),
     unpaid_cancelled_only: bool = False,
     db: Session = Depends(get_db),
 ):
@@ -1161,7 +1201,7 @@ async def api_maintenance_preview(
 @router.get("/api/maintenance/export-csv", dependencies=[Depends(require_admin)])
 async def api_maintenance_export_csv(
     cutoff_date: str | None = None,
-    months: int | None = None,
+    months: int | None = Query(default=None, ge=1, le=120),
     unpaid_cancelled_only: bool = False,
     db: Session = Depends(get_db),
 ):

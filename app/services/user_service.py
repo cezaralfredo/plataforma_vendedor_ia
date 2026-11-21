@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
+from app.models.delivery import Delivery
+from app.models.payment import Payment
 from app.models.user import User
 from app.repositories import UserRepository
 from app.repositories.base import RelatedRecordsError
@@ -78,5 +80,17 @@ class UserService:
         ).first():
             raise RelatedRecordsError(
                 "Cliente possui agendamentos e não pode ser excluído"
+            )
+        if self.repo.db.query(Delivery.id).filter(
+            Delivery.user_id == user_id
+        ).first():
+            raise RelatedRecordsError(
+                "Cliente possui pedidos/entregas registrados e não pode ser excluído"
+            )
+        if self.repo.db.query(Payment.id).filter(
+            Payment.user_id == user_id
+        ).first():
+            raise RelatedRecordsError(
+                "Cliente possui histórico de pagamentos e não pode ser excluído"
             )
         return self.repo.delete(user_id)

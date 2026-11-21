@@ -247,3 +247,25 @@ async def test_payment_service_multi_gateway_integration(db_session: Session):
     assert payment.invoice_url.startswith("000201")
     assert "br.gov.bcb.pix" in payment.invoice_url
     assert "350.00" in payment.invoice_url
+
+
+def test_direct_pix_brcode_respects_tag26_max_99_and_alphanumeric_txid():
+    long_email = "departamento.financeiro.muito.extenso.empresa@subdominio-corporativo.com.br"
+    brcode = generate_brcode_pix(
+        pix_key=long_email,
+        merchant_name="LOJA TESTE",
+        merchant_city="FORTALEZA",
+        amount=42.00,
+        txid="PED 123-456",
+        description="Descricao longa de pedido",
+    )
+    # Tag 26 deve ter comprimento <= 99 (dois dígitos após '00020126')
+    tag26_len = int(brcode[8:10])
+    assert tag26_len <= 99
+    # TXID não pode conter espaços
+    assert "0509PED123456" in brcode
+
+
+def test_payment_gateway_factory_rejects_unknown_provider():
+    with pytest.raises(ValueError, match="não suportado"):
+        get_payment_gateway("unknown_gateway_xyz")

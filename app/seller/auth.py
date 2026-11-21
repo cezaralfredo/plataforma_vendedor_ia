@@ -25,9 +25,10 @@ def _seller_secret() -> bytes:
     return hashlib.sha256(f"seller_session_secret_{key}".encode()).digest()
 
 
-def make_seller_session_cookie(seller_id: int) -> str:
+def make_seller_session_cookie(seller_id: int, auth_version: int = 1) -> str:
     payload_dict = {
         "sub": seller_id,
+        "ver": auth_version,
         "exp": int(time.time()) + _SELLER_SESSION_TTL,
     }
     payload_bytes = json.dumps(payload_dict, separators=(",", ":")).encode("utf-8")
@@ -37,7 +38,7 @@ def make_seller_session_cookie(seller_id: int) -> str:
     return f"{payload_b64}.{sig_b64}"
 
 
-def read_seller_session_cookie(cookie_value: str | None) -> int | None:
+def _read_seller_session_payload(cookie_value: str | None) -> tuple[int, int] | None:
     if not cookie_value or "." not in cookie_value:
         return None
     try:
@@ -50,9 +51,14 @@ def read_seller_session_cookie(cookie_value: str | None) -> int | None:
         data = json.loads(payload_bytes.decode("utf-8"))
         if data.get("exp", 0) < time.time():
             return None
-        return int(data["sub"])
+        return int(data["sub"]), int(data.get("ver", 1))
     except Exception:
         return None
+
+
+def read_seller_session_cookie(cookie_value: str | None) -> int | None:
+    parsed = _read_seller_session_payload(cookie_value)
+    return parsed[0] if parsed else None
 
 
 def get_current_seller(
@@ -60,15 +66,16 @@ def get_current_seller(
     db: Session = Depends(get_db),
     vendedor_session: Annotated[str | None, Cookie()] = None,
 ) -> Seller:
-    seller_id = read_seller_session_cookie(vendedor_session)
-    if not seller_id:
+    parsed = _read_seller_session_payload(vendedor_session)
+    if not parsed:
         raise HTTPException(
             status_code=status.HTTP_303_SEE_OTHER,
             headers={"Location": "/seller/login"},
         )
 
+    seller_id, token_ver = parsed
     seller = db.query(Seller).filter(Seller.id == seller_id, Seller.active.is_(True)).first()
-    if not seller:
+    if not seller or (seller.auth_version or 1) != token_ver:
         raise HTTPException(
             status_code=status.HTTP_303_SEE_OTHER,
             headers={"Location": "/seller/login"},

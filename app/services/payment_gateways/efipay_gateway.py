@@ -25,15 +25,26 @@ class EfiPayGateway(BasePaymentGateway):
         client_secret: str | None = None,
         pix_key: str | None = None,
         sandbox: bool = False,
+        cert_path: str | None = None,
+        key_path: str | None = None,
     ):
         self.client_id = client_id or ""
         self.client_secret = client_secret or ""
         self.pix_key = pix_key or ""
-        self.base_url = (
-            "https://pix-h.gerencianet.com.br"
-            if sandbox
-            else "https://pix.gerencianet.com.br"
+        self.cert: str | tuple[str, str] | None = (
+            (cert_path, key_path) if (cert_path and key_path) else (cert_path or None)
         )
+        self.base_url = (
+            "https://pix-h.api.efipay.com.br"
+            if sandbox
+            else "https://pix.api.efipay.com.br"
+        )
+
+    def _client_kwargs(self, timeout: float) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"timeout": timeout}
+        if self.cert:
+            kwargs["cert"] = self.cert
+        return kwargs
 
     async def _get_access_token(self) -> str:
         credentials = f"{self.client_id}:{self.client_secret}"
@@ -44,9 +55,9 @@ class EfiPayGateway(BasePaymentGateway):
         }
         body = {"grant_type": "client_credentials"}
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(**self._client_kwargs(10.0)) as client:
             res = await client.post(
-                f"{self.base_url}/v1/oauth/token",
+                f"{self.base_url}/oauth/token",
                 headers=headers,
                 json=body,
             )
@@ -97,7 +108,7 @@ class EfiPayGateway(BasePaymentGateway):
                 }
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(**self._client_kwargs(15.0)) as client:
                 res = await client.post(
                     f"{self.base_url}/v2/cob",
                     headers=headers,
@@ -113,7 +124,7 @@ class EfiPayGateway(BasePaymentGateway):
 
             if loc_id:
                 try:
-                    async with httpx.AsyncClient(timeout=10.0) as client:
+                    async with httpx.AsyncClient(**self._client_kwargs(10.0)) as client:
                         qr_res = await client.get(
                             f"{self.base_url}/v2/loc/{loc_id}/qrcode",
                             headers=headers,
@@ -129,6 +140,7 @@ class EfiPayGateway(BasePaymentGateway):
                 "ATIVA": "pending",
                 "CONCLUIDA": "received",
                 "REMOVIDA_PELO_USUARIO_RECEBEDOR": "cancelled",
+                "REMOVIDA_PELO_PSP": "cancelled",
             }
             mapped_status = status_map.get(data.get("status"), "pending")
 
@@ -150,7 +162,7 @@ class EfiPayGateway(BasePaymentGateway):
         token = await self._get_access_token()
         headers = {"Authorization": f"Bearer {token}"}
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(**self._client_kwargs(10.0)) as client:
                 res = await client.get(
                     f"{self.base_url}/v2/cob/{gateway_payment_id}",
                     headers=headers,
@@ -162,6 +174,7 @@ class EfiPayGateway(BasePaymentGateway):
                 "ATIVA": "pending",
                 "CONCLUIDA": "received",
                 "REMOVIDA_PELO_USUARIO_RECEBEDOR": "cancelled",
+                "REMOVIDA_PELO_PSP": "cancelled",
             }
             return {
                 "gateway_payment_id": gateway_payment_id,
@@ -170,11 +183,10 @@ class EfiPayGateway(BasePaymentGateway):
             }
         except Exception as exc:
             logger.error("Erro ao consultar status na EFI Pay (%s): %s", gateway_payment_id, exc)
-            return {"gateway_payment_id": gateway_payment_id, "status": "pending", "error": str(exc)}
+            raise
 
     async def refund(self, gateway_payment_id: str, reason: str | None = None) -> dict[str, Any]:
-        return {
-            "gateway_payment_id": gateway_payment_id,
-            "status": "refund_requested",
-            "refunded": True,
-        }
+        raise NotImplementedError(
+            "Estorno automático na EFI Pay exige o endToEndId (e2eId) do PIX liquidado; "
+            "processe a devolução diretamente no painel EFI Pay ou informe o e2eId."
+        )

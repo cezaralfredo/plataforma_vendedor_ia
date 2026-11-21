@@ -62,7 +62,7 @@ async def seller_login_action(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
-    cookie_value = make_seller_session_cookie(seller.id)
+    cookie_value = make_seller_session_cookie(seller.id, seller.auth_version or 1)
     redirect = RedirectResponse(url="/seller/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     redirect.set_cookie(
         key=_SELLER_SESSION_COOKIE,

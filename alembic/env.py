@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 from alembic import context
 from app.config import settings
@@ -9,7 +9,7 @@ from app.models import *  # noqa: F403
 
 config = context.config
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -38,12 +38,22 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        is_postgres = connection.dialect.name == "postgresql"
+        if is_postgres:
+            # Advisory lock evita race condition de DDL quando múltiplas réplicas sobem juntas
+            connection.execute(text("SELECT pg_advisory_lock(hashtext('vende360_alembic_migrations'))"))
+            connection.commit()
+        try:
+            context.configure(
+                connection=connection, target_metadata=target_metadata
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if is_postgres:
+                connection.execute(text("SELECT pg_advisory_unlock(hashtext('vende360_alembic_migrations'))"))
+                connection.commit()
 
 
 if context.is_offline_mode():

@@ -57,14 +57,17 @@ def generate_brcode_pix(
     # ID 00: Payload Format Indicator
     payload = "000201"
 
-    # ID 26: Merchant Account Information (GUI + Chave + Descrição)
+    # ID 26: Merchant Account Information (GUI + Chave + Descrição <= 99 bytes EMVCo)
     gui = "0014br.gov.bcb.pix"
     key_field = f"01{len(clean_key):02d}{clean_key}"
     desc_field = ""
     if description:
-        clean_desc = _sanitize_string(description, 25)
-        if clean_desc:
-            desc_field = f"02{len(clean_desc):02d}{clean_desc}"
+        # Calcula espaço restante dentro do limite de 99 bytes da Tag 26 (4 bytes reservados para '02LL')
+        remaining_for_desc = 99 - len(gui) - len(key_field) - 4
+        if remaining_for_desc > 0:
+            clean_desc = _sanitize_string(description, min(25, remaining_for_desc))
+            if clean_desc:
+                desc_field = f"02{len(clean_desc):02d}{clean_desc}"
     account_info = gui + key_field + desc_field
     payload += f"26{len(account_info):02d}{account_info}"
 
@@ -88,8 +91,11 @@ def generate_brcode_pix(
     # ID 60: Merchant City
     payload += f"60{len(clean_city):02d}{clean_city}"
 
-    # ID 62: Additional Data Field (TXID)
-    clean_txid = _sanitize_string(txid or "***", 25) or "***"
+    # ID 62: Additional Data Field (TXID estritamente alfanumérico sem espaços ou '***')
+    if not txid or txid.strip() == "***":
+        clean_txid = "***"
+    else:
+        clean_txid = re.sub(r"[^A-Za-z0-9]", "", _sanitize_string(txid, 25))[:25] or "***"
     ref_field = f"05{len(clean_txid):02d}{clean_txid}"
     payload += f"62{len(ref_field):02d}{ref_field}"
 

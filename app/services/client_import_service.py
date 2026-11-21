@@ -52,10 +52,10 @@ def parse_date_flexible(val: Any) -> date | None:
     """Converte datas em formatos ISO ou brasileiros para date."""
     if not val:
         return None
-    if isinstance(val, date):
-        return val
     if isinstance(val, datetime):
         return val.date()
+    if isinstance(val, date):
+        return val
 
     val_str = str(val).strip()
     if not val_str:
@@ -213,37 +213,51 @@ class ClientImportService:
                 if notes:
                     merged_notes = f"{existing_user.notes}\n{notes}".strip() if existing_user.notes else notes
 
-                existing_user.name = name or existing_user.name
-                existing_user.email = email or existing_user.email
-                existing_user.whatsapp_number = whatsapp_number or existing_user.whatsapp_number
-                existing_user.cpf_cnpj = cpf_cnpj or existing_user.cpf_cnpj
-                existing_user.birth_date = birth_date or existing_user.birth_date
-                existing_user.gender = item.gender or existing_user.gender
-                existing_user.postal_code = item.postal_code or existing_user.postal_code
-                existing_user.city = item.city or existing_user.city
-                existing_user.state = item.state or existing_user.state
-                existing_user.address = item.address or existing_user.address
-                if item.opt_in_whatsapp is not None:
-                    existing_user.opt_in_whatsapp = item.opt_in_whatsapp
-                existing_user.tags = merged_tags
-                existing_user.notes = merged_notes
-                existing_user.custom_fields = merged_custom_fields
-                existing_user.import_batch_id = batch_id
-                if external_id:
-                    existing_user.external_id = external_id
-
-                self.db.commit()
-                updated += 1
-                details.append(
-                    UserImportResultItem(
-                        index=idx,
-                        phone=normalized_phone,
-                        name=name,
-                        status="updated",
-                        user_id=existing_user.id,
-                        message="Cliente atualizado com sucesso",
+                try:
+                    with self.db.begin_nested():
+                        existing_user.name = name or existing_user.name
+                        existing_user.email = email or existing_user.email
+                        existing_user.whatsapp_number = whatsapp_number or existing_user.whatsapp_number
+                        existing_user.cpf_cnpj = cpf_cnpj or existing_user.cpf_cnpj
+                        existing_user.birth_date = birth_date or existing_user.birth_date
+                        existing_user.gender = (item.gender or "").strip()[:20] or existing_user.gender
+                        existing_user.postal_code = (item.postal_code or "").strip()[:20] or existing_user.postal_code
+                        existing_user.city = (item.city or "").strip()[:100] or existing_user.city
+                        existing_user.state = (item.state or "").strip()[:2].upper() or existing_user.state
+                        existing_user.address = (item.address or "").strip()[:255] or existing_user.address
+                        if item.opt_in_whatsapp is not None:
+                            existing_user.opt_in_whatsapp = item.opt_in_whatsapp
+                        existing_user.tags = merged_tags
+                        existing_user.notes = merged_notes
+                        existing_user.custom_fields = merged_custom_fields
+                        existing_user.import_batch_id = batch_id
+                        if external_id:
+                            existing_user.external_id = external_id
+                        self.db.flush()
+                    self.db.commit()
+                    updated += 1
+                    details.append(
+                        UserImportResultItem(
+                            index=idx,
+                            phone=normalized_phone,
+                            name=name,
+                            status="updated",
+                            user_id=existing_user.id,
+                            message="Cliente atualizado com sucesso",
+                        )
                     )
-                )
+                except Exception as exc:
+                    self.db.rollback()
+                    errors += 1
+                    details.append(
+                        UserImportResultItem(
+                            index=idx,
+                            phone=normalized_phone,
+                            name=name,
+                            status="error",
+                            message=f"Erro ao atualizar cliente: {exc}",
+                        )
+                    )
             else:
                 # Criação de novo cliente
                 # Verifica unicidade do email
@@ -252,40 +266,55 @@ class ClientImportService:
                     if email_in_use:
                         email = None  # Evita quebrar o insert
 
-                new_user = User(
-                    name=name,
-                    phone=normalized_phone,
-                    email=email,
-                    whatsapp_number=whatsapp_number,
-                    cpf_cnpj=cpf_cnpj,
-                    source=source,
-                    external_id=external_id,
-                    import_batch_id=batch_id,
-                    tags=tags,
-                    notes=notes,
-                    custom_fields=custom_fields,
-                    birth_date=birth_date,
-                    gender=item.gender,
-                    postal_code=item.postal_code,
-                    city=item.city,
-                    state=item.state,
-                    address=item.address,
-                    opt_in_whatsapp=item.opt_in_whatsapp if item.opt_in_whatsapp is not None else True,
-                )
-                self.db.add(new_user)
-                self.db.commit()
-                self.db.refresh(new_user)
-                created += 1
-                details.append(
-                    UserImportResultItem(
-                        index=idx,
-                        phone=normalized_phone,
-                        name=name,
-                        status="created",
-                        user_id=new_user.id,
-                        message="Cliente criado com sucesso",
+                try:
+                    with self.db.begin_nested():
+                        new_user = User(
+                            name=name[:255],
+                            phone=normalized_phone[:20],
+                            email=email,
+                            whatsapp_number=(whatsapp_number or normalized_phone)[:20],
+                            cpf_cnpj=cpf_cnpj[:18] if cpf_cnpj else None,
+                            source=source[:50],
+                            external_id=external_id[:100] if external_id else None,
+                            import_batch_id=batch_id[:100],
+                            tags=tags,
+                            notes=notes,
+                            custom_fields=custom_fields,
+                            birth_date=birth_date,
+                            gender=(item.gender or "").strip()[:20] or None,
+                            postal_code=(item.postal_code or "").strip()[:20] or None,
+                            city=(item.city or "").strip()[:100] or None,
+                            state=(item.state or "").strip()[:2].upper() or None,
+                            address=(item.address or "").strip()[:255],
+                            opt_in_whatsapp=item.opt_in_whatsapp if item.opt_in_whatsapp is not None else True,
+                        )
+                        self.db.add(new_user)
+                        self.db.flush()
+                    self.db.commit()
+                    self.db.refresh(new_user)
+                    created += 1
+                    details.append(
+                        UserImportResultItem(
+                            index=idx,
+                            phone=normalized_phone,
+                            name=name,
+                            status="created",
+                            user_id=new_user.id,
+                            message="Cliente criado com sucesso",
+                        )
                     )
-                )
+                except Exception as exc:
+                    self.db.rollback()
+                    errors += 1
+                    details.append(
+                        UserImportResultItem(
+                            index=idx,
+                            phone=normalized_phone,
+                            name=name,
+                            status="error",
+                            message=f"Erro ao criar cliente: {exc}",
+                        )
+                    )
 
         return UserImportSummary(
             total=len(request.items),
@@ -316,21 +345,18 @@ class ClientImportService:
                 details=[],
             )
 
-        # Detecta delimitador (, ou ; ou \t)
-        sample = csv_text[:2048]
-        delimiter = ","
-        for cand in [";", "\t", ","]:
-            if cand in sample:
-                delimiter = cand
-                break
+        # Remove BOM se presente e detecta delimitador apenas na linha de cabeçalho
+        clean_csv = csv_text.lstrip("\ufeff")
+        header_line = clean_csv.splitlines()[0] if clean_csv.splitlines() else ""
+        delimiter = max((",", ";", "\t"), key=lambda cand: header_line.count(cand))
 
-        reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
+        reader = csv.DictReader(io.StringIO(clean_csv), delimiter=delimiter)
 
         # Mapeamento semântico flexível de colunas
         items: list[UserImportItem] = []
         for row in reader:
             normalized_row = {
-                re.sub(r"[_\s\-]+", "", str(k).strip().lower()): str(v).strip()
+                re.sub(r"[_\s\-]+", "", str(k).strip().lower()): ("" if v is None else str(v).strip())
                 for k, v in row.items()
                 if k is not None
             }

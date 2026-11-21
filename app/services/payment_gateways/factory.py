@@ -35,6 +35,8 @@ def get_payment_gateway(
             client_secret=creds.get("client_secret"),
             pix_key=creds.get("pix_key"),
             sandbox=bool(creds.get("sandbox")),
+            cert_path=creds.get("cert_path"),
+            key_path=creds.get("key_path"),
         )
     elif provider_normalized in {
         "pix_direct",
@@ -51,11 +53,6 @@ def get_payment_gateway(
         "banco_do_brasil",
         "caixa",
         "c6bank",
-        "pagbank",
-        "pagseguro",
-        "stone",
-        "pagarme",
-        "stripe",
     }:
         return DirectPixGateway(
             pix_key=creds.get("pix_key"),
@@ -68,4 +65,4 @@ def get_payment_gateway(
     elif provider_normalized in {"manual", "none", "in_person", "balcao"}:
         return ManualPaymentGateway()
     else:
-        return ManualPaymentGateway()
+        raise ValueError(f"Gateway de pagamento não suportado: '{provider_normalized}'")

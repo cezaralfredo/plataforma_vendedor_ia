@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/admin/static/vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/admin/static/admin.css">
+    <script defer src="/admin/static/vendor/alpine.min.js"></script>
     <style>
         body { font-family: "Plus Jakarta Sans", sans-serif; }
     </style>
@@ -26,7 +26,7 @@
                     <h1 class="font-bold text-sm text-white flex items-center gap-2">
                         {{ seller.name }}
                         <span class="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                            {{ branch.name }}
+                            {{ branch.name if branch else 'Matriz' }}
                         </span>
                     </h1>
                     <p class="text-xs text-slate-400">Código do Vendedor: <span class="font-mono text-emerald-400 font-semibold">{{ seller.code }}</span></p>
@@ -53,7 +53,7 @@
                 <p class="text-xs text-slate-400 mt-1">Qualquer cliente que comprar usando seu código gera comissão creditada instantaneamente na sua conta.</p>
             </div>
             <div class="flex items-center gap-2">
-                <input type="text" readonly value="https://wa.me/{{ branch.whatsapp_number or seller.whatsapp_number }}?text=Ol%C3%A1%2C%20fui%20atendido(a)%20pelo%20vendedor%20{{ seller.code }}" class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-emerald-300 w-64 sm:w-80 select-all" id="sellerLink" />
+                <input type="text" readonly value="https://wa.me/{{ (branch.whatsapp_number if branch and branch.whatsapp_number else seller.whatsapp_number) | urlencode }}?text=Ol%C3%A1%2C%20fui%20atendido(a)%20pelo%20vendedor%20{{ seller.code | urlencode }}" class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-emerald-300 w-64 sm:w-80 select-all" id="sellerLink" />
                 <button type="button" @click="navigator.clipboard.writeText(document.getElementById('sellerLink').value); copySuccess = true; setTimeout(() => copySuccess = false, 2500)" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all">
                     <i class="fas" :class="copySuccess ? 'fa-check' : 'fa-copy'"></i>
                     <span x-text="copySuccess ? 'Copiado!' : 'Copiar Link'"></span>
