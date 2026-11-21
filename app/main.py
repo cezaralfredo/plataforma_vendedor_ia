@@ -34,18 +34,16 @@ logger = logging.getLogger(__name__)
 
 
 def _configure_app_logging() -> None:
-    """Garante emissão de logs operacionais (INFO+) do namespace 'app' sob Uvicorn."""
-    app_logger = logging.getLogger("app")
+    """Garante emissão de logs operacionais (INFO+) do namespace 'app' sob Uvicorn sem bloquear propagação."""
+    root_logger = logging.getLogger()
     level_name = os.getenv("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
-    app_logger.setLevel(level)
-    if not app_logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         )
-        app_logger.addHandler(handler)
-        app_logger.propagate = False
+    logging.getLogger("app").setLevel(level)
 
 
 def _expire_pending_reservations(session_factory: Callable[[], Session]) -> int:

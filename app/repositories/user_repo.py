@@ -127,6 +127,10 @@ class UserRepository(BaseRepository):
             user = self.find_by_phone(phone)
             if user:
                 return user
+            if not clean_digits(str(phone)):
+                user = self.find_by_name(phone)
+                if user:
+                    return user
 
         if name:
             user = self.find_by_name(name)
