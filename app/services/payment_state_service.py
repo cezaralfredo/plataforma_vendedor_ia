@@ -19,6 +19,10 @@ def apply_payment_state(
     new_status: str,
     now: datetime,
 ) -> None:
+    # Impede regressão de estado terminal (ex.: webhook atrasado após reembolso)
+    if payment.status == "refunded" and new_status != "refunded":
+        return
+
     payment.status = new_status
     payment.updated_at = now
     appointment = payment.appointment
@@ -48,8 +52,9 @@ def apply_payment_state(
             appointment.status = "cancelled"
         return
 
-    if new_status == "refunded" and appointment is not None and appointment.status != "completed":
-        appointment.status = "cancelled"
+    if new_status == "refunded":
+        if appointment is not None and appointment.status != "completed":
+            appointment.status = "cancelled"
         for delivery in getattr(payment, "deliveries", []) or []:
             delivery.payment_status = "reembolsado"
             delivery.updated_at = now

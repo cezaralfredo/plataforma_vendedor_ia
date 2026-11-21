@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
@@ -179,6 +180,12 @@ class PaymentService:
         company_settings = CompanySettingsService(self.db).get_or_create_default()
         active_gateway = (company_settings.default_gateway or "asaas").lower().strip()
 
+        charge_ref = (
+            f"prod:{product_id}:user:{user_id}:{uuid.uuid4().hex[:8]}"
+            if product_id is not None
+            else f"direct:user:{user_id}:{uuid.uuid4().hex[:8]}"
+        )
+
         if active_gateway != "asaas":
             gateway = get_payment_gateway(active_gateway, company_settings.gateway_credentials)
             user = self.user_repo.get(user_id)
@@ -191,10 +198,11 @@ class PaymentService:
                 customer_cpf=getattr(user, "cpf_cnpj", None),
                 description=charge_desc,
                 billing_type=billing_type,
-                order_ref=f"prod:{product_id}:user:{user_id}",
+                order_ref=charge_ref,
                 product_id=product_id,
             )
             result = await gateway.create_charge(req)
+            now_utc = datetime.now(UTC)
             payment = Payment(
                 user_id=user_id,
                 product_id=product_id,
@@ -207,8 +215,9 @@ class PaymentService:
                 billing_type=billing_type,
                 status=result.status,
                 invoice_url=result.invoice_url or result.pix_copy_paste,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                received_at=now_utc if result.status in {"received", "confirmed"} else None,
+                created_at=now_utc,
+                updated_at=now_utc,
             )
             self.db.add(payment)
             self.db.commit()
@@ -217,12 +226,13 @@ class PaymentService:
 
         # Fluxo Asaas padrão
         customer_id = await self.ensure_asaas_customer(user_id)
-        due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        due_date = (datetime.now(UTC) + timedelta(days=1)).strftime("%Y-%m-%d")
 
         remote_payment = await self.asaas.create_payment(
             customer_id=customer_id,
             value=amount_cents / 100.0,
             due_date=due_date,
+            external_reference=charge_ref,
             description=charge_desc,
             billing_type=asaas_billing_type,
         )
@@ -358,6 +368,10 @@ class PaymentService:
         if not payment.asaas_payment_id:
             return payment.status
 
+        # Evita consultar o Asaas com IDs de gateways locais/manuais (evitando cancelamento falso por 404)
+        if payment.asaas_payment_id.startswith(("direct_pix:", "manual:")):
+            return payment.status
+
         try:
             resp = await self.asaas.get_payment(payment.asaas_payment_id)
             is_deleted = resp.get("deleted") is True
@@ -376,6 +390,7 @@ class PaymentService:
             apply_payment_state(payment, new_status, datetime.now(UTC))
             if (
                 new_status in {"received", "confirmed"}
+                and payment.appointment is not None
                 and payment.appointment.status == "confirmed"
             ):
                 # A reconciliação também precisa alimentar a mesma outbox do webhook.

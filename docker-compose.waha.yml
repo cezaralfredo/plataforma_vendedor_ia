@@ -1,23 +1,21 @@
-version: "3.8"
-
 services:
   waha:
-    image: devlikeapro/waha:noweb-arm-2026.7.2
+    image: devlikeapro/waha:${WAHA_IMAGE_TAG:-noweb-2026.7.2}
     container_name: agenda_waha
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - WAHA_ZIP_LOGS=true
       - WAHA_LOG_FORMAT=JSON
-      - WAHA_PRINT_QR=true
-      - WAHA_DASHBOARD_ENABLED=true
-      - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=admin
-      - WAHA_API_KEY=${WAHA_API_KEY:-waha_anaue_secret_2026}
+      - WAHA_PRINT_QR=false
+      - WAHA_DASHBOARD_ENABLED=${WAHA_DASHBOARD_ENABLED:-false}
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-}
+      - WAHA_API_KEY=${WAHA_API_KEY:?Defina WAHA_API_KEY}
       # Webhook de retorno para a API do Vendedor IA
       - WHATSAPP_HOOK_URL=http://vendedor-ia:8000/api/webhooks/whatsapp/waha
-      - WHATSAPP_HOOK_EVENTS=message,message.any
+      - WHATSAPP_HOOK_EVENTS=message.any
     volumes:
       - waha_sessions:/app/.sessions
     networks:

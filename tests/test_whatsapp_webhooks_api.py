@@ -221,4 +221,42 @@ def test_admin_whatsapp_test_send(client: TestClient):
         assert data["message_id"] == "test-msg-1"
 
 
+def test_waha_webhook_enforces_api_key_when_configured(
+    anonymous_client: TestClient, db_session: Session
+):
+    settings = db_session.query(CompanySettings).first()
+    if not settings:
+        settings = CompanySettings(company_name="Teste")
+        db_session.add(settings)
+    settings.waha_api_key = "waha-test-secret-123"
+    db_session.commit()
+
+    payload = {
+        "event": "message",
+        "session": "default",
+        "payload": {
+            "id": "auth-check-msg-1",
+            "from": "5585999998888@c.us",
+            "fromMe": False,
+            "body": "Olá",
+            "_data": {"notifyName": "Cliente"},
+        },
+    }
+
+    res_unauth = anonymous_client.post("/api/webhooks/whatsapp/waha", json=payload)
+    assert res_unauth.status_code == 401
+
+    with patch(
+        "app.services.seller_ai_service.SellerAIService.handle_inbound_message",
+        new_callable=AsyncMock,
+    ) as mock_handle:
+        res_ok = anonymous_client.post(
+            "/api/webhooks/whatsapp/waha",
+            json=payload,
+            headers={"X-Api-Key": "waha-test-secret-123"},
+        )
+        assert res_ok.status_code == 200
+        mock_handle.assert_called_once()
+
+
 

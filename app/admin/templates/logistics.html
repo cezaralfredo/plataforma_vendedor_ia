@@ -623,8 +623,8 @@ function logisticsPage() {
                 if (this.filters.payment_timing) params.append('payment_timing', this.filters.payment_timing);
 
                 const [resDeliveries, resKpis] = await Promise.all([
-                    fetch('/admin/api/deliveries?' + params.toString()),
-                    fetch('/admin/api/deliveries/kpis')
+                    adminFetch('/admin/api/deliveries?' + params.toString()),
+                    adminFetch('/admin/api/deliveries/kpis')
                 ]);
 
                 if (resDeliveries.ok) this.deliveries = await resDeliveries.json();
@@ -639,9 +639,9 @@ function logisticsPage() {
         async loadAuxData() {
             try {
                 const [rClients, rBranches, rSellers] = await Promise.all([
-                    fetch('/admin/api/clients?page_size=100'),
-                    fetch('/admin/api/branches'),
-                    fetch('/admin/api/sellers')
+                    adminFetch('/admin/api/clients?page_size=100'),
+                    adminFetch('/admin/api/branches'),
+                    adminFetch('/admin/api/sellers')
                 ]);
                 if (rClients.ok) {
                     const data = await rClients.json();
@@ -755,22 +755,22 @@ function logisticsPage() {
                 const url = this.isEditing ? `/admin/api/deliveries/${this.form.id}` : '/admin/api/deliveries';
                 const method = this.isEditing ? 'PUT' : 'POST';
 
-                const res = await fetch(url, {
+                const res = await adminFetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
                 if (!res.ok) {
-                    const err = await res.json();
+                    const err = await res.json().catch(() => ({}));
                     throw new Error(err.detail || 'Falha ao salvar entrega.');
                 }
 
                 this.showCreateModal = false;
                 await this.loadData();
-                Alpine.store('adminUi').setNotice({ message: 'Pedido de entrega registrado com sucesso!', type: 'success' });
+                adminNotify({ message: 'Pedido de entrega registrado com sucesso!', type: 'success' });
             } catch (e) {
-                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+                adminNotify({ message: e.message, type: 'error' });
             } finally {
                 this.saving = false;
             }
@@ -810,28 +810,28 @@ function logisticsPage() {
         async sendDispatchNotification() {
             this.sendingNotification = true;
             try {
-                const res = await fetch(`/admin/api/deliveries/${this.selectedDelivery.id}/notify`, {
+                const res = await adminFetch(`/admin/api/deliveries/${this.selectedDelivery.id}/notify`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ custom_message: this.notifyMessagePreview })
                 });
 
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(data.detail || 'Falha ao enviar notificação WhatsApp.');
 
                 this.showNotifyModal = false;
                 await this.loadData();
 
                 if (data.gateway_sent) {
-                    Alpine.store('adminUi').setNotice({ message: 'Mensagem de WhatsApp enviada com sucesso ao cliente!', type: 'success' });
+                    adminNotify({ message: 'Mensagem de WhatsApp enviada com sucesso ao cliente!', type: 'success' });
                 } else {
-                    Alpine.store('adminUi').setNotice({ message: 'Status atualizado para "A Caminho". Utilize o link direto para disparar no WhatsApp.', type: 'info' });
+                    adminNotify({ message: 'Status atualizado para "A Caminho". Utilize o link direto para disparar no WhatsApp.', type: 'info' });
                     if (data.whatsapp_direct_url) {
-                        window.open(data.whatsapp_direct_url, '_blank');
+                        window.open(data.whatsapp_direct_url, '_blank', 'noopener,noreferrer');
                     }
                 }
             } catch (e) {
-                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+                adminNotify({ message: e.message, type: 'error' });
             } finally {
                 this.sendingNotification = false;
             }
@@ -843,33 +843,36 @@ function logisticsPage() {
                 return;
             }
             try {
-                const res = await fetch(`/admin/api/deliveries/${item.id}`, {
+                const res = await adminFetch(`/admin/api/deliveries/${item.id}`, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 if (!res.ok) {
-                    const err = await res.json();
+                    const err = await res.json().catch(() => ({}));
                     throw new Error(err.detail || 'Falha ao apagar pedido.');
                 }
-                Alpine.store('adminUi').setNotice({ message: `Pedido ${code} apagado com sucesso!`, type: 'success' });
+                adminNotify({ message: `Pedido ${code} apagado com sucesso!`, type: 'success' });
                 await this.loadData();
             } catch (e) {
-                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+                adminNotify({ message: e.message, type: 'error' });
             }
         },
 
         async markAsDelivered(item) {
             try {
-                const res = await fetch(`/admin/api/deliveries/${item.id}/status`, {
+                const res = await adminFetch(`/admin/api/deliveries/${item.id}/status`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ delivery_status: 'entregue', payment_status: 'pago' })
                 });
-                if (!res.ok) throw new Error('Falha ao atualizar status.');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Falha ao atualizar status.');
+                }
                 await this.loadData();
-                Alpine.store('adminUi').setNotice({ message: `Pedido ${item.order_code} marcado como Entregue!`, type: 'success' });
+                adminNotify({ message: `Pedido ${item.order_code} marcado como Entregue!`, type: 'success' });
             } catch (e) {
-                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+                adminNotify({ message: e.message, type: 'error' });
             }
         },
 
@@ -877,15 +880,16 @@ function logisticsPage() {
             if (!confirm('Deseja executar o follow-up automático no WhatsApp para clientes com compras pendentes há mais de 45 minutos?')) return;
             this.runningRecovery = true;
             try {
-                const res = await fetch('/admin/api/recovery/run', { method: 'POST' });
-                const data = await res.json();
-                Alpine.store('adminUi').setNotice({
+                const res = await adminFetch('/admin/api/recovery/run', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.detail || 'Falha ao executar recuperação.');
+                adminNotify({
                     message: `Recuperação concluída! ${data.total_contacted} clientes contactados de ${data.total_leads_found} encontrados.`,
                     type: 'success'
                 });
                 await this.loadData();
             } catch (e) {
-                Alpine.store('adminUi').setNotice({ message: e.message, type: 'error' });
+                adminNotify({ message: e.message, type: 'error' });
             } finally {
                 this.runningRecovery = false;
             }
@@ -896,7 +900,8 @@ function logisticsPage() {
         },
 
         formatCurrency(cents) {
-            return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const safeCents = Number(cents || 0);
+            return (safeCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         },
 
         formatDate(iso) {

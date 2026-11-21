@@ -1,3 +1,4 @@
+import hmac
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -7,6 +8,33 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from mcp_gateway.config import settings
+
+_HOP_BY_HOP_HEADERS = frozenset({
+    "connection",
+    "content-encoding",
+    "content-length",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+})
+
+
+def _safe_error_json(response: httpx.Response) -> dict:
+    try:
+        data = response.json()
+        if isinstance(data, dict):
+            return data
+    except ValueError:
+        pass
+    return {"error": {"code": -32603, "message": f"Upstream HTTP {response.status_code}"}}
+
+
+def _filtered_headers(headers: httpx.Headers) -> dict[str, str]:
+    return {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP_HEADERS}
 
 
 class JSONRPCRequest(BaseModel):
@@ -41,6 +69,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="MCP Gateway",
     version="1.0.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
     lifespan=lifespan,
 )
 
@@ -48,7 +79,10 @@ app = FastAPI(
 def verify_gateway_key(
     x_gateway_key: Annotated[str | None, Header()] = None,
 ) -> None:
-    if settings.gateway_key and x_gateway_key != settings.gateway_key:
+    expected = (settings.gateway_key or "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="Gateway authentication not configured")
+    if not hmac.compare_digest(x_gateway_key or "", expected):
         raise HTTPException(status_code=401, detail="Invalid gateway key")
 
 
@@ -92,12 +126,12 @@ async def mcp_proxy(request: Request):
         return Response(
             content=resp.content,
             media_type="application/json",
-            headers=dict(resp.headers),
+            headers=_filtered_headers(resp.headers),
         )
     except httpx.HTTPStatusError as e:
         return JSONResponse(
             status_code=e.response.status_code,
-            content=e.response.json(),
+            content=_safe_error_json(e.response),
         )
     except httpx.RequestError as e:
         return JSONResponse(
@@ -138,7 +172,7 @@ async def mcp_batch_proxy(request: Request):
             resp.raise_for_status()
             results.append(resp.json())
         except httpx.HTTPStatusError as e:
-            results.append(e.response.json())
+            results.append(_safe_error_json(e.response))
         except httpx.RequestError as e:
             results.append(
                 JSONRPCResponse(

@@ -4,7 +4,19 @@ import os
 from sqlalchemy.orm import Session
 
 from app.models.company_settings import CompanySettings
-from app.schemas.company_settings import CompanySettingsUpdate
+from app.schemas.company_settings import (
+    MASKED_SECRET_VALUE,
+    SENSITIVE_CREDENTIAL_KEYS,
+    CompanySettingsUpdate,
+)
+
+_SECRET_SETTINGS_FIELDS = frozenset({
+    "evolution_api_key",
+    "waha_api_key",
+    "meta_access_token",
+    "meta_verify_token",
+    "ai_api_key",
+})
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +164,14 @@ class CompanySettingsService:
 
         if "gateway_credentials" in fields_to_update:
             creds = dict(settings.gateway_credentials or {})
-            creds.update(fields_to_update.pop("gateway_credentials") or {})
+            incoming_creds = fields_to_update.pop("gateway_credentials") or {}
+            for key, val in incoming_creds.items():
+                # Preserva segredos já salvos se o frontend reenviar o marcador mascarado ou vazio
+                if key.lower() in SENSITIVE_CREDENTIAL_KEYS and (
+                    val is None or str(val).strip() in {"", MASKED_SECRET_VALUE}
+                ):
+                    continue
+                creds[key] = val
             settings.gateway_credentials = creds
 
         if "custom_settings" in fields_to_update:
@@ -161,6 +180,10 @@ class CompanySettingsService:
             settings.custom_settings = custom
 
         for field, value in fields_to_update.items():
+            if field in _SECRET_SETTINGS_FIELDS and (
+                value is None or str(value).strip() in {"", MASKED_SECRET_VALUE}
+            ):
+                continue
             setattr(settings, field, value)
 
         self.db.commit()

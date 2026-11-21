@@ -719,7 +719,7 @@
                     </div>
                     <div>
                         <label class="block font-medium text-slate-700 text-xs mb-1">API Key do WAHA</label>
-                        <input type="password" x-model="form.waha_api_key" placeholder="waha_anaue_secret_2026" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
+                        <input type="password" x-model="form.waha_api_key" placeholder="Informe a API Key do WAHA (deixe em branco para manter)" class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500" />
                         <p class="text-[10px] text-slate-500 mt-1">Opcional se desabilitada no container</p>
                     </div>
                 </div>
@@ -1154,19 +1154,17 @@ function companySettingsManager() {
                 this.form.gateway_credentials.merchant_city = this.form.pix_merchant_city;
                 this.form.gateway_credentials.bank_name = this.form.pix_bank_name;
 
-                if (!this.form.waha_base_url) this.form.waha_base_url = 'http://agenda_waha:3000';
+                if (!this.form.waha_base_url) this.form.waha_base_url = 'http://waha:3000';
                 if (!this.form.waha_session) this.form.waha_session = 'default';
-                if (!this.form.waha_api_key) this.form.waha_api_key = 'waha_anaue_secret_2026';
 
-                const res = await fetch('/admin/api/settings', {
+                const res = await adminFetch('/admin/api/settings', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': '{{ request.state.admin_context.csrf_token }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(this.form)
                 });
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(data.detail || 'Erro ao salvar configurações');
                 this.showMessage('Configurações salvas com sucesso!');
             } catch(e) {

@@ -67,6 +67,7 @@ async def seller_login_action(
     redirect.set_cookie(
         key=_SELLER_SESSION_COOKIE,
         value=cookie_value,
+        path="/seller",
         httponly=True,
         samesite="lax",
         secure=not settings.debug,
@@ -78,7 +79,13 @@ async def seller_login_action(
 @router.post("/logout")
 async def seller_logout():
     redirect = RedirectResponse(url="/seller/login", status_code=status.HTTP_303_SEE_OTHER)
-    redirect.delete_cookie(_SELLER_SESSION_COOKIE)
+    redirect.delete_cookie(
+        _SELLER_SESSION_COOKIE,
+        path="/seller",
+        httponly=True,
+        samesite="lax",
+        secure=not settings.debug,
+    )
     return redirect
 
 

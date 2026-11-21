@@ -1,7 +1,20 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _validate_product_image_url(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if cleaned.startswith(("https://", "http://", "/admin/static/uploads/products/")):
+        return cleaned
+    raise ValueError(
+        "URL da imagem deve iniciar com https://, http:// ou /admin/static/uploads/products/"
+    )
 
 
 class ProductBase(BaseModel):
@@ -16,6 +29,11 @@ class ProductBase(BaseModel):
     sku: str | None = Field(default=None, max_length=50, description="Código de referência/SKU")
     image_url: str | None = Field(default=None, max_length=500, description="URL da foto do produto")
     active: bool = Field(default=True, description="Indica se o produto está visível para venda")
+
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_url(cls, value: str | None) -> str | None:
+        return _validate_product_image_url(value)
 
 
 class ProductCreate(ProductBase):
@@ -32,6 +50,11 @@ class ProductUpdate(BaseModel):
     sku: str | None = Field(default=None, max_length=50)
     image_url: str | None = Field(default=None, max_length=500)
     active: bool | None = None
+
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_url(cls, value: str | None) -> str | None:
+        return _validate_product_image_url(value)
 
 
 class ProductResponse(ProductBase):

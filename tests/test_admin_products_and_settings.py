@@ -269,3 +269,52 @@ def test_admin_product_image_upload_validations_and_lifecycle(
 
     # Limpeza do arquivo de teste
     saved_file.unlink(missing_ok=True)
+
+
+def test_admin_settings_masks_secrets_and_preserves_them_on_update(
+    client: TestClient, db_session: Session
+):
+    login(client)
+    csrf = session_data(client)["csrf_token"]
+    headers = {"X-CSRF-Token": csrf}
+
+    res_save = client.post(
+        "/admin/api/settings",
+        headers=headers,
+        json={
+            "ai_api_key": "sk-secret-openai-value",
+            "waha_api_key": "waha-secret-value",
+            "gateway_credentials": {"api_key": "asaas-secret-value"},
+        },
+    )
+    assert res_save.status_code == 200
+    data = res_save.json()
+    assert data["ai_api_key"] == "••••••••"
+    assert data["waha_api_key"] == "••••••••"
+    assert data["gateway_credentials"]["api_key"] == "••••••••"
+
+    # Página HTML não deve expor segredos em texto puro
+    res_page = client.get("/admin/settings")
+    assert res_page.status_code == 200
+    assert "sk-secret-openai-value" not in res_page.text
+    assert "waha-secret-value" not in res_page.text
+    assert "asaas-secret-value" not in res_page.text
+
+    # Reenviar marcador mascarado ou vazio não sobrescreve os segredos salvos
+    res_resave = client.post(
+        "/admin/api/settings",
+        headers=headers,
+        json={
+            "company_name": "Loja Atualizada",
+            "ai_api_key": "••••••••",
+            "waha_api_key": "",
+            "gateway_credentials": {"api_key": "••••••••"},
+        },
+    )
+    assert res_resave.status_code == 200
+
+    db_setting = db_session.query(CompanySettings).first()
+    assert db_setting.company_name == "Loja Atualizada"
+    assert db_setting.ai_api_key == "sk-secret-openai-value"
+    assert db_setting.waha_api_key == "waha-secret-value"
+    assert db_setting.gateway_credentials["api_key"] == "asaas-secret-value"

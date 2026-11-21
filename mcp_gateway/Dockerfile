@@ -9,7 +9,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir uv
 
-COPY requirements.txt .
+COPY mcp_gateway/requirements.txt ./requirements.txt
 RUN uv pip install --system --no-cache -r requirements.txt
 
 # =============================================================================

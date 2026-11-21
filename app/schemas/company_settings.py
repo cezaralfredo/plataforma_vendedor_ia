@@ -2,7 +2,38 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+MASKED_SECRET_VALUE = "••••••••"
+
+SENSITIVE_CREDENTIAL_KEYS = frozenset({
+    "api_key",
+    "access_token",
+    "client_secret",
+    "webhook_secret",
+    "token",
+    "secret_key",
+    "private_key",
+    "certificate_key",
+})
+
+
+def _mask_secret(value: str | None) -> str | None:
+    if value is None or not str(value).strip():
+        return None
+    return MASKED_SECRET_VALUE
+
+
+def _mask_gateway_credentials(creds: dict[str, Any]) -> dict[str, Any]:
+    if not creds:
+        return {}
+    masked: dict[str, Any] = {}
+    for key, val in creds.items():
+        if key.lower() in SENSITIVE_CREDENTIAL_KEYS and val is not None and str(val).strip():
+            masked[key] = MASKED_SECRET_VALUE
+        else:
+            masked[key] = val
+    return masked
 
 
 class FinancialSettingsSchema(BaseModel):
@@ -314,5 +345,19 @@ class CompanySettingsResponse(BaseModel):
     custom_settings: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer(
+        "evolution_api_key",
+        "waha_api_key",
+        "meta_access_token",
+        "meta_verify_token",
+        "ai_api_key",
+    )
+    def serialize_secret_fields(self, value: str | None) -> str | None:
+        return _mask_secret(value)
+
+    @field_serializer("gateway_credentials")
+    def serialize_gateway_credentials(self, value: dict[str, Any]) -> dict[str, Any]:
+        return _mask_gateway_credentials(value)
 
     model_config = ConfigDict(from_attributes=True)

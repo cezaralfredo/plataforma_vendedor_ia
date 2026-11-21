@@ -3,7 +3,6 @@ import hmac
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
@@ -33,8 +32,13 @@ STATUS_MAP = {
 
 def verify_webhook_signature(request: Request) -> bool:
     token = request.headers.get("asaas-access-token", "")
-    expected = settings.asaas_webhook_token
+    app_state = getattr(getattr(request, "app", None), "state", None)
+    app_settings = getattr(app_state, "settings", None) or settings
+    expected = app_settings.asaas_webhook_token or settings.asaas_webhook_token
     if not expected:
+        if not app_settings.debug:
+            logger.error("ASAAS_WEBHOOK_TOKEN não configurado em produção; rejeitando webhook.")
+            return False
         return True
     return hmac.compare_digest(token, expected)
 
@@ -168,32 +172,32 @@ async def asaas_webhook(
 @router.post("/whatsapp/waha")
 @router.post("/whatsapp/waha/")
 async def webhook_whatsapp_waha_alias(
-    payload: dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
 ):
     from app.api.whatsapp_webhooks import handle_waha_webhook
 
-    return await handle_waha_webhook(payload, db)
+    return await handle_waha_webhook(request, db)
 
 
 @router.post("/whatsapp/evolution")
 @router.post("/whatsapp/evolution/")
 async def webhook_whatsapp_evolution_alias(
-    payload: dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
 ):
     from app.api.whatsapp_webhooks import handle_evolution_webhook
 
-    return await handle_evolution_webhook(payload, db)
+    return await handle_evolution_webhook(request, db)
 
 
 @router.post("/whatsapp/inbound")
 @router.post("/whatsapp/inbound/")
 async def webhook_whatsapp_inbound_alias(
-    payload: dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
 ):
     from app.api.whatsapp_webhooks import handle_generic_inbound_webhook
 
-    return await handle_generic_inbound_webhook(payload, db)
+    return await handle_generic_inbound_webhook(request, db)
 

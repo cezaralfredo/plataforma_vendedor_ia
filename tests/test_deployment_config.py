@@ -267,3 +267,32 @@ source "$1"
     assert result.returncode == 0, result.stderr
     assert [line.removeprefix("loaded:") for line in result.stdout.splitlines() if line.startswith("loaded:")] == expected
     assert not any(value and value in result.stderr for value in expected)
+
+
+def test_compose_stacks_with_postgres_placeholder_define_password_source():
+    for path in sorted(Path(".").glob("docker-compose*.yml")):
+        compose = _yaml(str(path))
+        api = compose.get("services", {}).get("api", {})
+        env = api.get("environment", {})
+        if isinstance(env, list):
+            env = dict(item.split("=", 1) for item in env if "=" in item)
+        if "__POSTGRES_PASSWORD__" in str(env.get("DATABASE_URL", "")):
+            assert (
+                "POSTGRES_PASSWORD" in env or "POSTGRES_PASSWORD_FILE" in env
+            ), f"{path.name} uses __POSTGRES_PASSWORD__ without POSTGRES_PASSWORD(_FILE)"
+
+
+def test_waha_stacks_do_not_publish_ports_or_hardcoded_secrets():
+    for path in ("docker-compose.portainer-npm.yml", "docker-compose.waha.yml"):
+        raw = Path(path).read_text(encoding="utf-8")
+        compose = _yaml(path)
+        waha = compose["services"]["waha"]
+        assert "ports" not in waha, f"{path} must not publish WAHA port publicly"
+        assert "waha_anaue_secret_2026" not in raw
+        assert 'WAHA_DASHBOARD_PASSWORD: "admin"' not in raw
+        assert "WAHA_DASHBOARD_PASSWORD=admin" not in raw
+
+
+def test_mcp_gateway_dockerfile_uses_its_own_requirements():
+    dockerfile = Path("mcp_gateway/Dockerfile").read_text(encoding="utf-8")
+    assert "COPY mcp_gateway/requirements.txt" in dockerfile

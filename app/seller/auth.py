@@ -17,7 +17,11 @@ _SELLER_SESSION_TTL = 60 * 60 * 24 * 7  # 7 dias
 
 
 def _seller_secret() -> bytes:
-    key = settings.admin_session_secret or settings.admin_api_key or settings.api_key or "default-secret"
+    key = settings.admin_session_secret or settings.admin_api_key or settings.api_key
+    if not key:
+        if not settings.debug:
+            raise RuntimeError("ADMIN_SESSION_SECRET is required in production for seller sessions")
+        key = "dev-only-seller-session-secret"
     return hashlib.sha256(f"seller_session_secret_{key}".encode()).digest()
 
 

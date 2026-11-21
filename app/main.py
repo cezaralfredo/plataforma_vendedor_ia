@@ -73,6 +73,7 @@ def create_app(
         SessionMiddleware,
         secret_key=app_settings.admin_session_secret,
         session_cookie="admin_session",
+        path="/admin",
         max_age=8 * 60 * 60,
         https_only=not app_settings.debug,
         same_site="lax",

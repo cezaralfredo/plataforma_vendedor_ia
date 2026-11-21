@@ -3,20 +3,20 @@
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
   waha:
-    image: devlikeapro/waha:noweb-arm-2026.7.2
+    image: devlikeapro/waha:${WAHA_IMAGE_TAG:-noweb-2026.7.2}
     restart: unless-stopped
-    ports:
-      - "${WAHA_PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       WAHA_ZIP_LOGS: "true"
       WAHA_LOG_FORMAT: "JSON"
       WAHA_PRINT_QR: "false"
-      WAHA_DASHBOARD_ENABLED: "true"
-      WAHA_DASHBOARD_USERNAME: "admin"
-      WAHA_DASHBOARD_PASSWORD: "admin"
-      WAHA_API_KEY: ${WAHA_API_KEY:-waha_anaue_secret_2026}
+      WAHA_DASHBOARD_ENABLED: "${WAHA_DASHBOARD_ENABLED:-false}"
+      WAHA_DASHBOARD_USERNAME: "${WAHA_DASHBOARD_USERNAME:-}"
+      WAHA_DASHBOARD_PASSWORD: "${WAHA_DASHBOARD_PASSWORD:-}"
+      WAHA_API_KEY: ${WAHA_API_KEY:?Defina WAHA_API_KEY no Portainer}
       WHATSAPP_HOOK_URL: http://api:8000/api/webhooks/whatsapp/waha
-      WHATSAPP_HOOK_EVENTS: message
+      WHATSAPP_HOOK_EVENTS: message.any
       WHATSAPP_RESTART_ALL_SESSIONS: "true"
       WHATSAPP_DEFAULT_ENGINE: NOWEB
     volumes:
@@ -94,7 +94,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       WAHA_BASE_URL: ${WAHA_BASE_URL:-http://waha:3000}
       WAHA_SESSION: ${WAHA_SESSION:-default}
-      WAHA_API_KEY: ${WAHA_API_KEY:-waha_anaue_secret_2026}
+      WAHA_API_KEY: ${WAHA_API_KEY:?Defina WAHA_API_KEY no Portainer}
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-waha}
       SEED_DATA: "false"
     depends_on:

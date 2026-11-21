@@ -54,9 +54,11 @@ do_backup() {
         -mtime "+${RETENTION_DAYS}" -delete
 }
 
-if [ -n "${BACKUP_SCHEDULE:-}" ]; then
+if [ "${1:-}" = "--once" ]; then
+    do_backup
+elif [ -n "${BACKUP_SCHEDULE:-}" ]; then
     log "Modo agendado ativado: $BACKUP_SCHEDULE"
-    echo "$BACKUP_SCHEDULE /backup.sh" > /etc/crontabs/root
+    echo "$BACKUP_SCHEDULE env -u BACKUP_SCHEDULE /backup.sh --once" > /etc/crontabs/root
     do_backup
     exec crond -f -l 2
 else

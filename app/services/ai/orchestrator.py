@@ -160,6 +160,19 @@ class SalesOrchestrator:
 
         return None
 
+    def _get_clean_support_phone(self) -> str:
+        raw = getattr(self.company_settings, "human_support_phone", None) or ""
+        digits = "".join(ch for ch in str(raw) if ch.isdigit())
+        if len(digits) in (10, 11):
+            digits = f"55{digits}"
+        return digits
+
+    def _get_support_name(self) -> str:
+        return (
+            getattr(self.company_settings, "human_support_name", None)
+            or "Equipe de Atendimento"
+        )
+
     async def _run_deterministic_fallback(self, user_message: str) -> str:
         """
         Mecanismo determinístico autônomo acionado quando a API do LLM não está configurada
@@ -172,24 +185,27 @@ class SalesOrchestrator:
         if any(w in lowered for w in ["cancelar", "cancelamento", "cancela", "desistir", "anular"]):
             res = await self.order_status_subagent.execute_tool("cancelar_pedido", {"motivo": lowered})
             data = json.loads(res)
+            clean_phone = self._get_clean_support_phone()
+            default_link = f"https://wa.me/{clean_phone}" if clean_phone else ""
+            support_name = self._get_support_name()
             if data.get("status") == "sucesso":
                 return (
                     f"Perfeito, {customer_name}! {data.get('mensagem')}\n\n"
                     "O seu pedido não será cobrado nem enviado. Se precisar de mais alguma coisa ou quiser fazer um novo pedido, estou à disposição! 😊"
                 )
             elif data.get("status") == "em_rota":
-                link_sup = data.get("link_suporte") or f"https://wa.me/{self._get_clean_support_phone()}"
+                link_sup = data.get("link_suporte") or default_link
+                contact_line = f"\n👉 {link_sup}" if link_sup else ""
                 return (
                     f"Olá, {customer_name}! {data.get('mensagem')}\n\n"
-                    f"Para verificar com nossa equipe, você pode falar diretamente com {self._get_support_name()}:\n"
-                    f"👉 {link_sup}"
+                    f"Para verificar com nossa equipe, você pode falar diretamente com {support_name}:{contact_line}"
                 )
             else:
-                link_sup = data.get("link_suporte") or f"https://wa.me/{self._get_clean_support_phone()}"
+                link_sup = data.get("link_suporte") or default_link
+                contact_line = f"\n👉 {link_sup} ({support_name})" if link_sup else f" ({support_name})"
                 return (
                     f"Olá, {customer_name}! Não localizei nenhum pedido em aberto em seu nome para cancelamento no momento.\n\n"
-                    f"Caso precise de ajuda com algum pedido anterior, nossa equipe de suporte está à disposição:\n"
-                    f"👉 {link_sup} ({self._get_support_name()})"
+                    f"Caso precise de ajuda com algum pedido anterior, nossa equipe de suporte está à disposição:{contact_line}"
                 )
 
         # 2. Atendimento Humano / Solicitação de Contato
@@ -199,15 +215,23 @@ class SalesOrchestrator:
         ]):
             res = await self.support_subagent.execute_tool("acionar_atendente_humano", {"motivo": lowered})
             data = json.loads(res)
+            clean_phone = self._get_clean_support_phone()
             support_name = data.get("vendedor_nome") or self._get_support_name()
-            support_link = data.get("link_suporte") or f"https://wa.me/{self._get_clean_support_phone()}"
-            support_phone = getattr(self.company_settings, "human_support_phone", None) or "5585996277707"
+            support_link = data.get("link_suporte") or (f"https://wa.me/{clean_phone}" if clean_phone else "")
+            if support_link:
+                phone_line = (
+                    f"\n\n📱 *WhatsApp de Suporte / Atendente:* {clean_phone} ({support_name})"
+                    if clean_phone
+                    else ""
+                )
+                return (
+                    f"Com certeza, {customer_name}! Já notifiquei nossa equipe de atendimento humano e um atendente assumirá a conversa.\n\n"
+                    f"Se preferir falar diretamente agora com um atendente, basta clicar:\n"
+                    f"👉 {support_link}{phone_line}\n\n"
+                    "Em instantes você será atendido! 🤝"
+                )
             return (
-                f"Com certeza, {customer_name}! Já notifiquei nossa equipe de atendimento humano e um atendente assumirá a conversa.\n\n"
-                f"Se preferir falar diretamente agora com um atendente, basta clicar:\n"
-                f"👉 {support_link}\n\n"
-                f"📱 *WhatsApp de Suporte / Atendente:* {support_phone} ({support_name})\n\n"
-                "Em instantes você será atendido! 🤝"
+                f"Com certeza, {customer_name}! Já notifiquei {support_name} e um atendente humano assumirá a conversa por aqui em instantes! 🤝"
             )
 
         # 2. Status de Pedidos
