@@ -60,6 +60,7 @@ class SellerAIService:
                     )
                 )
             except Exception as exc:
+                self.db.rollback()
                 logger.warning("Erro ao cadastrar novo cliente via WhatsApp: %s", exc)
                 user = self.user_service.find_by_phone(phone)
         elif (
@@ -146,7 +147,6 @@ class SellerAIService:
         patterns = [
             r"(?:^|\n)\s*(?:1[\.\-\)]\s*)?(?:meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de|sou\s+o|sou\s+a)\s+([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,50})",
             r"(?:^|\n)\s*(?:1[\.\-\)]\s*)?nome(?:\s+completo)?\s*:\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,50})",
-            r"(?:^|\n)\s*1[\.\-\)]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,40})(?:\r?\n|$)",
         ]
         invalid_words = {
             "cliente", "obrigado", "obrigada", "valeu", "sim", "não", "nao", "ok",
@@ -179,14 +179,28 @@ class SellerAIService:
         if SentMessageTracker.get_instance().is_bot_message(message_id):
             return True
 
-        recent = (
+        clean_text = (text or "").strip()
+        if not clean_text:
+            return False
+
+        # Verifica as últimas respostas do assistente no banco (suporta multi-worker e envio fracionado)
+        cutoff = datetime.now(UTC) - timedelta(minutes=2)
+        recent_msgs = (
             self.db.query(ChatMessage)
-            .filter(ChatMessage.phone == phone, ChatMessage.role == "assistant")
+            .filter(
+                ChatMessage.phone == phone,
+                ChatMessage.role == "assistant",
+                ChatMessage.created_at >= cutoff,
+            )
             .order_by(ChatMessage.created_at.desc())
-            .first()
+            .limit(5)
+            .all()
         )
-        if recent and recent.content and text:
-            if recent.content.strip() == text.strip():
+        for recent in recent_msgs:
+            if not recent.content:
+                continue
+            full_content = recent.content.strip()
+            if full_content == clean_text or clean_text in full_content:
                 return True
         return False
 
@@ -354,26 +368,27 @@ class SellerAIService:
         # Identifica se o cliente informou o próprio nome
         self._update_customer_name_if_present(user, text)
 
+        # Carrega histórico ANTES de gravar a mensagem atual (evita duplicação no LLM e HTTP 400 no Claude)
+        history = self._get_recent_history(phone)
+
         # Registra a mensagem do cliente no histórico
         self._record_chat(phone, "user", text, inbound.provider)
-
 
         # Verifica se o autoatendimento da IA está pausado para este cliente (transbordo humano ativo)
         custom_fields = dict(user.custom_fields or {})
         ai_paused_until_str = custom_fields.get("ai_paused_until")
         if ai_paused_until_str:
-            # Permite ao cliente reativar a IA caso envie comandos de retomada ou cumprimentos/inquéritos
-            lowered = text.lower()
-            resume_triggers = [
-                "voltar para o bot", "retomar ia", "falar com robô", "falar com robo", "reiniciar ia", "menu",
-                "#ia", "#bot", "#ativar", "#robo", "oi", "olá", "ola", "bom dia", "boa tarde", "boa noite",
-                "produtos", "catalogo", "catálogo", "comprar", "preço", "preco", "valor", "ajuda", "cardápio", "cardapio"
-            ]
-            if any(w in lowered for w in resume_triggers):
+            # Permite ao cliente reativar a IA apenas via comandos explícitos (evita falsos positivos como 'dois'/'foi')
+            lowered = text.lower().strip()
+            explicit_resume_re = re.compile(
+                r"(?:^|\s)(#ia|#bot|#ativar|#rob[oô]|voltar\s+para\s+o\s+bot|retomar\s+ia|falar\s+com\s+rob[oô]|reiniciar\s+ia)(?:\s|$|[!.?])",
+                re.IGNORECASE,
+            )
+            if explicit_resume_re.search(lowered):
                 custom_fields.pop("ai_paused_until", None)
                 user.custom_fields = custom_fields
                 self.db.commit()
-                logger.info("Atendimento por IA retomado para o cliente %s pelo comando/mensagem do usuário: '%s'", phone, text)
+                logger.info("Atendimento por IA retomado para o cliente %s por comando explícito.", phone)
             else:
                 try:
                     paused_until = datetime.fromisoformat(ai_paused_until_str)
@@ -436,11 +451,15 @@ class SellerAIService:
                     logger.error("Erro ao despachar fast_handoff_human via WhatsApp (%s): %s", inbound.provider, exc)
                 return response_text
 
-            # Ação 2: Confirmação Rápida de Pagamento PIX (0 tokens de LLM)
+            # Ação 2: Confirmação Rápida de Pagamento PIX (apenas pagamentos das últimas 24h)
             if triage_result.recommended_action == "fast_check_pix":
+                pix_cutoff = datetime.now(UTC) - timedelta(hours=24)
                 recent_payment = (
                     self.db.query(Payment)
-                    .filter(Payment.user_id == user.id)
+                    .filter(
+                        Payment.user_id == user.id,
+                        Payment.created_at >= pix_cutoff,
+                    )
                     .order_by(Payment.created_at.desc())
                     .first()
                 )
@@ -468,9 +487,8 @@ class SellerAIService:
 
             # Ação 3: Saudação Rápida Inicial (0 tokens de LLM)
             if triage_result.recommended_action == "fast_greeting":
-                history = self._get_recent_history(phone)
                 # Dispara resposta rápida apenas se for mensagem inicial sem histórico de compras ativo
-                if len(history) <= 1:
+                if len(history) == 0:
                     company_name = self.company_settings.company_name or "Nossa Loja"
                     welcome = self.company_settings.welcome_message
                     if welcome and is_legacy_salon_text(welcome):
@@ -493,8 +511,6 @@ class SellerAIService:
                     except Exception as exc:
                         logger.error("Erro ao despachar fast_greeting via WhatsApp (%s): %s", inbound.provider, exc)
                     return response_text
-
-        history = self._get_recent_history(phone)
 
         # Atualiza as configurações da empresa antes de orquestrar
         self.company_settings = CompanySettingsService(self.db).get_or_create_default()

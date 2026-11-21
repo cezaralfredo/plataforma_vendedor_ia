@@ -282,7 +282,7 @@ class CheckoutSubagent(BaseSubagent):
         if address_arg and str(address_arg).strip():
             clean_addr = str(address_arg).strip()
             if clean_addr.lower() not in ("null", "undefined", "nenhum", "a confirmar", "não informado"):
-                self.user.address = clean_addr
+                self.user.address = clean_addr[:255]
                 changed = True
 
         banco_arg = arguments.get("banco_preferido")
@@ -315,7 +315,25 @@ class CheckoutSubagent(BaseSubagent):
         else:
             desc_itens = " + ".join(it["desc_line"] for it in validated_items)
 
-        # 3. Geração de cobrança para pagamento antecipado
+        # 3. Reserva atômica de estoque antes de gerar cobrança/entrega (rollback em caso de falha)
+        reserved_items: list[tuple[int, int]] = []
+        try:
+            for it in validated_items:
+                qty_deduct = max(1, round(it["quantidade"]))
+                self.product_service.adjust_stock(it["product"].id, -qty_deduct)
+                reserved_items.append((it["product"].id, qty_deduct))
+        except ValueError as stock_err:
+            for pid, qty_rev in reserved_items:
+                try:
+                    self.product_service.adjust_stock(pid, qty_rev)
+                except Exception as rev_err:
+                    logger.error("Falha ao reverter reserva de estoque do produto #%s: %s", pid, rev_err)
+            return json.dumps({
+                "status": "estoque_insuficiente",
+                "erro": str(stock_err),
+            }, ensure_ascii=False)
+
+        # 4. Geração de cobrança para pagamento antecipado
         payment_id = None
         invoice_url = None
 
@@ -334,13 +352,17 @@ class CheckoutSubagent(BaseSubagent):
                 invoice_url = payment.invoice_url
             except Exception as e:
                 logger.error("Falha ao gerar cobrança antecipada no checkout: %s", e)
-                if arguments.get("_is_charge_only"):
-                    return json.dumps({
-                        "erro": "Não foi possível gerar a chave PIX no momento.",
-                        "detalhes": str(e),
-                    }, ensure_ascii=False)
+                for pid, qty_rev in reserved_items:
+                    try:
+                        self.product_service.adjust_stock(pid, qty_rev)
+                    except Exception as rev_err:
+                        logger.error("Falha ao reverter estoque após erro de cobrança #%s: %s", pid, rev_err)
+                return json.dumps({
+                    "erro": "Não foi possível gerar a cobrança PIX no momento. Por favor, tente novamente ou opte pelo pagamento na entrega.",
+                    "detalhes": str(e),
+                }, ensure_ascii=False)
 
-        # 4. Cadastra o pedido diretamente no controle de Logística
+        # 5. Cadastra o pedido diretamente no controle de Logística
         # NOTA: O status do pagamento inicial é SEMPRE 'pendente' até confirmação via webhook/admin.
         delivery_dto = DeliveryCreate(
             user_id=self.user.id,
@@ -357,16 +379,21 @@ class CheckoutSubagent(BaseSubagent):
             notes=observacao or None,
         )
 
-        delivery = self.delivery_service.create_delivery(delivery_dto)
-        order_code = delivery.get("order_code", "ENT-XXXX")
+        try:
+            delivery = self.delivery_service.create_delivery(delivery_dto)
+        except Exception as e:
+            logger.error("Falha ao registrar entrega após reserva de estoque: %s", e)
+            for pid, qty_rev in reserved_items:
+                try:
+                    self.product_service.adjust_stock(pid, qty_rev)
+                except Exception as rev_err:
+                    logger.error("Falha ao reverter estoque após erro de entrega #%s: %s", pid, rev_err)
+            return json.dumps({
+                "erro": "Não foi possível registrar seu pedido no momento. Tente novamente em instantes.",
+                "detalhes": str(e),
+            }, ensure_ascii=False)
 
-        # 5. Deduz do estoque para todos os itens comprados
-        for it in validated_items:
-            try:
-                qty_deduct = max(1, round(it["quantidade"]))
-                self.product_service.adjust_stock(it["product"].id, -qty_deduct)
-            except Exception as e:
-                logger.warning("Falha ao debitar estoque para produto #%s: %s", it["product"].id, e)
+        order_code = delivery.get("order_code", "ENT-XXXX")
 
         nome_lembrete = ""
         if (self.user.name or "").strip().lower() in ("cliente", "desconhecido", ""):

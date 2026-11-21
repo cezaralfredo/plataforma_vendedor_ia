@@ -73,7 +73,7 @@ class OpenAICompatibleClient(BaseLLMClient):
         messages: list[LLMMessage],
         tools: list[ToolDefinition] | None = None,
         temperature: float = 0.3,
-        max_tokens: int = 600,
+        max_tokens: int = 1024,
     ) -> LLMResponse:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -98,7 +98,12 @@ class OpenAICompatibleClient(BaseLLMClient):
                 res.raise_for_status()
                 data = res.json()
 
-            choice = data["choices"][0]
+            choices = data.get("choices") or []
+            if not choices:
+                logger.warning("Resposta LLM sem choices (%s): %s", self.endpoint_url, data)
+                return LLMResponse(content=None, tool_calls=[], raw=data)
+
+            choice = choices[0]
             message_data = choice.get("message", {})
             content = message_data.get("content")
 
@@ -110,15 +115,17 @@ class OpenAICompatibleClient(BaseLLMClient):
                 raw_args = func_data.get("arguments", "{}")
                 try:
                     args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    if not isinstance(args, dict):
+                        args = {"_invalid_json_args": "Argumentos da ferramenta não formam um objeto JSON válido."}
                 except Exception as parse_err:
                     logger.warning("Falha ao parsear argumentos da ferramenta '%s': %s", func_name, parse_err)
-                    args = {}
+                    args = {"_invalid_json_args": str(parse_err)}
 
                 tool_calls.append(
                     ToolCall(
                         id=tc.get("id", ""),
                         name=func_name,
-                        arguments=args if isinstance(args, dict) else {},
+                        arguments=args,
                     )
                 )
 

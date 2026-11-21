@@ -122,8 +122,9 @@ class SalesOrchestrator:
 
         temperature = float(self.company_settings.ai_temperature or 0.3)
 
-        # Loop de Tool Calling (máximo de 3 iterações para segurança)
-        max_iterations = 3
+        # Loop de Tool Calling (máximo de 5 iterações com síntese final garantida)
+        max_iterations = 5
+        executed_any_tool = False
         for _iteration in range(max_iterations):
             response = await self.llm_client.generate_response(
                 messages=messages,
@@ -138,6 +139,7 @@ class SalesOrchestrator:
                 break
 
             # Se o modelo solicitou execução de ferramentas dos subagentes
+            executed_any_tool = True
             messages.append(
                 LLMMessage(
                     role="assistant",
@@ -147,8 +149,17 @@ class SalesOrchestrator:
             )
 
             for tc in response.tool_calls:
-                logger.info("Orquestrador IA executando subagente ferramenta: %s(args=%s)", tc.name, tc.arguments)
-                tool_result_str = await self._execute_tool_call(tc)
+                if "_invalid_json_args" in (tc.arguments or {}):
+                    tool_result_str = json.dumps(
+                        {
+                            "erro": "Os argumentos enviados para a ferramenta vieram em JSON inválido/truncado. Reenvie os argumentos corretamente.",
+                            "detalhes": tc.arguments["_invalid_json_args"],
+                        },
+                        ensure_ascii=False,
+                    )
+                else:
+                    logger.info("Orquestrador IA executando subagente ferramenta: %s(args=%s)", tc.name, tc.arguments)
+                    tool_result_str = await self._execute_tool_call(tc)
                 messages.append(
                     LLMMessage(
                         role="tool",
@@ -157,6 +168,16 @@ class SalesOrchestrator:
                         name=tc.name,
                     )
                 )
+
+        # Síntese final sem tools para evitar cair no fallback determinístico e duplicar pedidos
+        if executed_any_tool:
+            final_response = await self.llm_client.generate_response(
+                messages=messages,
+                tools=None,
+                temperature=temperature,
+            )
+            if final_response.content:
+                return final_response.content.strip()
 
         return None
 

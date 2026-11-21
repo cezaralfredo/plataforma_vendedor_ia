@@ -1,12 +1,16 @@
 import logging
 import urllib.parse
+import uuid
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.delivery import Delivery
+from app.models.payment import Payment
+from app.models.seller import Seller
 from app.models.user import User
 from app.schemas.delivery import DeliveryCreate, DeliveryUpdate
 from app.services.whatsapp.gateway import WhatsAppGatewayService
@@ -19,7 +23,7 @@ class DeliveryService:
         self.db = db
 
     def _get_company_name(self) -> str:
-        """Obtém o nome da empresa configurado ou retorna padrão elegante."""
+        """Obtém o nome da empresa configurado ou retorna padrão genérico."""
         try:
             from app.models.company_settings import CompanySettings
             settings = self.db.query(CompanySettings).first()
@@ -27,17 +31,50 @@ class DeliveryService:
                 return settings.company_name.strip()
         except Exception as exc:
             logger.debug("Falha ao recuperar company_name em DeliveryService: %s", exc)
-        return "Anauê Design"
+        return "Nossa Loja"
 
-    def _generate_order_code(self) -> str:
-        """Gera código único legível para o pedido de entrega (ex: ENT-1001) garantindo unicidade."""
-        max_id = self.db.query(func.max(Delivery.id)).scalar() or 0
-        code = f"ENT-{(max_id + 1):04d}"
-        suffix = 1
-        while self.db.query(Delivery.id).filter(Delivery.order_code == code).first():
-            code = f"ENT-{(max_id + 1 + suffix):04d}"
-            suffix += 1
-        return code
+    def _ensure_delivery_payment_record(self, delivery: Delivery, now: datetime) -> None:
+        """Garante registro financeiro (Payment) e comissão para entregas pagas na entrega."""
+        if delivery.payment_status != "pago" or delivery.payment_id is not None:
+            return
+        if not delivery.total_amount_cents or delivery.total_amount_cents <= 0:
+            return
+
+        commission_cents = 0
+        if delivery.seller_id:
+            seller = self.db.get(Seller, delivery.seller_id)
+            if seller and seller.commission_rate:
+                commission_cents = int(
+                    (
+                        Decimal(delivery.total_amount_cents)
+                        * Decimal(str(seller.commission_rate))
+                        / Decimal(100)
+                    ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                )
+
+        billing_map = {
+            "pix": "pix",
+            "cartao_credito": "credit_card",
+            "cartao_debito": "undefined",
+            "dinheiro": "undefined",
+        }
+        payment = Payment(
+            user_id=delivery.user_id,
+            branch_id=delivery.branch_id,
+            seller_id=delivery.seller_id,
+            commission_amount_cents=commission_cents,
+            description=f"Entrega {delivery.order_code}: {delivery.items_description}"[:255],
+            asaas_payment_id=f"manual:ent:{delivery.id}:{uuid.uuid4().hex[:8]}",
+            amount_cents=delivery.total_amount_cents,
+            billing_type=billing_map.get(delivery.payment_method, "undefined"),
+            status="received",
+            received_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        self.db.add(payment)
+        self.db.flush()
+        delivery.payment_id = payment.id
 
     def list_deliveries(
         self,
@@ -107,13 +144,14 @@ class DeliveryService:
         if not user:
             raise ValueError(f"Cliente ID {data.user_id} não encontrado.")
 
-        order_code = self._generate_order_code()
         address = (data.delivery_address or user.full_address or "").strip()
         if not address:
             raise ValueError("O endereço de entrega completo é obrigatório.")
 
+        # Placeholder único temporário para obter o ID atômico do banco e derivar ENT-XXXX sem race condition
+        temp_code = f"TMP-{uuid.uuid4().hex[:12]}"
         delivery = Delivery(
-            order_code=order_code,
+            order_code=temp_code,
             user_id=data.user_id,
             branch_id=data.branch_id,
             seller_id=data.seller_id,
@@ -129,10 +167,15 @@ class DeliveryService:
             notes=data.notes.strip() if data.notes else None,
         )
 
+        now = datetime.now(UTC)
         if delivery.delivery_status == "a_caminho":
-            delivery.dispatched_at = datetime.now(UTC)
+            delivery.dispatched_at = now
 
         self.db.add(delivery)
+        self.db.flush()
+        delivery.order_code = f"ENT-{delivery.id:04d}"
+        if delivery.payment_status == "pago" and delivery.payment_id is None:
+            self._ensure_delivery_payment_record(delivery, now)
         self.db.commit()
         self.db.refresh(delivery)
         return self._format_delivery_dict(delivery)
@@ -143,20 +186,25 @@ class DeliveryService:
             return None
 
         values = data.model_dump(exclude_unset=True)
-        if "delivery_status" in values:
-            new_status = values["delivery_status"]
-            if new_status == "a_caminho" and not delivery.dispatched_at:
-                delivery.dispatched_at = datetime.now(UTC)
-            elif new_status == "entregue" and not delivery.delivered_at:
-                delivery.delivered_at = datetime.now(UTC)
-                if delivery.payment_timing == "na_entrega":
-                    delivery.payment_status = "pago"
+        now = datetime.now(UTC)
+        explicit_payment_status = "payment_status" in values
 
         for field, value in values.items():
             if isinstance(value, str):
                 value = value.strip()
             setattr(delivery, field, value)
 
+        if "delivery_status" in values:
+            new_status = delivery.delivery_status
+            if new_status == "a_caminho" and not delivery.dispatched_at:
+                delivery.dispatched_at = now
+            elif new_status == "entregue":
+                if not delivery.delivered_at:
+                    delivery.delivered_at = now
+                if delivery.payment_timing == "na_entrega" and not explicit_payment_status:
+                    delivery.payment_status = "pago"
+
+        self._ensure_delivery_payment_record(delivery, now)
         self.db.commit()
         self.db.refresh(delivery)
         return self._format_delivery_dict(delivery)
@@ -187,6 +235,7 @@ class DeliveryService:
         if delivery_driver_name is not None:
             delivery.delivery_driver_name = delivery_driver_name.strip() if delivery_driver_name else None
 
+        self._ensure_delivery_payment_record(delivery, now)
         self.db.commit()
         self.db.refresh(delivery)
         return self._format_delivery_dict(delivery)
@@ -227,8 +276,10 @@ class DeliveryService:
         # Montagem da mensagem amigável e clara
         total_reais = f"R$ {delivery.total_amount_cents / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        if delivery.payment_timing == "antecipado" or delivery.payment_status == "pago":
+        if delivery.payment_status == "pago":
             payment_info = "✅ *Pagamento Antecipado (Já Liquidado)*"
+        elif delivery.payment_timing == "antecipado":
+            payment_info = f"⏳ *Pagamento Antecipado ({total_reais} — Aguardando Confirmação)*"
         else:
             method_label = {
                 "pix": "PIX",
@@ -255,16 +306,7 @@ class DeliveryService:
                 f"Por favor, certifique-se de que haverá alguém para receber. Qualquer dúvida, é só nos responder aqui! 🤝"
             )
 
-        now = datetime.now(UTC)
-        delivery.customer_notified_at = now
-        if delivery.delivery_status == "preparando":
-            delivery.delivery_status = "a_caminho"
-            delivery.dispatched_at = now
-
-        self.db.commit()
-        self.db.refresh(delivery)
-
-        # Envio ativo via gateway WhatsApp integrado
+        # Envio ativo via gateway WhatsApp integrado antes de marcar customer_notified_at
         send_success = False
         gateway_error = None
         try:
@@ -274,8 +316,18 @@ class DeliveryService:
             if not send_success:
                 gateway_error = getattr(res, "error", "Falha de envio no gateway")
         except Exception as e:
-            logger.warning(f"Aviso ao cliente via WhatsApp Gateway falhou: {e}")
+            logger.warning("Aviso ao cliente via WhatsApp Gateway falhou: %s", e)
             gateway_error = str(e)
+
+        now = datetime.now(UTC)
+        if send_success:
+            delivery.customer_notified_at = now
+        if delivery.delivery_status == "preparando":
+            delivery.delivery_status = "a_caminho"
+            delivery.dispatched_at = now
+
+        self.db.commit()
+        self.db.refresh(delivery)
 
         direct_url = self._build_wa_link(phone, message_text)
 

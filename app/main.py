@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -32,17 +33,38 @@ from app.services.company_settings_service import CompanySettingsService
 logger = logging.getLogger(__name__)
 
 
-async def _expiration_worker():
-    """Background task to reliably expire pending reservations every 5 minutes."""
+def _configure_app_logging() -> None:
+    """Garante emissão de logs operacionais (INFO+) do namespace 'app' sob Uvicorn."""
+    app_logger = logging.getLogger("app")
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    app_logger.setLevel(level)
+    if not app_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+        )
+        app_logger.addHandler(handler)
+        app_logger.propagate = False
+
+
+def _expire_pending_reservations(session_factory: Callable[[], Session]) -> int:
+    with session_factory() as db:
+        repo = AppointmentRepository(db)
+        expired = repo.expire_reservations(datetime.now(UTC))
+        if expired > 0:
+            db.commit()
+        return expired
+
+
+async def _expiration_worker(session_factory: Callable[[], Session]) -> None:
+    """Background task to reliably expire pending reservations every 5 minutes without blocking the event loop."""
     while True:
         try:
             await asyncio.sleep(300)
-            with SessionLocal() as db:
-                repo = AppointmentRepository(db)
-                expired = repo.expire_reservations(datetime.now(UTC))
-                if expired > 0:
-                    db.commit()
-                    logger.info("Automatically expired %d pending reservation(s)", expired)
+            expired = await asyncio.to_thread(_expire_pending_reservations, session_factory)
+            if expired > 0:
+                logger.info("Automatically expired %d pending reservation(s)", expired)
         except asyncio.CancelledError:
             break
         except Exception:
@@ -115,6 +137,7 @@ def create_app(
 
     @application.on_event("startup")
     async def startup_tasks() -> None:
+        _configure_app_logging()
         db = session_factory()
         try:
             bootstrap_admin_account(db, app_settings)
@@ -125,7 +148,9 @@ def create_app(
             raise
         finally:
             db.close()
-        application.state.expiration_task = asyncio.create_task(_expiration_worker())
+        application.state.expiration_task = asyncio.create_task(
+            _expiration_worker(session_factory)
+        )
 
     @application.on_event("shutdown")
     async def shutdown_tasks() -> None:

@@ -1,6 +1,6 @@
 import logging
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
@@ -78,16 +78,28 @@ class ProductService:
         return product
 
     def adjust_stock(self, product_id: int, quantity_delta: int) -> Product:
-        product = self.get_by_id(product_id)
-        if not product:
-            raise ValueError(f"Produto #{product_id} não encontrado")
-        new_stock = product.stock_quantity + quantity_delta
-        if new_stock < 0:
+        """Ajusta o estoque de forma atômica via UPDATE condicional, prevenindo overselling."""
+        stmt = (
+            update(Product)
+            .where(
+                Product.id == product_id,
+                Product.stock_quantity + quantity_delta >= 0,
+            )
+            .values(stock_quantity=Product.stock_quantity + quantity_delta)
+        )
+        result = self.db.execute(stmt)
+        if result.rowcount == 0:
+            self.db.rollback()
+            product = self.get_by_id(product_id)
+            if not product:
+                raise ValueError(f"Produto #{product_id} não encontrado")
             raise ValueError(
                 f"Estoque insuficiente para o produto '{product.name}'. "
                 f"Disponível: {product.stock_quantity}, Solicitado: {abs(quantity_delta)}"
             )
-        product.stock_quantity = new_stock
         self.db.commit()
+        product = self.get_by_id(product_id)
+        if not product:
+            raise ValueError(f"Produto #{product_id} não encontrado")
         self.db.refresh(product)
         return product

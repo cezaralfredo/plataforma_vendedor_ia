@@ -194,32 +194,40 @@ class NotificationService:
 
         webhook_url = self.get_effective_webhook_url()
         if not webhook_url:
-            # Envio direto pelo provedor WhatsApp ativo (WAHA, Evolution ou Meta)
-            full_payload = self.get_delivery_payload(delivery)
+            # Reserva a entrega com lock ANTES do I/O para evitar envios duplicados e garantir backoff/dead-letter
+            claimed = self.claim_delivery(delivery.id)
+            if not claimed:
+                return False
+
+            full_payload = self.get_delivery_payload(claimed)
             recipient_phone = (full_payload.get("chatId") or full_payload.get("whatsapp")) if full_payload else None
             if full_payload and recipient_phone:
                 from app.services.whatsapp.gateway import WhatsAppGatewayService
 
                 gateway = WhatsAppGatewayService(self.db)
-                result = await gateway.send_text(
-                    phone=recipient_phone,
-                    text=full_payload.get("formatted_message", ""),
-                )
+                try:
+                    result = await gateway.send_text(
+                        phone=recipient_phone,
+                        text=full_payload.get("formatted_message", ""),
+                    )
+                except Exception as exc:
+                    self.defer_delivery(claimed.id, str(exc))
+                    return False
+
                 if result.success:
-                    self.claim_delivery(delivery.id)
                     self.mark_delivery_sent(
-                        delivery_id=delivery.id,
+                        delivery_id=claimed.id,
                         provider_message_id=result.message_id,
                     )
                     logger.info("Notificação de pagamento entregue via %s (msg_id: %s)", result.provider, result.message_id)
                     return True
-                else:
-                    self.defer_delivery(delivery.id, result.error or "Falha no envio direto pelo provedor WhatsApp")
-                    return False
+                self.defer_delivery(claimed.id, result.error or "Falha no envio direto pelo provedor WhatsApp")
+                return False
 
+            self.defer_delivery(claimed.id, "Destinatário ou payload indisponível para envio direto")
             logger.info(
-                "No notification webhook or recipient phone configured. Delivery %s remains pending.",
-                delivery.id,
+                "No notification webhook or recipient phone configured. Delivery %s deferred.",
+                claimed.id,
             )
             return False
 
@@ -289,7 +297,12 @@ class NotificationService:
     def mark_delivery_sent(
         self, delivery_id: int, provider_message_id: str | None = None
     ) -> NotificationDelivery | None:
-        delivery = self.db.get(NotificationDelivery, delivery_id)
+        delivery = (
+            self.db.query(NotificationDelivery)
+            .filter(NotificationDelivery.id == delivery_id)
+            .with_for_update()
+            .first()
+        )
         if not delivery:
             return None
         if delivery.status == "sent":
@@ -325,7 +338,12 @@ class NotificationService:
         return delivery
 
     def defer_delivery(self, delivery_id: int, error: str) -> NotificationDelivery | None:
-        delivery = self.db.get(NotificationDelivery, delivery_id)
+        delivery = (
+            self.db.query(NotificationDelivery)
+            .filter(NotificationDelivery.id == delivery_id)
+            .with_for_update()
+            .first()
+        )
         if not delivery or delivery.status == "sent":
             return None
         now = datetime.now(UTC)

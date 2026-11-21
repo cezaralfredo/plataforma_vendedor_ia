@@ -28,8 +28,8 @@ class WhatsAppGatewayService:
 
         name = (
             provider_name
-            or os.getenv("WHATSAPP_PROVIDER")
             or self.settings.whatsapp_provider
+            or os.getenv("WHATSAPP_PROVIDER")
             or "waha"
         ).lower()
 

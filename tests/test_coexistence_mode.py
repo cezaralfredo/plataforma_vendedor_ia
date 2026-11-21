@@ -282,3 +282,101 @@ async def test_bot_echo_does_not_pause_ia(db_session: Session):
     if user:
         custom = user.custom_fields or {}
         assert custom.get("ai_paused_until") is None
+
+
+@pytest.mark.asyncio
+async def test_pause_not_broken_by_common_words_containing_oi(db_session: Session):
+    phone = "5585977771111"
+    user = User(
+        name="Cliente Pausa",
+        phone=phone,
+        whatsapp_number=phone,
+        custom_fields={
+            "ai_paused_until": (datetime.now(UTC) + timedelta(minutes=30)).isoformat()
+        },
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    service = SellerAIService(db_session)
+    inbound = InboundMessage(
+        provider="waha",
+        sender_phone=phone,
+        sender_name="Cliente Pausa",
+        text="Boa noite, quero dois quilos depois",
+        message_id="msg-cust-sub-1",
+        is_from_me=False,
+    )
+
+    with patch.object(service.gateway, "send_text", new_callable=AsyncMock) as mock_send:
+        resp = await service.handle_inbound_message(inbound)
+        assert resp == ""
+        mock_send.assert_not_called()
+
+    db_session.refresh(user)
+    assert user.custom_fields.get("ai_paused_until") is not None
+
+
+@pytest.mark.asyncio
+async def test_chunked_bot_echo_in_different_worker_does_not_pause_ia(db_session: Session):
+    phone = "5585966664444"
+    db_session.add(
+        ChatMessage(
+            phone=phone,
+            role="assistant",
+            content="Olá! Temos várias opções.\n\n---\n\nQual você prefere?",
+            provider="waha",
+            created_at=datetime.now(UTC),
+        )
+    )
+    db_session.commit()
+
+    service = SellerAIService(db_session)
+    # Simula eco em outro worker (tracker em RAM vazio) contendo apenas o segundo chunk
+    inbound_chunk = InboundMessage(
+        provider="waha",
+        sender_phone=phone,
+        sender_name="Bot",
+        text="Qual você prefere?",
+        message_id="msg-other-worker-chunk-2",
+        is_from_me=True,
+    )
+
+    resp = await service.handle_inbound_message(inbound_chunk)
+    assert resp == ""
+    user = db_session.query(User).filter(User.phone == phone).first()
+    if user:
+        assert (user.custom_fields or {}).get("ai_paused_until") is None
+
+
+def test_find_by_phone_does_not_collide_across_different_ddds(db_session: Session):
+    from app.repositories.user_repo import UserRepository
+
+    user_sp = User(name="Cliente SP", phone="5511988881234", whatsapp_number="5511988881234")
+    db_session.add(user_sp)
+    db_session.commit()
+
+    repo = UserRepository(db_session)
+    assert repo.find_by_phone("5511988881234") is not None
+    assert repo.find_by_phone("5585988881234") is None
+
+
+def test_anthropic_client_coalesces_consecutive_user_and_tool_messages():
+    from app.services.ai.providers.anthropic_client import AnthropicClient
+    from app.services.ai.providers.base import LLMMessage
+
+    client = AnthropicClient(api_key="test-key")
+    system, formatted = client._convert_messages([
+        LLMMessage(role="system", content="Regras"),
+        LLMMessage(role="assistant", content="Mensagem antiga solta"),
+        LLMMessage(role="user", content="Oi"),
+        LLMMessage(role="user", content="Quero comprar"),
+        LLMMessage(role="assistant", content="Verificando"),
+        LLMMessage(role="tool", content='{"ok":1}', tool_call_id="t1"),
+        LLMMessage(role="tool", content='{"ok":2}', tool_call_id="t2"),
+    ])
+
+    assert system == "Regras"
+    assert [m["role"] for m in formatted] == ["user", "assistant", "user"]
+    assert len(formatted[0]["content"]) == 2
+    assert len(formatted[2]["content"]) == 2

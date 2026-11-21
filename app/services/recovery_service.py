@@ -29,12 +29,14 @@ class SalesRecoveryService:
         idle_threshold = now - timedelta(minutes=minutes_idle)
         max_age_threshold = now - timedelta(hours=max_age_hours)
 
-        # 1. Usuários com entregas ainda em preparação sem avanço
+        # 1. Usuários com entregas antecipadas ainda pendentes de pagamento
         pending_delivery_user_ids = [
             r[0]
             for r in self.db.query(Delivery.user_id)
             .filter(
                 Delivery.delivery_status == "preparando",
+                Delivery.payment_timing == "antecipado",
+                Delivery.payment_status == "pendente",
                 Delivery.created_at <= idle_threshold,
                 Delivery.created_at >= max_age_threshold,
             )
@@ -92,7 +94,7 @@ class SalesRecoveryService:
                 return settings.company_name.strip()
         except Exception as exc:
             logger.debug("Falha ao recuperar company_name em SalesRecoveryService: %s", exc)
-        return "Anauê Design"
+        return "Nossa Loja"
 
     async def send_followup_to_user(self, user: User, custom_text: str | None = None) -> dict[str, Any]:
         phone = user.whatsapp_number or user.phone
@@ -107,7 +109,12 @@ class SalesRecoveryService:
             # Identifica item ou pedido pendente recente para contextualizar
             recent_del = (
                 self.db.query(Delivery)
-                .filter(Delivery.user_id == user.id, Delivery.delivery_status == "preparando")
+                .filter(
+                    Delivery.user_id == user.id,
+                    Delivery.delivery_status == "preparando",
+                    Delivery.payment_timing == "antecipado",
+                    Delivery.payment_status == "pendente",
+                )
                 .order_by(Delivery.created_at.desc())
                 .first()
             )
@@ -116,7 +123,7 @@ class SalesRecoveryService:
             msg_text = (
                 f"Olá, *{user.name}*! Tudo bem? 😊\n\n"
                 f"Passando para saber se ficou alguma dúvida sobre seu pedido{item_hint} na *{company_name}*!\n"
-                "Se preferir, nós podemos agilizar a entrega para você **pagar somente no ato do recebimento** "
+                "Se preferir, nós podemos agilizar a entrega para você *pagar somente no ato do recebimento* "
                 "(em Dinheiro, PIX ou Cartão com o entregador)! 🚚\n\n"
                 "Posso confirmar o envio para o seu endereço?"
             )
@@ -132,22 +139,24 @@ class SalesRecoveryService:
             logger.warning("Erro ao enviar follow-up para %s: %s", phone, e)
             error_msg = str(e)
 
-        # Atualiza o timestamp de follow-up
-        now_iso = datetime.now(UTC).isoformat()
-        custom = dict(user.custom_fields or {})
-        custom["last_followup_at"] = now_iso
-        user.custom_fields = custom
+        sent_at: str | None = None
+        if send_success:
+            # Só registra histórico e cooldown de 20h quando o envio realmente teve sucesso
+            now = datetime.now(UTC)
+            sent_at = now.isoformat()
+            custom = dict(user.custom_fields or {})
+            custom["last_followup_at"] = sent_at
+            user.custom_fields = custom
 
-        # Registra a mensagem no histórico do chat
-        chat_msg = ChatMessage(
-            phone=phone,
-            role="assistant",
-            content=msg_text,
-            provider="recovery_service",
-            created_at=datetime.now(UTC),
-        )
-        self.db.add(chat_msg)
-        self.db.commit()
+            chat_msg = ChatMessage(
+                phone=phone,
+                role="assistant",
+                content=msg_text,
+                provider="recovery_service",
+                created_at=now,
+            )
+            self.db.add(chat_msg)
+            self.db.commit()
 
         return {
             "success": send_success,
@@ -155,7 +164,7 @@ class SalesRecoveryService:
             "user_id": user.id,
             "user_name": user.name,
             "phone": phone,
-            "sent_at": now_iso,
+            "sent_at": sent_at,
         }
 
     async def run_batch_recovery(self, minutes_idle: int = 45) -> dict[str, Any]:

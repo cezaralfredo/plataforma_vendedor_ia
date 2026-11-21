@@ -153,17 +153,10 @@ class UserRepository(BaseRepository):
         if not phone or not str(phone).strip():
             return None
         raw_query = str(phone).strip()
-        digits = clean_digits(raw_query)
 
-        # Se passou um CPF ou CNPJ válido no campo phone/query
-        if digits and len(digits) in (11, 14):
-            user_cpf = self.find_by_cpf(digits)
-            if user_cpf:
-                return user_cpf
-
-        candidates, local8_suffix = _generate_phone_candidates(raw_query)
+        candidates, _ = _generate_phone_candidates(raw_query)
         if candidates:
-            # 1. Busca exata pelas variações de telefone
+            # Busca exata pelas variações normalizadas de telefone (preservando DDI/DDD)
             user = (
                 self.db.query(User)
                 .filter(
@@ -173,27 +166,6 @@ class UserRepository(BaseRepository):
                 .order_by(User.id.desc())
                 .first()
             )
-            if user:
-                return user
-
-            # 2. Busca por sufixo dos últimos 8 dígitos (independente de DDD ou 9º dígito)
-            search_suffix = local8_suffix or (digits if digits and len(digits) in (8, 9) else None)
-            if search_suffix:
-                user = (
-                    self.db.query(User)
-                    .filter(
-                        (User.phone.like(f"%{search_suffix}"))
-                        | (User.whatsapp_number.like(f"%{search_suffix}"))
-                    )
-                    .order_by(User.id.desc())
-                    .first()
-                )
-                if user:
-                    return user
-
-        # 3. Fallback: Busca por nome do cliente
-        if len(raw_query) >= 3 and any(c.isalpha() for c in raw_query):
-            user = self.find_by_name(raw_query)
             if user:
                 return user
 

@@ -30,4 +30,9 @@ echo "✅ Migrações aplicadas"
 
 # Iniciar aplicação
 echo "🌐 Iniciando Uvicorn..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+exec uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --workers "${UVICORN_WORKERS:-4}" \
+  --proxy-headers \
+  --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-172.16.0.0/12,10.0.0.0/8,127.0.0.1}"

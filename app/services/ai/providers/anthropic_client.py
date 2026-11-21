@@ -33,7 +33,7 @@ class AnthropicClient(BaseLLMClient):
 
     def _convert_messages(self, messages: list[LLMMessage]) -> tuple[str, list[dict[str, Any]]]:
         system_prompts: list[str] = []
-        anthropic_messages: list[dict[str, Any]] = []
+        raw_messages: list[tuple[str, list[dict[str, Any]]]] = []
 
         for msg in messages:
             if msg.role == "system":
@@ -41,16 +41,16 @@ class AnthropicClient(BaseLLMClient):
                     system_prompts.append(msg.content)
             elif msg.role == "tool":
                 # Resposta de tool para o Claude deve ser role 'user' com type 'tool_result'
-                anthropic_messages.append({
-                    "role": "user",
-                    "content": [
+                raw_messages.append((
+                    "user",
+                    [
                         {
                             "type": "tool_result",
                             "tool_use_id": msg.tool_call_id or "",
                             "content": msg.content or "",
                         }
                     ],
-                })
+                ))
             elif msg.role == "assistant":
                 blocks: list[dict[str, Any]] = []
                 if msg.content:
@@ -63,24 +63,31 @@ class AnthropicClient(BaseLLMClient):
                             "name": tc.name,
                             "input": tc.arguments,
                         })
-                anthropic_messages.append({
-                    "role": "assistant",
-                    "content": blocks if blocks else [{"type": "text", "text": ""}],
-                })
+                if blocks:
+                    raw_messages.append(("assistant", blocks))
             else:
-                anthropic_messages.append({
-                    "role": "user",
-                    "content": msg.content or "",
-                })
+                text_val = msg.content or ""
+                if text_val:
+                    raw_messages.append(("user", [{"type": "text", "text": text_val}]))
 
-        return "\n\n".join(system_prompts), anthropic_messages
+        # Anthropic exige alternância estrita user/assistant e primeira mensagem com role 'user'
+        coalesced: list[dict[str, Any]] = []
+        for role, blocks in raw_messages:
+            if not coalesced and role != "user":
+                continue
+            if coalesced and coalesced[-1]["role"] == role:
+                coalesced[-1]["content"].extend(blocks)
+            else:
+                coalesced.append({"role": role, "content": list(blocks)})
+
+        return "\n\n".join(system_prompts), coalesced
 
     async def generate_response(
         self,
         messages: list[LLMMessage],
         tools: list[ToolDefinition] | None = None,
         temperature: float = 0.3,
-        max_tokens: int = 600,
+        max_tokens: int = 1024,
     ) -> LLMResponse:
         system_prompt, formatted_messages = self._convert_messages(messages)
 

@@ -102,25 +102,26 @@ class OrderStatusSubagent(BaseSubagent):
         delivery = query.order_by(Delivery.created_at.desc()).first()
 
         # Configurações de suporte para contato
-        human_phone = "5585996277707"
-        human_name = "Equipe Anauê"
+        human_phone = ""
+        human_name = "Equipe de Atendimento"
         if self.company_settings:
-            human_phone = getattr(self.company_settings, "human_support_phone", None) or human_phone
+            human_phone = getattr(self.company_settings, "human_support_phone", None) or ""
             human_name = getattr(self.company_settings, "human_support_name", None) or human_name
         clean_phone = "".join(filter(str.isdigit, human_phone))
         if len(clean_phone) in (10, 11) and not clean_phone.startswith("55"):
             clean_phone = "55" + clean_phone
-        support_link = f"https://wa.me/{clean_phone}"
+        support_link = f"https://wa.me/{clean_phone}" if clean_phone else ""
 
         if delivery:
             if delivery.delivery_status == "a_caminho":
+                contact_hint = f" no WhatsApp ({support_link})" if support_link else ""
                 return json.dumps({
                     "status": "em_rota",
                     "codigo_pedido": delivery.order_code,
                     "mensagem": (
                         f"O pedido {delivery.order_code} já foi despachado e está a caminho do seu endereço! "
                         f"Por conta disso, não consigo cancelá-lo automaticamente pelo sistema. "
-                        f"Por favor, fale com a {human_name} no WhatsApp ({support_link}) para orientações sobre devolução."
+                        f"Por favor, fale com {human_name}{contact_hint} para orientações sobre devolução."
                     ),
                     "link_suporte": support_link,
                 }, ensure_ascii=False)
@@ -133,25 +134,30 @@ class OrderStatusSubagent(BaseSubagent):
                     "link_suporte": support_link,
                 }, ensure_ascii=False)
 
-            # Pedido em preparação ou pendente -> Cancelar com segurança
+            # Verifica se o pedido já foi pago (estorno exige atendimento humano/financeiro)
+            linked_payment = self.db.get(Payment, delivery.payment_id) if delivery.payment_id else None
+            if delivery.payment_status == "pago" or (
+                linked_payment is not None and linked_payment.status in ("received", "confirmed")
+            ):
+                contact_hint = f" ({support_link})" if support_link else ""
+                return json.dumps({
+                    "status": "ja_pago",
+                    "codigo_pedido": delivery.order_code,
+                    "mensagem": (
+                        f"O pedido {delivery.order_code} já teve o pagamento confirmado. "
+                        f"Para cancelar com segurança e providenciar o estorno, por favor fale com {human_name}{contact_hint}."
+                    ),
+                    "link_suporte": support_link,
+                }, ensure_ascii=False)
+
+            # Pedido em preparação e não pago -> Cancelar com segurança (escopo restrito ao pedido)
             delivery.delivery_status = "cancelado"
+            delivery.payment_status = "cancelado"
             note_entry = f"Cancelado a pedido do cliente no WhatsApp ({motivo})"
             delivery.notes = f"{delivery.notes} | {note_entry}".strip(" |") if delivery.notes else note_entry
 
-            # Cancela pagamento associado se houver
-            if delivery.payment_id:
-                pay = self.db.get(Payment, delivery.payment_id)
-                if pay and pay.status in ("pending", "awaiting_payment"):
-                    pay.status = "cancelled"
-
-            # Cancela pagamentos pendentes do usuário para evitar cobrança pendente
-            pending_pays = (
-                self.db.query(Payment)
-                .filter(Payment.user_id == self.user.id, Payment.status == "pending")
-                .all()
-            )
-            for p in pending_pays:
-                p.status = "cancelled"
+            if linked_payment and linked_payment.status in ("pending", "awaiting_payment"):
+                linked_payment.status = "cancelled"
 
             self.db.commit()
 
