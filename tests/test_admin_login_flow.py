@@ -145,7 +145,7 @@ def test_recovery_changes_password_revokes_other_sessions_and_clears_current(ano
     assert "admin_session" not in anonymous_client.cookies
     db_session.expire_all()
     assert db_session.get(AdminAccount, 1).auth_version == 2
-    anonymous_client.cookies.set("admin_session", old_cookie, domain="testserver.local", path="/")
+    anonymous_client.cookies.set("admin_session", old_cookie, domain="testserver.local", path="/admin")
     assert anonymous_client.get("/admin/api/kpis").status_code == 401
     assert login(anonymous_client).status_code == 400
     assert login(anonymous_client, password=NEW_PASSWORD).status_code == 303

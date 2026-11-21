@@ -201,14 +201,14 @@ async def test_support_subagent_notifies_seller_on_whatsapp(
 async def test_sales_recovery_service_finds_and_contacts_pending_leads(
     db_session: Session, sample_user: User
 ):
-    # Cria entrega pendente
+    # Cria entrega pendente com pagamento antecipado (alvo de recuperação)
     delivery = Delivery(
         order_code="ENT-8888",
         user_id=sample_user.id,
         items_description="1x Mesa de Jantar 6 Cadeiras",
         total_amount_cents=199900,
         payment_method="pix",
-        payment_timing="na_entrega",
+        payment_timing="antecipado",
         payment_status="pendente",
         delivery_status="preparando",
         delivery_address=sample_user.full_address,

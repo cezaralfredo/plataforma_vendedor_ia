@@ -131,7 +131,7 @@ def test_password_change_renews_session_and_revokes_all_old_cookies(anonymous_cl
         for cookie, token in ((old_cookie, old_session["csrf_token"]), (other_cookie, other_token)):
             for method, path in (("GET", "/admin"), ("GET", "/admin/api/kpis"), ("POST", "/admin/password")):
                 other.cookies.clear()
-                other.cookies.set("admin_session", cookie, domain="testserver.local", path="/")
+                other.cookies.set("admin_session", cookie, domain="testserver.local", path="/admin")
                 revoked = other.request(method, path, headers={"X-CSRF-Token": token}, follow_redirects=False)
                 assert revoked.status_code == (303 if path == "/admin" else 401)
         assert login(other).status_code == 400

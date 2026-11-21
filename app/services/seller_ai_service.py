@@ -147,6 +147,7 @@ class SellerAIService:
         patterns = [
             r"(?:^|\n)\s*(?:1[\.\-\)]\s*)?(?:meu\s+nome\s+[ée]|me\s+chamo|pode\s+me\s+chamar\s+de|sou\s+o|sou\s+a)\s+([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,50})",
             r"(?:^|\n)\s*(?:1[\.\-\)]\s*)?nome(?:\s+completo)?\s*:\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,50})",
+            r"(?:^|\n)\s*1[\.\-\)]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{2,40})(?=\r?\n\s*2[\.\-\)])",
         ]
         invalid_words = {
             "cliente", "obrigado", "obrigada", "valeu", "sim", "não", "nao", "ok",

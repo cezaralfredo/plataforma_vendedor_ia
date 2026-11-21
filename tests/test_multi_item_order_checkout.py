@@ -49,8 +49,18 @@ async def test_checkout_multi_item_order_with_fractional_weight_and_address(db_s
         "forma_pagamento": "pix",
     }
 
-    res_str = await checkout.execute_tool("criar_pedido_entrega", args)
-    data = json.loads(res_str)
+    with patch.object(checkout.payment_service.asaas, "create_payment", new_callable=AsyncMock) as mock_asaas, \
+         patch.object(checkout.payment_service.asaas, "list_customers", new_callable=AsyncMock) as mock_cust:
+        mock_cust.return_value = [{"id": "cus_888", "mobilePhone": user.phone}]
+        mock_asaas.return_value = {
+            "id": "pay_888",
+            "status": "PENDING",
+            "invoiceUrl": "https://sandbox.asaas.com/i/test888",
+            "value": 84.50,
+        }
+
+        res_str = await checkout.execute_tool("criar_pedido_entrega", args)
+        data = json.loads(res_str)
 
     assert data["status"] == "sucesso"
     assert data["valor_total_formatado"] == "R$ 84.50"

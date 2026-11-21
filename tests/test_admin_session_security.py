@@ -25,7 +25,7 @@ def set_admin_session(client, *, signer=None, **overrides):
     signed = signer.sign(
         b64encode(json.dumps(session).encode())
     )
-    client.cookies.set("admin_session", signed.decode(), domain="testserver.local", path="/")
+    client.cookies.set("admin_session", signed.decode(), domain="testserver.local", path="/admin")
 
 
 def test_anonymous_admin_page_redirects_to_login(anonymous_client):

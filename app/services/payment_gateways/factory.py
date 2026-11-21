@@ -39,6 +39,7 @@ def get_payment_gateway(
             key_path=creds.get("key_path"),
         )
     elif provider_normalized in {
+        "pix_direto",
         "pix_direct",
         "direct_pix",
         "banco_direto",
