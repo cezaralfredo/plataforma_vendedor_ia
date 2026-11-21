@@ -57,24 +57,59 @@ WITH deleted_webhooks AS (
 )
 SELECT COUNT(*) AS total_webhooks_purgados FROM deleted_webhooks;
 
--- 5. Purgar pagamentos não pagos vinculados a agendamentos cancelados/abandonados há mais de 60 dias
+-- 4b. Purgar chaves de deduplicação de webhooks WhatsApp com mais de 30 dias
+DELETE FROM processed_inbound_messages
+WHERE created_at < NOW() - INTERVAL '30 days';
+
+-- 5. Purgar registros dependentes e pagamentos não pagos de agendamentos cancelados/abandonados há mais de 60 dias
+DELETE FROM notification_deliveries
+WHERE appointment_id IN (
+    SELECT id FROM appointments a
+    WHERE a.status IN ('cancelled', 'pending')
+      AND a.end_time < NOW() - INTERVAL '60 days'
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.appointment_id = a.id
+            AND p.status IN ('received', 'confirmed')
+      )
+);
+
+DELETE FROM notification_log
+WHERE appointment_id IN (
+    SELECT id FROM appointments a
+    WHERE a.status IN ('cancelled', 'pending')
+      AND a.end_time < NOW() - INTERVAL '60 days'
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.appointment_id = a.id
+            AND p.status IN ('received', 'confirmed')
+      )
+);
+
 DELETE FROM payments
 WHERE appointment_id IN (
-    SELECT id FROM appointments
-    WHERE status IN ('cancelled', 'pending')
-      AND end_time < NOW() - INTERVAL '60 days'
+    SELECT id FROM appointments a
+    WHERE a.status IN ('cancelled', 'pending')
+      AND a.end_time < NOW() - INTERVAL '60 days'
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.appointment_id = a.id
+            AND p.status IN ('received', 'confirmed')
+      )
 )
 AND status IN ('cancelled', 'overdue', 'pending');
 
--- 6. Purgar agendamentos cancelados ou abandonados há mais de 60 dias (que não possuem pagamentos recebidos)
+-- 6. Purgar agendamentos cancelados ou abandonados há mais de 60 dias (usando NOT EXISTS imune a NULL)
 WITH deleted_cancelled_appointments AS (
-    DELETE FROM appointments
-    WHERE status IN ('cancelled', 'pending')
-      AND end_time < NOW() - INTERVAL '60 days'
-      AND id NOT IN (
-          SELECT appointment_id FROM payments WHERE status IN ('received', 'confirmed')
+    DELETE FROM appointments a
+    WHERE a.status IN ('cancelled', 'pending')
+      AND a.end_time < NOW() - INTERVAL '60 days'
+      AND NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.appointment_id = a.id
+            AND p.status IN ('received', 'confirmed')
       )
-    RETURNING id
+    RETURNING a.id
 )
 SELECT COUNT(*) AS total_agendamentos_cancelados_purgados FROM deleted_cancelled_appointments;
 

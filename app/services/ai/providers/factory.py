@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 # Modelos recomendados padrão por provedor
 DEFAULT_MODELS: dict[str, str] = {
     "openai": "gpt-4o-mini",
-    "anthropic": "claude-3-5-haiku-20241022",
-    "gemini": "gemini-1.5-flash",
+    "anthropic": "claude-haiku-4-5",
+    "gemini": "gemini-2.5-flash",
     "groq": "llama-3.3-70b-versatile",
     "openrouter": "openai/gpt-4o-mini",
     "custom": "llama3.2",
@@ -81,7 +81,7 @@ def get_llm_client(company_settings: CompanySettings | None = None) -> BaseLLMCl
     custom_headers: dict[str, str] = {}
     if provider == "openrouter":
         custom_headers = {
-            "HTTP-Referer": "https://agendatende.com.br",
+            "HTTP-Referer": "https://vende360.local",
             "X-Title": "Plataforma Vendedor IA",
         }
 

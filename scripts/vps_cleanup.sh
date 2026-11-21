@@ -23,7 +23,7 @@ WEBHOOK_URL="${WEBHOOK_URL:-}"
 DRY_RUN=false
 FORCE=false
 IS_CRON=false
-WARN_WAIT_SECONDS="${WARN_WAIT_SECONDS:-60}" # Padrão: 60s antes da limpeza (ou 900s via cron)
+WARN_WAIT_SECONDS="${WARN_WAIT_SECONDS:-}" # Padrão: 60s manual ou 300s via --cron
 
 # Cores para terminal
 RED='\033[0;31m'
@@ -68,7 +68,7 @@ send_webhook() {
     if [ -n "$WEBHOOK_URL" ] && command -v curl >/dev/null 2>&1; then
         local payload
         payload=$(printf '{"title":"%s","content":"%s","timestamp":"%s"}' "$title" "$text" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
-        curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$WEBHOOK_URL" >/dev/null 2>&1 || true
+        curl -s --max-time 10 -X POST -H "Content-Type: application/json" -d "$payload" "$WEBHOOK_URL" >/dev/null 2>&1 || true
     fi
 }
 
@@ -118,6 +118,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Define janela padrão caso não informada por env, --wait ou --cron
+WARN_WAIT_SECONDS="${WARN_WAIT_SECONDS:-60}"
+
 # -----------------------------------------------------------------------------
 # 1. FASE DE AVISO PRÉVIO (PRESERVAÇÃO E TRANSPARÊNCIA)
 # -----------------------------------------------------------------------------
@@ -144,7 +147,7 @@ log "1/5: Verificando logs de containers em /var/lib/docker/containers..."
 
 if [ -d "/var/lib/docker/containers" ]; then
     # Procura arquivos .log com mais de 20MB ou modificados há mais de 30 dias
-    LOGS_ENCONTRADOS=$(find /var/lib/docker/containers/ -type f -name "*.log" 2>/dev/null || true)
+    LOGS_ENCONTRADOS=$(find /var/lib/docker/containers/ -type f -name "*.log" \( -size +20M -o -mtime "+${RETENTION_DAYS}" \) 2>/dev/null || true)
     
     if [ -n "$LOGS_ENCONTRADOS" ]; then
         while IFS= read -r log_file; do

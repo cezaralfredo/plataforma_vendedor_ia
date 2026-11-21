@@ -540,7 +540,7 @@ function clientsPage(){return{
       this.saving=false;
     }
   },
-  async remove(client){const decision=await adminConfirm({title:'Arquivar cliente',message:`Deseja arquivar ${client.name}? Se não houver histórico, o cadastro será removido definitivamente.`,confirmLabel:'Continuar',tone:'danger'});if(!decision.confirmed)return;try{const result=await this.request(`/admin/api/clients/${client.id}`,{method:'DELETE'});await this.reload();adminNotify({type:'success',message:result.outcome==='deleted'?'Cliente sem histórico removido.':'Cliente arquivado; o histórico foi preservado.'})}catch(error){adminNotify({type:'error',message:error.message})}},
+  async remove(client){const decision=await adminConfirm({title:'Arquivar cliente',message:`Deseja arquivar ${client.name}? Se não houver histórico, o cadastro será removido definitivamente.`,confirmLabel:'Continuar',destructive:true});if(!decision.confirmed)return;try{const result=await this.request(`/admin/api/clients/${client.id}`,{method:'DELETE'});await this.reload();adminNotify({type:'success',message:result.outcome==='deleted'?'Cliente sem histórico removido.':'Cliente arquivado; o histórico foi preservado.'})}catch(error){adminNotify({type:'error',message:error.message})}},
   async reactivate(client){try{await this.request(`/admin/api/clients/${client.id}/reactivate`,{method:'POST'});await this.reload();adminNotify({type:'success',message:`${client.name} foi reativado.`})}catch(error){adminNotify({type:'error',message:error.message})}},
   previousPage(){if(this.page>1){this.page--;this.reload()}},nextPage(){if(this.page<this.totalPages){this.page++;this.reload()}},
   openImport(){this.importFile=null;this.importSummary=null;this.importing=false;this.importModalOpen=true},

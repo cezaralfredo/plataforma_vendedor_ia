@@ -27,6 +27,9 @@ venv/
 .venv/
 env/
 .env
+.env.*
+!.env.example
+!.env.prod.example
 
 # IDE
 .vscode/
@@ -68,6 +71,12 @@ scripts/*
 !scripts/backup.sh
 !scripts/run_migrations.py
 !scripts/copy-admin-icons.cjs
+!scripts/create_or_reset_admin.py
+rclone/
+docs/
+.agents/
+.mypy_cache/
+.ruff_cache/
 node_modules/
 .worktrees/
 

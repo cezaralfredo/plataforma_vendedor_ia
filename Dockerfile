@@ -8,6 +8,7 @@ WORKDIR /src
 COPY package.json package-lock.json tailwind.config.js ./
 RUN npm ci
 COPY app/admin ./app/admin
+COPY app/seller ./app/seller
 COPY scripts/copy-admin-icons.cjs ./scripts/copy-admin-icons.cjs
 RUN npm run build:admin
 
