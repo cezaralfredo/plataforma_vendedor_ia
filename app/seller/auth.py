@@ -21,7 +21,7 @@ def _seller_secret() -> bytes:
     if not key:
         if not settings.debug:
             raise RuntimeError("ADMIN_SESSION_SECRET is required in production for seller sessions")
-        key = "dev-only-seller-session-secret"
+        key = "dev-only-seller-session-fallback"  # noqa: S105
     return hashlib.sha256(f"seller_session_secret_{key}".encode()).digest()
 
 

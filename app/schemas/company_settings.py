@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-MASKED_SECRET_VALUE = "••••••••"
+MASKED_SECRET_VALUE = "••••••••"  # noqa: S105
 
 SENSITIVE_CREDENTIAL_KEYS = frozenset({
     "api_key",
