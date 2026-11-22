@@ -296,8 +296,23 @@ class SellerAIService:
 
     async def handle_inbound_message(self, inbound: InboundMessage) -> str:
         """Ponto de entrada único para qualquer mensagem recebida no WhatsApp."""
-        phone = inbound.sender_phone
-        text = inbound.text.strip()
+        phone = (inbound.sender_phone or "").strip()
+        phone_lower = phone.lower()
+        if (
+            not phone
+            or phone_lower == "status@broadcast"
+            or "@g.us" in phone_lower
+            or "@broadcast" in phone_lower
+            or "@newsletter" in phone_lower
+        ):
+            logger.debug("Mensagem ignorada por origem não-direta: '%s'", phone)
+            return ""
+
+        text = (inbound.text or "").strip()
+        if not text and getattr(inbound, "media_type", None) != "audio":
+            logger.debug("Mensagem vazia ignorada para %s.", phone)
+            return ""
+
         user = self._get_or_create_user(phone, inbound.sender_name)
 
         # Se for mensagem enviada do próprio número (fromMe: true / WhatsApp Business App)

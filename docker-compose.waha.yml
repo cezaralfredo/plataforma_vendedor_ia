@@ -16,6 +16,7 @@ services:
       # Webhook de retorno para a API do Vendedor IA
       - WHATSAPP_HOOK_URL=http://vendedor-ia:8000/api/webhooks/whatsapp/waha
       - WHATSAPP_HOOK_EVENTS=message.any
+      - WHATSAPP_HOOK_HMAC_KEY=${WAHA_API_KEY:?Defina WAHA_API_KEY}
     volumes:
       - waha_sessions:/app/.sessions
     networks:

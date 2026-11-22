@@ -126,9 +126,16 @@ class EvolutionWhatsAppProvider(BaseWhatsAppProvider):
         body = payload.get("data") or payload
         key = body.get("key") or {}
 
-        remote_jid = key.get("remoteJid") or ""
-        # Ignora mensagens de grupos do WhatsApp
-        if remote_jid.endswith("@g.us"):
+        remote_jid = str(key.get("remoteJid") or "").strip()
+        remote_lower = remote_jid.lower()
+        # Ignora grupos, status/stories, listas de transmissão e canais do WhatsApp
+        if (
+            not remote_lower
+            or remote_lower == "status@broadcast"
+            or remote_lower.endswith("@g.us")
+            or remote_lower.endswith("@broadcast")
+            or remote_lower.endswith("@newsletter")
+        ):
             return None
 
         clean_phone = self._clean_phone(remote_jid)

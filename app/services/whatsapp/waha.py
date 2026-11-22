@@ -264,22 +264,46 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 error=str(exc),
             )
 
-    @staticmethod
-    def _default_webhook_config() -> dict[str, Any]:
+    def _default_webhook_config(self) -> dict[str, Any]:
         import os
 
         webhook_url = (
             os.getenv("WAHA_WEBHOOK_URL")
             or "http://vendedor-ia:8000/api/webhooks/whatsapp/waha"
         )
-        return {
-            "webhooks": [
-                {
-                    "url": webhook_url,
-                    "events": ["message", "message.any"],
-                }
-            ]
+        webhook_entry: dict[str, Any] = {
+            "url": webhook_url,
+            "events": ["message", "message.any"],
         }
+        hmac_key = (self.api_key or os.getenv("WAHA_API_KEY") or "").strip()
+        if hmac_key:
+            webhook_entry["hmac"] = {"key": hmac_key}
+
+        return {
+            "ignore": {
+                "status": True,
+                "groups": True,
+                "channels": True,
+                "broadcast": True,
+            },
+            "webhooks": [webhook_entry],
+        }
+
+    @staticmethod
+    def _is_non_direct_chat(jid: Any) -> bool:
+        """Retorna True para grupos, status/stories, listas de transmissão ou canais."""
+        raw = str(jid or "").strip().lower()
+        if not raw:
+            return False
+        return (
+            raw == "status@broadcast"
+            or raw.endswith("@g.us")
+            or raw.endswith("@broadcast")
+            or raw.endswith("@newsletter")
+            or "@g.us" in raw
+            or "@broadcast" in raw
+            or "@newsletter" in raw
+        )
 
     def parse_inbound_webhook(self, payload: dict[str, Any]) -> InboundMessage | None:
         """Processa webhook do WAHA (evento 'message', 'message.any' ou 'message.create')."""
@@ -293,6 +317,43 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
         data_block = msg_data.get("_data") or {}
         key_block = data_block.get("key") or msg_data.get("key") or {}
 
+        # 1. Bloqueia ANTES de resolver números alternativos: grupos, status/stories, canais e broadcasts
+        conversation_jids = (
+            msg_data.get("from"),
+            msg_data.get("to"),
+            msg_data.get("chatId"),
+            data_block.get("from"),
+            key_block.get("remoteJid"),
+            msg_data.get("id"),
+        )
+        if any(self._is_non_direct_chat(jid) for jid in conversation_jids):
+            return None
+
+        # 2. Ignora mensagens de sistema, protocolo, reações, chamadas ou revogadas
+        ignored_types = {
+            "protocol",
+            "revoked",
+            "e2e_notification",
+            "notification",
+            "notification_template",
+            "call_log",
+            "reaction",
+            "poll_update",
+            "gp2",
+            "ciphertext",
+            "unknown",
+        }
+        msg_type = str(msg_data.get("type") or data_block.get("type") or "").strip().lower()
+        if msg_type in ignored_types:
+            return None
+
+        raw_inner_msg = data_block.get("message") if isinstance(data_block.get("message"), dict) else {}
+        if raw_inner_msg and any(
+            k in raw_inner_msg
+            for k in ("protocolMessage", "reactionMessage", "senderKeyDistributionMessage")
+        ):
+            return None
+
         if is_from_me:
             # Em mensagens enviadas pelo app móvel/bot, o destinatário é o cliente
             target = (
@@ -303,10 +364,9 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 or ""
             )
         else:
-            # 1. Prioriza identificador canônico de telefone se disponível (remoteJidAlt / participantAlt / senderPn)
+            # Em chats 1:1 com LID, prioriza o número canônico (nunca participantAlt de grupo/status)
             candidate_pns = [
                 key_block.get("remoteJidAlt"),
-                key_block.get("participantAlt"),
                 data_block.get("senderPn"),
                 data_block.get("pn"),
                 msg_data.get("senderPn"),
@@ -327,8 +387,7 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 or ""
             )
 
-        # Ignora mensagens de grupos do WhatsApp
-        if str(target).endswith("@g.us"):
+        if self._is_non_direct_chat(target):
             return None
 
         # Se for um LID (@lid), preserva a tag para roteamento e envio correto
@@ -356,13 +415,14 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
         media_info = msg_data.get("media") or {}
         if has_media:
             mimetype = media_info.get("mimetype") or msg_data.get("_data", {}).get("mimetype") or ""
-            if "audio" in mimetype or msg_data.get("type") in ("ptt", "audio"):
+            if "audio" in mimetype or msg_type in ("ptt", "audio"):
                 media_type = "audio"
                 media_url = media_info.get("url")
                 if not text:
                     text = "[Mensagem de áudio recebida]"
 
-        if not text and not has_media:
+        # Só prossegue se houver texto útil ou áudio transcrevível (evita responder figurinhas/mídia vazia)
+        if not text:
             return None
 
         msg_id = str(msg_data.get("id") or "")
@@ -443,6 +503,7 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
                 "name": self.session,
                 "config": {
                     **config,
+                    "ignore": target_config["ignore"],
                     "webhooks": target_config["webhooks"],
                 },
             }

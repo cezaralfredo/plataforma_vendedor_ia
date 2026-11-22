@@ -295,3 +295,115 @@ async def test_waha_ensure_session_webhook_skips_when_already_synced():
     assert client.put.call_count == 0
 
 
+def test_waha_ignores_status_broadcast_even_with_participant_alt():
+    provider = WahaWhatsAppProvider(base_url="http://waha:3000")
+    payload = {
+        "event": "message.any",
+        "session": "default",
+        "payload": {
+            "id": "false_status@broadcast_3EB0STATUS123",
+            "from": "status@broadcast",
+            "fromMe": False,
+            "body": "Bom dia pessoal!",
+            "_data": {
+                "notifyName": "Contato da Agenda",
+                "key": {
+                    "remoteJid": "status@broadcast",
+                    "participant": "102228962623501@lid",
+                    "participantAlt": "5585999991111@s.whatsapp.net",
+                },
+            },
+        },
+    }
+    assert provider.parse_inbound_webhook(payload) is None
+
+
+def test_waha_ignores_group_message_even_with_participant_alt():
+    provider = WahaWhatsAppProvider(base_url="http://waha:3000")
+    payload = {
+        "event": "message.any",
+        "session": "default",
+        "payload": {
+            "id": "false_120363000000000@g.us_3EB0GRP123",
+            "from": "120363000000000@g.us",
+            "fromMe": False,
+            "body": "Alguém sabe o preço?",
+            "_data": {
+                "notifyName": "Membro do Grupo",
+                "key": {
+                    "remoteJid": "120363000000000@g.us",
+                    "participant": "102228962623501@lid",
+                    "participantAlt": "5585999992222@s.whatsapp.net",
+                },
+            },
+        },
+    }
+    assert provider.parse_inbound_webhook(payload) is None
+
+
+def test_waha_ignores_newsletter_protocol_and_empty_non_audio_media():
+    provider = WahaWhatsAppProvider(base_url="http://waha:3000")
+
+    newsletter_payload = {
+        "event": "message",
+        "payload": {
+            "id": "false_120363000@newsletter_1",
+            "from": "120363000@newsletter",
+            "fromMe": False,
+            "body": "Novidades do canal",
+        },
+    }
+    assert provider.parse_inbound_webhook(newsletter_payload) is None
+
+    reaction_payload = {
+        "event": "message.any",
+        "payload": {
+            "id": "false_5585999993333@c.us_REACT1",
+            "from": "5585999993333@c.us",
+            "fromMe": False,
+            "type": "reaction",
+            "body": "👍",
+        },
+    }
+    assert provider.parse_inbound_webhook(reaction_payload) is None
+
+    empty_sticker_payload = {
+        "event": "message",
+        "payload": {
+            "id": "false_5585999993333@c.us_STK1",
+            "from": "5585999993333@c.us",
+            "fromMe": False,
+            "hasMedia": True,
+            "body": "",
+            "media": {"mimetype": "image/webp"},
+        },
+    }
+    assert provider.parse_inbound_webhook(empty_sticker_payload) is None
+
+
+def test_evolution_ignores_status_broadcast_and_newsletter():
+    provider = EvolutionWhatsAppProvider(base_url="http://evolution:8080", instance="default")
+    for jid in ("status@broadcast", "120363000@newsletter", "120363000@g.us"):
+        payload = {
+            "event": "messages.upsert",
+            "data": {
+                "key": {"remoteJid": jid, "fromMe": False, "id": "evo-ignore-1"},
+                "message": {"conversation": "Texto qualquer"},
+            },
+        }
+        assert provider.parse_inbound_webhook(payload) is None
+
+
+def test_waha_default_webhook_config_ignores_non_direct_chats_and_sets_hmac():
+    provider = WahaWhatsAppProvider(base_url="http://waha:3000", api_key="waha-hmac-secret")
+    cfg = provider._default_webhook_config()
+    assert cfg["ignore"] == {
+        "status": True,
+        "groups": True,
+        "channels": True,
+        "broadcast": True,
+    }
+    assert cfg["webhooks"][0]["hmac"] == {"key": "waha-hmac-secret"}
+
+
+
