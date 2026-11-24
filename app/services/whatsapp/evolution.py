@@ -156,10 +156,16 @@ class EvolutionWhatsAppProvider(BaseWhatsAppProvider):
         audio_msg = msg.get("audioMessage")
         media_type = "text"
         media_url = None
+        media_mimetype = None
+        media_base64 = None
 
         if audio_msg:
             media_type = "audio"
             media_url = audio_msg.get("url")
+            media_mimetype = audio_msg.get("mimetype") or "audio/ogg"
+            raw_b64 = msg.get("base64") or body.get("base64")
+            if isinstance(raw_b64, str) and raw_b64.strip():
+                media_base64 = raw_b64.strip()
             if not text:
                 text = "[Mensagem de áudio recebida]"
 
@@ -177,6 +183,8 @@ class EvolutionWhatsAppProvider(BaseWhatsAppProvider):
             message_id=msg_id,
             media_type=media_type,
             media_url=media_url,
+            media_mimetype=media_mimetype,
+            media_base64=media_base64,
             is_from_me=is_from_me,
             raw_payload=payload,
         )

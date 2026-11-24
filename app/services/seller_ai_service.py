@@ -367,16 +367,34 @@ class SellerAIService:
             )
             return ""
 
-        # Se for mensagem de áudio, tenta transcrever com Whisper
-        if getattr(inbound, "media_type", None) == "audio" and inbound.media_url:
+        # Se for mensagem de áudio, transcreve com provedor ativo (OpenRouter/Gemini/Groq/OpenAI) + cascata
+        audio_untranscribed = False
+        if getattr(inbound, "media_type", None) == "audio":
+            transcription: str | None = None
             try:
                 from app.services.whatsapp.transcription_service import AudioTranscriptionService
-                transcription = await AudioTranscriptionService(self.db).download_and_transcribe(inbound.media_url)
+
+                transcriber = AudioTranscriptionService(self.db)
+                media_b64 = getattr(inbound, "media_base64", None)
+                media_mime = getattr(inbound, "media_mimetype", None)
+                if media_b64:
+                    transcription = await transcriber.transcribe_base64(
+                        media_b64, mimetype=media_mime
+                    )
+                if not transcription and inbound.media_url:
+                    transcription = await transcriber.download_and_transcribe(
+                        inbound.media_url,
+                        provider=inbound.provider,
+                        mimetype=media_mime,
+                    )
                 if transcription:
                     text = transcription
                     logger.info("Áudio do WhatsApp (%s) transcrito com sucesso: '%s'", phone, text)
+                else:
+                    audio_untranscribed = text == "[Mensagem de áudio recebida]"
             except Exception as e:
                 logger.warning("Falha ao tentar transcrever áudio recebido: %s", e)
+                audio_untranscribed = text == "[Mensagem de áudio recebida]"
 
         # Identifica se a mensagem contém indicação ou link de um vendedor específico
         self._update_seller_attribution_if_present(user, text)
@@ -415,6 +433,16 @@ class SellerAIService:
                         return ""
                 except Exception:
                     logger.debug("Falha ao analisar data de pausa de IA para %s", phone)
+
+        # Se o áudio não pôde ser transcrito, responde educadamente pedindo texto sem confundir o LLM
+        if audio_untranscribed:
+            fallback_reply = (
+                "Desculpe, não consegui ouvir o seu áudio agora. "
+                "Pode me enviar sua mensagem por texto ou gravar novamente, por favor?"
+            )
+            self._record_chat(phone, "assistant", fallback_reply, inbound.provider)
+            await self._send_fractioned_messages(phone, fallback_reply, provider_name=inbound.provider)
+            return fallback_reply
 
         # 1. Triagem Ultrarrápida de Nível 1 com TypeSafe Jev (OpenRouter Decisions API)
         triage_result = None

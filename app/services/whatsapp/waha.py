@@ -411,15 +411,31 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
 
         media_type = "text"
         media_url = None
+        media_mimetype = None
+        media_base64 = None
         has_media = msg_data.get("hasMedia") is True
-        media_info = msg_data.get("media") or {}
-        if has_media:
-            mimetype = media_info.get("mimetype") or msg_data.get("_data", {}).get("mimetype") or ""
-            if "audio" in mimetype or msg_type in ("ptt", "audio"):
-                media_type = "audio"
-                media_url = media_info.get("url")
-                if not text:
-                    text = "[Mensagem de áudio recebida]"
+        media_info = msg_data.get("media") if isinstance(msg_data.get("media"), dict) else {}
+        audio_msg_block = raw_inner_msg.get("audioMessage") if isinstance(raw_inner_msg, dict) else None
+        detected_mimetype = str(
+            media_info.get("mimetype")
+            or data_block.get("mimetype")
+            or (audio_msg_block.get("mimetype") if isinstance(audio_msg_block, dict) else "")
+            or ""
+        ).strip()
+        is_audio = (
+            "audio" in detected_mimetype.lower()
+            or msg_type in ("ptt", "audio")
+            or bool(audio_msg_block)
+        )
+        if is_audio and (has_media or media_info or audio_msg_block or msg_type in ("ptt", "audio")):
+            media_type = "audio"
+            media_url = media_info.get("url") or None
+            media_mimetype = detected_mimetype or "audio/ogg"
+            raw_b64 = media_info.get("data") or msg_data.get("base64")
+            if isinstance(raw_b64, str) and raw_b64.strip():
+                media_base64 = raw_b64.strip()
+            if not text:
+                text = "[Mensagem de áudio recebida]"
 
         # Só prossegue se houver texto útil ou áudio transcrevível (evita responder figurinhas/mídia vazia)
         if not text:
@@ -445,6 +461,8 @@ class WahaWhatsAppProvider(BaseWhatsAppProvider):
             message_id=msg_id,
             media_type=media_type,
             media_url=media_url,
+            media_mimetype=media_mimetype,
+            media_base64=media_base64,
             is_from_me=is_from_me,
             raw_payload=payload,
         )
